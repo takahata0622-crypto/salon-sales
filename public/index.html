@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>サロン売上管理</title>
+
+  <!-- Firebase compat SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+
+  <!-- React + Babel -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    :root {
+      --bg: #F7F3EE;
+      --card: #FFFFFF;
+      --ink: #1A1714;
+      --accent: #9B6A4A;
+      --accent-light: #F3EAE0;
+      --muted: #8A7F76;
+      --border: #E5DDD5;
+      --danger: #C0392B;
+      --success: #2E7D5E;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      min-height: 100vh;
+    }
+
+    header {
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    header h1 {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 0;
+      background: var(--accent-light);
+      border-radius: 10px;
+      padding: 3px;
+      margin: 16px 16px 0;
+    }
+
+    .tab {
+      flex: 1;
+      padding: 8px 12px;
+      text-align: center;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--muted);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s;
+      background: none;
+      border: none;
+    }
+
+    .tab.active {
+      background: var(--card);
+      color: var(--accent);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+
+    .main { padding: 16px; }
+
+    /* 今日の売上 */
+    .today-total {
+      background: var(--accent);
+      color: white;
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 16px;
+      text-align: center;
+    }
+
+    .today-total .label {
+      font-size: 13px;
+      opacity: 0.85;
+      margin-bottom: 6px;
+    }
+
+    .today-total .amount {
+      font-size: 36px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .today-total .count {
+      font-size: 12px;
+      opacity: 0.75;
+      margin-top: 4px;
+    }
+
+    /* コース追加 */
+    .add-section {
+      background: var(--card);
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 16px;
+      border: 1px solid var(--border);
+    }
+
+    .add-section h2 {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .preset-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .preset-btn {
+      background: var(--accent-light);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 8px;
+      text-align: left;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .preset-btn:active {
+      background: var(--accent);
+      color: white;
+      border-color: var(--accent);
+    }
+
+    .preset-btn .course-name {
+      font-size: 13px;
+      font-weight: 600;
+      display: block;
+    }
+
+    .preset-btn .course-price {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 2px;
+      display: block;
+    }
+
+    .preset-btn:active .course-price {
+      color: rgba(255,255,255,0.8);
+    }
+
+    /* カスタム入力 */
+    .custom-input-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .custom-input-row input {
+      flex: 1;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 14px;
+      background: var(--bg);
+      color: var(--ink);
+      outline: none;
+    }
+
+    .custom-input-row input:focus {
+      border-color: var(--accent);
+    }
+
+    .add-btn {
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      padding: 10px 16px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    /* 今日のリスト */
+    .entry-list {
+      background: var(--card);
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      overflow: hidden;
+    }
+
+    .entry-list h2 {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--muted);
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .entry-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .entry-item:last-child { border-bottom: none; }
+
+    .entry-info .entry-name {
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .entry-info .entry-time {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .entry-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .entry-price {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    .delete-btn {
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 16px;
+      padding: 4px;
+      line-height: 1;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 32px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    /* 月次集計 */
+    .month-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .month-nav {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .month-nav button {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      width: 32px;
+      height: 32px;
+      cursor: pointer;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .month-nav .month-label {
+      font-size: 16px;
+      font-weight: 700;
+      min-width: 100px;
+      text-align: center;
+    }
+
+    .month-summary {
+      background: var(--accent);
+      color: white;
+      border-radius: 16px;
+      padding: 18px;
+      margin-bottom: 16px;
+      display: flex;
+      justify-content: space-around;
+      text-align: center;
+    }
+
+    .month-summary .stat-label {
+      font-size: 12px;
+      opacity: 0.8;
+      margin-bottom: 4px;
+    }
+
+    .month-summary .stat-value {
+      font-size: 22px;
+      font-weight: 700;
+    }
+
+    .day-card {
+      background: var(--card);
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      margin-bottom: 8px;
+      overflow: hidden;
+    }
+
+    .day-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      cursor: pointer;
+    }
+
+    .day-card-header .day-label {
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .day-card-header .day-total {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    .day-card-body {
+      border-top: 1px solid var(--border);
+      padding: 8px 0;
+    }
+
+    .day-entry {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 16px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .day-entry .de-price { font-weight: 500; color: var(--ink); }
+
+    /* プリセット管理 */
+    .manage-section {
+      background: var(--card);
+      border-radius: 16px;
+      padding: 16px;
+      border: 1px solid var(--border);
+      margin-bottom: 16px;
+    }
+
+    .manage-section h2 {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .preset-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .preset-item:last-of-type { border-bottom: none; }
+
+    .preset-item .pi-name { font-size: 14px; font-weight: 500; }
+    .preset-item .pi-price { font-size: 13px; color: var(--muted); }
+
+    .new-preset-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr auto;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .new-preset-row input {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 13px;
+      background: var(--bg);
+      color: var(--ink);
+      outline: none;
+    }
+
+    .new-preset-row input:focus { border-color: var(--accent); }
+
+    .new-preset-row button {
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+
+<div id="root"></div>
+
+<script>
+  window.FIREBASE_CONFIG = {
+    apiKey: "AIzaSyBeYk5Jv4aDV9VuCfVjKu_rB65uM16spUE",
+    authDomain: "salon-sales-3c716.firebaseapp.com",
+    projectId: "salon-sales-3c716",
+    storageBucket: "salon-sales-3c716.firebasestorage.app",
+    messagingSenderId: "544550950340",
+    appId: "1:544550950340:web:0e5dfd3f9dd054e3748091"
+  };
+</script>
+
+<script type="text/babel">
+  const { useState, useEffect, useCallback } = React;
+
+  // Firebase 初期化
+  firebase.initializeApp(window.FIREBASE_CONFIG);
+  const db = firebase.firestore();
+  const auth = firebase.auth();
+
+  // 日付ユーティリティ
+  const toJST = (date = new Date()) => {
+    const jst = new Date(date.getTime() + 9 * 60 * 60 * 1000);
+    return jst;
+  };
+
+  const todayStr = () => {
+    const d = toJST();
+    return d.toISOString().slice(0, 10); // YYYY-MM-DD
+  };
+
+  const formatPrice = (n) => `¥${n.toLocaleString()}`;
+
+  const formatTime = (ts) => {
+    if (!ts) return '';
+    const d = ts.toDate ? ts.toDate() : new Date(ts);
+    const jst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+    return jst.toISOString().slice(11, 16);
+  };
+
+  const DEFAULT_PRESETS = [
+    { id: 'p1', name: 'カット', price: 5000 },
+    { id: 'p2', name: 'カラー', price: 8000 },
+    { id: 'p3', name: 'パーマ', price: 12000 },
+    { id: 'p4', name: 'トリートメント', price: 4000 },
+    { id: 'p5', name: 'カット+カラー', price: 13000 },
+    { id: 'p6', name: 'ヘッドスパ', price: 6000 },
+  ];
+
+  // ==================== コンポーネント ====================
+
+  function App() {
+    const [tab, setTab] = useState('today');
+    const [uid, setUid] = useState(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+      // 匿名ログイン
+      auth.signInAnonymously().then(result => {
+        setUid(result.user.uid);
+        setLoading(false);
+      }).catch(err => {
+        console.error(err);
+        setLoading(false);
+      });
+    }, []);
+
+    if (loading) return <div className="loading">読み込み中...</div>;
+    if (!uid) return <div className="loading">エラーが発生しました</div>;
+
+    return (
+      <>
+        <header>
+          <h1>💄 サロン売上管理</h1>
+        </header>
+
+        <div className="tabs">
+          <button className={`tab ${tab === 'today' ? 'active' : ''}`} onClick={() => setTab('today')}>今日</button>
+          <button className={`tab ${tab === 'history' ? 'active' : ''}`} onClick={() => setTab('history')}>集計</button>
+          <button className={`tab ${tab === 'settings' ? 'active' : ''}`} onClick={() => setTab('settings')}>設定</button>
+        </div>
+
+        <div className="main">
+          {tab === 'today' && <TodayTab uid={uid} />}
+          {tab === 'history' && <HistoryTab uid={uid} />}
+          {tab === 'settings' && <SettingsTab uid={uid} />}
+        </div>
+      </>
+    );
+  }
+
+  // ========== 今日タブ ==========
+  function TodayTab({ uid }) {
+    const [entries, setEntries] = useState([]);
+    const [presets, setPresets] = useState([]);
+    const [customName, setCustomName] = useState('');
+    const [customPrice, setCustomPrice] = useState('');
+    const today = todayStr();
+
+    // プリセット読み込み
+    useEffect(() => {
+      const ref = db.collection('users').doc(uid).collection('presets');
+      ref.orderBy('createdAt').get().then(snap => {
+        if (snap.empty) {
+          setPresets(DEFAULT_PRESETS);
+        } else {
+          setPresets(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        }
+      });
+    }, [uid]);
+
+    // 今日のエントリ購読
+    useEffect(() => {
+      const ref = db.collection('users').doc(uid)
+        .collection('days').doc(today)
+        .collection('entries')
+        .orderBy('createdAt', 'asc');
+
+      const unsub = ref.onSnapshot(snap => {
+        setEntries(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      });
+      return () => unsub();
+    }, [uid, today]);
+
+    const addEntry = async (name, price) => {
+      if (!name || !price) return;
+      await db.collection('users').doc(uid)
+        .collection('days').doc(today)
+        .collection('entries')
+        .add({ name, price: Number(price), createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+    };
+
+    const deleteEntry = async (id) => {
+      await db.collection('users').doc(uid)
+        .collection('days').doc(today)
+        .collection('entries').doc(id).delete();
+    };
+
+    const handleCustomAdd = () => {
+      const p = parseInt(customPrice.replace(/,/g, ''), 10);
+      if (!customName.trim() || isNaN(p) || p <= 0) return;
+      addEntry(customName.trim(), p);
+      setCustomName('');
+      setCustomPrice('');
+    };
+
+    const total = entries.reduce((s, e) => s + e.price, 0);
+
+    return (
+      <>
+        {/* 合計 */}
+        <div className="today-total">
+          <div className="label">{today.replace(/-/g, '/')} の売上</div>
+          <div className="amount">{formatPrice(total)}</div>
+          <div className="count">{entries.length} 件</div>
+        </div>
+
+        {/* コース追加 */}
+        <div className="add-section">
+          <h2>コースを追加</h2>
+          <div className="preset-grid">
+            {presets.map(p => (
+              <button key={p.id} className="preset-btn" onClick={() => addEntry(p.name, p.price)}>
+                <span className="course-name">{p.name}</span>
+                <span className="course-price">{formatPrice(p.price)}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* カスタム */}
+          <div className="custom-input-row">
+            <input
+              placeholder="コース名"
+              value={customName}
+              onChange={e => setCustomName(e.target.value)}
+            />
+            <input
+              placeholder="金額"
+              inputMode="numeric"
+              value={customPrice}
+              onChange={e => setCustomPrice(e.target.value)}
+              style={{ width: 100 }}
+            />
+            <button className="add-btn" onClick={handleCustomAdd}>追加</button>
+          </div>
+        </div>
+
+        {/* 今日のリスト */}
+        <div className="entry-list">
+          <h2>内訳</h2>
+          {entries.length === 0
+            ? <div className="empty-state">まだ入力がありません</div>
+            : entries.map(e => (
+              <div key={e.id} className="entry-item">
+                <div className="entry-info">
+                  <div className="entry-name">{e.name}</div>
+                  <div className="entry-time">{formatTime(e.createdAt)}</div>
+                </div>
+                <div className="entry-right">
+                  <span className="entry-price">{formatPrice(e.price)}</span>
+                  <button className="delete-btn" onClick={() => deleteEntry(e.id)}>✕</button>
+                </div>
+              </div>
+            ))
+          }
+        </div>
+      </>
+    );
+  }
+
+  // ========== 集計タブ ==========
+  function HistoryTab({ uid }) {
+    const now = toJST();
+    const [year, setYear] = useState(now.getUTCFullYear());
+    const [month, setMonth] = useState(now.getUTCMonth() + 1);
+    const [days, setDays] = useState([]);
+    const [expanded, setExpanded] = useState(null);
+
+    useEffect(() => {
+      const monthStr = `${year}-${String(month).padStart(2, '0')}`;
+      const start = `${monthStr}-01`;
+      const end = `${monthStr}-31`;
+
+      db.collection('users').doc(uid).collection('days')
+        .where(firebase.firestore.FieldPath.documentId(), '>=', start)
+        .where(firebase.firestore.FieldPath.documentId(), '<=', end)
+        .get()
+        .then(async snap => {
+          const result = [];
+          for (const doc of snap.docs) {
+            const entriesSnap = await doc.ref.collection('entries').get();
+            const entries = entriesSnap.docs.map(d => d.data());
+            const total = entries.reduce((s, e) => s + e.price, 0);
+            result.push({ date: doc.id, entries, total });
+          }
+          result.sort((a, b) => b.date.localeCompare(a.date));
+          setDays(result);
+        });
+    }, [uid, year, month]);
+
+    const prevMonth = () => {
+      if (month === 1) { setYear(y => y - 1); setMonth(12); }
+      else setMonth(m => m - 1);
+    };
+    const nextMonth = () => {
+      if (month === 12) { setYear(y => y + 1); setMonth(1); }
+      else setMonth(m => m + 1);
+    };
+
+    const monthTotal = days.reduce((s, d) => s + d.total, 0);
+    const dayCount = days.length;
+
+    return (
+      <>
+        <div className="month-header">
+          <div className="month-nav">
+            <button onClick={prevMonth}>‹</button>
+            <span className="month-label">{year}年{month}月</span>
+            <button onClick={nextMonth}>›</button>
+          </div>
+        </div>
+
+        <div className="month-summary">
+          <div>
+            <div className="stat-label">月間売上</div>
+            <div className="stat-value">{formatPrice(monthTotal)}</div>
+          </div>
+          <div>
+            <div className="stat-label">営業日数</div>
+            <div className="stat-value">{dayCount}日</div>
+          </div>
+          <div>
+            <div className="stat-label">1日平均</div>
+            <div className="stat-value">{dayCount ? formatPrice(Math.round(monthTotal / dayCount)) : '—'}</div>
+          </div>
+        </div>
+
+        {days.length === 0
+          ? <div className="empty-state" style={{background:'var(--card)',borderRadius:16,padding:32,color:'var(--muted)'}}>この月のデータはありません</div>
+          : days.map(d => (
+            <div key={d.date} className="day-card">
+              <div className="day-card-header" onClick={() => setExpanded(expanded === d.date ? null : d.date)}>
+                <span className="day-label">{d.date.replace(/-/g, '/')} ({['日','月','火','水','木','金','土'][new Date(d.date + 'T00:00:00+09:00').getDay()]})</span>
+                <span className="day-total">{formatPrice(d.total)}</span>
+              </div>
+              {expanded === d.date && (
+                <div className="day-card-body">
+                  {d.entries.map((e, i) => (
+                    <div key={i} className="day-entry">
+                      <span>{e.name}</span>
+                      <span className="de-price">{formatPrice(e.price)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))
+        }
+      </>
+    );
+  }
+
+  // ========== 設定タブ ==========
+  function SettingsTab({ uid }) {
+    const [presets, setPresets] = useState([]);
+    const [newName, setNewName] = useState('');
+    const [newPrice, setNewPrice] = useState('');
+
+    const loadPresets = useCallback(() => {
+      db.collection('users').doc(uid).collection('presets')
+        .orderBy('createdAt').get().then(snap => {
+          if (snap.empty) {
+            setPresets(DEFAULT_PRESETS);
+          } else {
+            setPresets(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+          }
+        });
+    }, [uid]);
+
+    useEffect(() => { loadPresets(); }, [loadPresets]);
+
+    const addPreset = async () => {
+      const p = parseInt(newPrice.replace(/,/g, ''), 10);
+      if (!newName.trim() || isNaN(p) || p <= 0) return;
+      await db.collection('users').doc(uid).collection('presets').add({
+        name: newName.trim(),
+        price: p,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      setNewName('');
+      setNewPrice('');
+      loadPresets();
+    };
+
+    const deletePreset = async (id) => {
+      if (!id.startsWith('p')) { // DEFAULT_PRESETS は id が 'p1' 等
+        await db.collection('users').doc(uid).collection('presets').doc(id).delete();
+        loadPresets();
+      }
+    };
+
+    return (
+      <div className="manage-section">
+        <h2>コースプリセット管理</h2>
+
+        {presets.map(p => (
+          <div key={p.id} className="preset-item">
+            <div>
+              <div className="pi-name">{p.name}</div>
+              <div className="pi-price">{formatPrice(p.price)}</div>
+            </div>
+            {!p.id.startsWith('p') && (
+              <button className="delete-btn" onClick={() => deletePreset(p.id)}>✕</button>
+            )}
+          </div>
+        ))}
+
+        <div className="new-preset-row">
+          <input
+            placeholder="コース名"
+            value={newName}
+            onChange={e => setNewName(e.target.value)}
+          />
+          <input
+            placeholder="金額"
+            inputMode="numeric"
+            value={newPrice}
+            onChange={e => setNewPrice(e.target.value)}
+          />
+          <button onClick={addPreset}>追加</button>
+        </div>
+      </div>
+    );
+  }
+
+  // マウント
+  const root = ReactDOM.createRoot(document.getElementById('root'));
+  root.render(<App />);
+</script>
+</body>
+</html>
