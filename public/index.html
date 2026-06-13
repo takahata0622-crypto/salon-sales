@@ -737,11 +737,9 @@
     { id: 'p6', name: 'セレクトボディケア100分', price: 13000, category: 'ボディケア', isDefault: true },
     { id: 'p7', name: 'セレクトボディケア120分', price: 15600, category: 'ボディケア', isDefault: true },
     { id: 'p8', name: '部分集中30分', price: 4500, category: 'ボディケア', isDefault: true },
-    { id: 'p9', name: 'ボディケア延長10分', price: 1350, category: 'ボディケア', isDefault: true },
     { id: 'p10', name: 'ストレッチ40分', price: 5500, category: 'ボディケア', isDefault: true },
     { id: 'p11', name: 'ストレッチ60分', price: 7800, category: 'ボディケア', isDefault: true },
     { id: 'p12', name: 'ストレッチ90分', price: 11000, category: 'ボディケア', isDefault: true },
-    { id: 'p13', name: 'ストレッチ延長10分', price: 1500, category: 'ボディケア', isDefault: true },
     // タイ・バリ
     { id: 'p14', name: 'タイ古式60分', price: 8000, category: 'タイ・バリ', isDefault: true },
     { id: 'p15', name: 'タイ古式70分', price: 8500, category: 'タイ・バリ', isDefault: true },
@@ -752,7 +750,6 @@
     { id: 'p20', name: 'バリアロマ70分', price: 10000, category: 'タイ・バリ', isDefault: true },
     { id: 'p21', name: 'バリアロマ90分', price: 14000, category: 'タイ・バリ', isDefault: true },
     { id: 'p22', name: 'バリアロマ120分', price: 18000, category: 'タイ・バリ', isDefault: true },
-    { id: 'p23', name: '延長10分', price: 2000, category: 'タイ・バリ', isDefault: true },
   ];
 
   // プリセットを大分類ごとにグループ化（CATEGORIES の順 → その他 → 独自分類）
@@ -837,7 +834,7 @@
       <>
         <header>
           <h1>💄 サロン売上管理</h1>
-          <span className="version">Ver 1.09</span>
+          <span className="version">Ver 1.10</span>
         </header>
 
         <div className="tabs">
@@ -896,13 +893,16 @@
       // 親ドキュメントを作成（集計で日付が拾えるように）
       await dayRef().set({ date: today }, { merge: true });
       await dayRef().collection('entries')
-        .add({ name, price: Number(price), lodging: false, discount: false, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+        .add({ name, price: Number(price), lodging: false, discount: false, extMin: 0, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
     };
 
     const toggleEntryLodging = (e) =>
       dayRef().collection('entries').doc(e.id).update({ lodging: !e.lodging });
     const toggleEntryDiscount = (e) =>
       dayRef().collection('entries').doc(e.id).update({ discount: !e.discount });
+    // 延長を 0→10→20→30→0 で循環
+    const cycleEntryExt = (e) =>
+      dayRef().collection('entries').doc(e.id).update({ extMin: ((e.extMin || 0) + 10) % 40 });
 
     const deleteEntry = async (id) => {
       await dayRef().collection('entries').doc(id).delete();
@@ -916,11 +916,20 @@
       setCustomPrice('');
     };
 
+    // 延長10分あたりの単価（メニュー種別ごと）
+    const extUnit = (e) => {
+      const n = e.name || '';
+      if (n.includes('ストレッチ')) return 1500;
+      if (n.includes('タイ古式') || n.includes('バリアロマ')) return 2000;
+      return 1350;
+    };
+    const extAmount = (e) => ((e.extMin || 0) / 10) * extUnit(e);
+    const entryGross = (e) => e.price + extAmount(e);
     const entryRate = (e) => (e.discount ? (e.lodging ? 0.10 : 0.20) : 0);
-    const entryDiscount = (e) => Math.round(e.price * entryRate(e));
-    const entryNet = (e) => e.price - entryDiscount(e);
+    const entryDiscount = (e) => Math.round(entryGross(e) * entryRate(e));
+    const entryNet = (e) => entryGross(e) - entryDiscount(e);
 
-    const subtotal = entries.reduce((s, e) => s + e.price, 0);
+    const subtotal = entries.reduce((s, e) => s + entryGross(e), 0);
     const discountAmount = entries.reduce((s, e) => s + entryDiscount(e), 0);
     const total = subtotal - discountAmount;
 
@@ -987,14 +996,16 @@
                     <div className="entry-time">{formatTime(e.createdAt)}</div>
                   </div>
                   <div className="entry-right">
-                    {entryRate(e) > 0 && <span className="entry-orig">{formatPrice(e.price)}</span>}
+                    {entryRate(e) > 0 && <span className="entry-orig">{formatPrice(entryGross(e))}</span>}
                     <span className="entry-price">{formatPrice(entryNet(e))}</span>
                     <button className="delete-btn" onClick={() => deleteEntry(e.id)}>✕</button>
                   </div>
                 </div>
                 <div className="entry-toggles">
+                  <button className={`toggle-btn sm ${(e.extMin || 0) > 0 ? 'active' : ''}`} onClick={() => cycleEntryExt(e)}>延長{e.extMin || 0}分</button>
                   <button className={`toggle-btn sm ${e.lodging ? 'active' : ''}`} onClick={() => toggleEntryLodging(e)}>宿泊</button>
                   <button className={`toggle-btn sm ${e.discount ? 'active' : ''}`} onClick={() => toggleEntryDiscount(e)}>割引</button>
+                  {(e.extMin || 0) > 0 && <span className="entry-disc-note">延長+{formatPrice(extAmount(e))}</span>}
                   {entryRate(e) > 0 && <span className="entry-disc-note">{Math.round(entryRate(e) * 100)}%オフ</span>}
                 </div>
               </div>
