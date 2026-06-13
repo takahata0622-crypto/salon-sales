@@ -696,36 +696,35 @@
     return jst.toISOString().slice(11, 16);
   };
 
-  const CATEGORIES = ['ボディケア', 'タイ・バリ部門'];
+  const CATEGORIES = ['ボディケア', 'タイ・バリ'];
   const UNCATEGORIZED = 'その他';
 
   const DEFAULT_PRESETS = [
-    // ボディケア部門（ボディケア・セレクトボディケア・部分集中・体幹ストレッチ）
-    { id: 'p1', name: 'シングル ボディケア40分', price: 5000, category: 'ボディケア', isDefault: true },
-    { id: 'p2', name: 'ボディケア全身コース60分', price: 7600, category: 'ボディケア', isDefault: true },
-    { id: 'p3', name: 'ボディケア全身+部分集中コース80分', price: 10000, category: 'ボディケア', isDefault: true },
+    // ボディケア
+    { id: 'p1', name: 'ボディケア40分', price: 5000, category: 'ボディケア', isDefault: true },
+    { id: 'p2', name: 'ボディケア60分', price: 7600, category: 'ボディケア', isDefault: true },
+    { id: 'p3', name: 'ボディケア80分', price: 10000, category: 'ボディケア', isDefault: true },
     { id: 'p4', name: 'セレクトボディケア60分', price: 7800, category: 'ボディケア', isDefault: true },
     { id: 'p5', name: 'セレクトボディケア80分', price: 10400, category: 'ボディケア', isDefault: true },
     { id: 'p6', name: 'セレクトボディケア100分', price: 13000, category: 'ボディケア', isDefault: true },
     { id: 'p7', name: 'セレクトボディケア120分', price: 15600, category: 'ボディケア', isDefault: true },
-    { id: 'p8', name: '部分集中 頭＆首30分', price: 4500, category: 'ボディケア', isDefault: true },
-    { id: 'p9', name: '部分集中 頭＆肩30分', price: 4500, category: 'ボディケア', isDefault: true },
-    { id: 'p10', name: '部分集中 肩甲骨はがし30分', price: 4500, category: 'ボディケア', isDefault: true },
-    { id: 'p11', name: '部分集中 腸もみ30分', price: 4500, category: 'ボディケア', isDefault: true },
-    { id: 'p12', name: '部分集中 スリープヘッド30分', price: 4500, category: 'ボディケア', isDefault: true },
-    { id: 'p13', name: '体幹ストレッチ部分集中40分', price: 5500, category: 'ボディケア', isDefault: true },
-    { id: 'p14', name: '体幹ストレッチ全身ショート60分', price: 7800, category: 'ボディケア', isDefault: true },
-    { id: 'p15', name: '体幹ストレッチ全身スタンダード90分', price: 11000, category: 'ボディケア', isDefault: true },
-    // タイ・バリ部門（タイ古式セラピー・バリアロマトリートメント）
-    { id: 'p16', name: 'タイ古式セラピー全身60分', price: 8000, category: 'タイ・バリ部門', isDefault: true },
-    { id: 'p17', name: 'タイ古式セラピー全身90分', price: 11500, category: 'タイ・バリ部門', isDefault: true },
-    { id: 'p18', name: 'タイ古式セラピー全身+部分集中120分', price: 14500, category: 'タイ・バリ部門', isDefault: true },
-    { id: 'p19', name: 'タイ古式セラピー キャンペーン70分', price: 8500, category: 'タイ・バリ部門', isDefault: true },
-    { id: 'p20', name: 'バリアロマトリートメント背面40分', price: 7000, category: 'タイ・バリ部門', isDefault: true },
-    { id: 'p21', name: 'バリアロマトリートメント全身60分', price: 9800, category: 'タイ・バリ部門', isDefault: true },
-    { id: 'p22', name: 'バリアロマトリートメント全身+集中90分', price: 14000, category: 'タイ・バリ部門', isDefault: true },
-    { id: 'p23', name: 'バリアロマトリートメント全身+集中120分', price: 18000, category: 'タイ・バリ部門', isDefault: true },
-    { id: 'p24', name: 'バリアロマトリートメント キャンペーン70分', price: 10000, category: 'タイ・バリ部門', isDefault: true },
+    { id: 'p8', name: '部分集中30分', price: 4500, category: 'ボディケア', isDefault: true },
+    { id: 'p9', name: 'ボディケア延長10分', price: 1350, category: 'ボディケア', isDefault: true },
+    { id: 'p10', name: 'ストレッチ40分', price: 5500, category: 'ボディケア', isDefault: true },
+    { id: 'p11', name: 'ストレッチ60分', price: 7800, category: 'ボディケア', isDefault: true },
+    { id: 'p12', name: 'ストレッチ90分', price: 11000, category: 'ボディケア', isDefault: true },
+    { id: 'p13', name: 'ストレッチ延長10分', price: 1500, category: 'ボディケア', isDefault: true },
+    // タイ・バリ
+    { id: 'p14', name: 'タイ古式60分', price: 8000, category: 'タイ・バリ', isDefault: true },
+    { id: 'p15', name: 'タイ古式70分', price: 8500, category: 'タイ・バリ', isDefault: true },
+    { id: 'p16', name: 'タイ古式90分', price: 11500, category: 'タイ・バリ', isDefault: true },
+    { id: 'p17', name: 'タイ古式120分', price: 14500, category: 'タイ・バリ', isDefault: true },
+    { id: 'p18', name: 'バリアロマ40分', price: 7000, category: 'タイ・バリ', isDefault: true },
+    { id: 'p19', name: 'バリアロマ60分', price: 9800, category: 'タイ・バリ', isDefault: true },
+    { id: 'p20', name: 'バリアロマ70分', price: 10000, category: 'タイ・バリ', isDefault: true },
+    { id: 'p21', name: 'バリアロマ90分', price: 14000, category: 'タイ・バリ', isDefault: true },
+    { id: 'p22', name: 'バリアロマ120分', price: 18000, category: 'タイ・バリ', isDefault: true },
+    { id: 'p23', name: '延長10分', price: 2000, category: 'タイ・バリ', isDefault: true },
   ];
 
   // プリセットを大分類ごとにグループ化（CATEGORIES の順 → その他 → 独自分類）
@@ -810,7 +809,7 @@
       <>
         <header>
           <h1>💄 サロン売上管理</h1>
-          <span className="version">Ver 1.07</span>
+          <span className="version">Ver 1.08</span>
         </header>
 
         <div className="tabs">
@@ -1177,7 +1176,7 @@
     };
 
     const loadDefaultMenu = async () => {
-      if (!window.confirm('現在のメニューをすべて削除して、初期メニュー（ボディケア／タイ・バリ部門）を登録します。よろしいですか？')) return;
+      if (!window.confirm('現在のメニューをすべて削除して、初期メニュー（ボディケア／タイ・バリ）を登録します。よろしいですか？')) return;
       try {
         const col = db.collection('users').doc(uid).collection('presets');
         const snap = await col.get();
@@ -1279,7 +1278,7 @@
 
         <div className="reset-section">
           <button className="reset-btn" onClick={loadDefaultMenu}>初期メニューを読み込む（現在のメニューを置き換え）</button>
-          <div className="reset-note">標準メニュー（ボディケア／タイ・バリ部門）を一括登録します。エステ・あかすりは含みません。</div>
+          <div className="reset-note">標準メニュー（ボディケア／タイ・バリ）を一括登録します。最新のメニューに置き換えたいときに押してください。</div>
         </div>
       </div>
     );
