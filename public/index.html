@@ -348,6 +348,23 @@
 
     .entry-item:last-child { border-bottom: none; }
 
+    .entry-memo {
+      width: 100%;
+      margin-top: 8px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 7px 10px;
+      font-size: 13px;
+      background: var(--bg);
+      color: var(--ink);
+      outline: none;
+      box-sizing: border-box;
+    }
+
+    .entry-memo:focus {
+      border-color: var(--accent);
+    }
+
     .entry-main {
       display: flex;
       align-items: center;
@@ -473,6 +490,14 @@
 
     .day-entry-block {
       padding: 4px 0;
+    }
+
+    .day-entry-memo {
+      font-size: 12px;
+      color: var(--muted);
+      padding: 2px 0 6px;
+      white-space: pre-wrap;
+      word-break: break-word;
     }
 
     .day-entry-block .entry-toggles {
@@ -943,7 +968,7 @@
       <>
         <header>
           <h1>💄 サロン売上管理</h1>
-          <span className="version">Ver 1.17</span>
+          <span className="version">Ver 1.18</span>
         </header>
 
         <div className="tabs">
@@ -1030,6 +1055,10 @@
       dayRef().collection('entries').doc(e.id).update({ shimei: !e.shimei });
     const toggleEntrySeibetsu = (e) =>
       dayRef().collection('entries').doc(e.id).update({ seibetsu: !e.seibetsu });
+    const saveEntryMemo = (e, memo) => {
+      if ((e.memo || '') === memo) return;
+      dayRef().collection('entries').doc(e.id).update({ memo });
+    };
 
     const deleteEntry = async (id) => {
       await dayRef().collection('entries').doc(id).delete();
@@ -1115,6 +1144,13 @@
                   {e.shimei && <span className="entry-disc-note" style={{color:'var(--text)'}}>指名+500</span>}
                   {e.seibetsu && <span className="entry-disc-note" style={{color:'var(--text)'}}>希望+300</span>}
                 </div>
+                <input
+                  key={e.memo || ''}
+                  className="entry-memo"
+                  placeholder="メモ"
+                  defaultValue={e.memo || ''}
+                  onBlur={ev => saveEntryMemo(e, ev.target.value.trim())}
+                />
               </div>
             ))
           }
@@ -1207,15 +1243,18 @@
                   {d.entries.map((e) => {
                     const c = calcEntry(e);
                     return (
-                      <div key={e.id} className="day-entry">
-                        <span>
-                          {e.name}
-                          {c.rate > 0 ? `（${e.lodging ? '宿泊' : ''}割引${Math.round(c.rate * 100)}%）` : ''}
-                          {(e.extMin || 0) > 0 ? `（延長${e.extMin}分）` : ''}
-                          {e.shimei ? '（指名）' : ''}
-                          {e.seibetsu ? '（男女希望）' : ''}
-                        </span>
-                        <span className="de-price">{formatPrice(c.net)}</span>
+                      <div key={e.id} className="day-entry-wrap">
+                        <div className="day-entry">
+                          <span>
+                            {e.name}
+                            {c.rate > 0 ? `（${e.lodging ? '宿泊' : ''}割引${Math.round(c.rate * 100)}%）` : ''}
+                            {(e.extMin || 0) > 0 ? `（延長${e.extMin}分）` : ''}
+                            {e.shimei ? '（指名）' : ''}
+                            {e.seibetsu ? '（男女希望）' : ''}
+                          </span>
+                          <span className="de-price">{formatPrice(c.net)}</span>
+                        </div>
+                        {e.memo && <div className="day-entry-memo">📝 {e.memo}</div>}
                       </div>
                     );
                   })}
