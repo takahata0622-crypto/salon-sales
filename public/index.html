@@ -209,13 +209,21 @@
       border: 1px solid var(--border);
     }
 
-    .add-section h2 {
+    .add-section-header {
+      display: flex;
+      align-items: flex-end;
+      gap: 12px;
+      margin-bottom: 0;
+    }
+
+    .add-section-header h2 {
       font-size: 14px;
       font-weight: 600;
       color: var(--muted);
-      margin-bottom: 12px;
       text-transform: uppercase;
       letter-spacing: 0.06em;
+      white-space: nowrap;
+      padding-bottom: 16px;
     }
 
     .preset-grid {
@@ -580,8 +588,9 @@
     .dept-tabs {
       display: flex;
       gap: 4px;
-      margin-bottom: 14px;
+      margin-bottom: 0;
       border-bottom: 2px solid var(--border);
+      flex: 1;
     }
 
     .dept-tab {
@@ -912,7 +921,7 @@
       <>
         <header>
           <h1>💄 サロン売上管理</h1>
-          <span className="version">Ver 1.13</span>
+          <span className="version">Ver 1.14</span>
         </header>
 
         <div className="tabs">
@@ -935,8 +944,6 @@
     const [entries, setEntries] = useState([]);
     const [presets, setPresets] = useState([]);
     const [dept, setDept] = useState(CATEGORIES[0]);
-    const [customName, setCustomName] = useState('');
-    const [customPrice, setCustomPrice] = useState('');
     const [viewDate, setViewDate] = useState(todayStr());
     const today = todayStr();
 
@@ -1006,14 +1013,6 @@
       await dayRef().collection('entries').doc(id).delete();
     };
 
-    const handleCustomAdd = () => {
-      const p = parseInt(customPrice.replace(/,/g, ''), 10);
-      if (!customName.trim() || isNaN(p) || p <= 0) return;
-      addEntry(customName.trim(), p);
-      setCustomName('');
-      setCustomPrice('');
-    };
-
     const extAmount = (e) => calcEntry(e).ext;
     const entryGross = (e) => calcEntry(e).gross;
     const entryRate = (e) => calcEntry(e).rate;
@@ -1051,8 +1050,10 @@
 
         {/* コース追加 */}
         <div className="add-section">
-          <h2>{isToday ? 'メニューを追加' : '項目を追加'}</h2>
-          <DeptTabs depts={deptNames} value={activeDept} onChange={setDept} />
+          <div className="add-section-header">
+            <h2>{isToday ? 'メニューを追加' : '項目を追加'}</h2>
+            <DeptTabs depts={deptNames} value={activeDept} onChange={setDept} />
+          </div>
           <div className="preset-grid">
             {deptItems.map(p => (
               <button key={p.id} className="preset-btn" onClick={() => addEntry(p.name, p.price)}>
@@ -1060,23 +1061,6 @@
                 <span className="course-price">{formatPrice(p.price)}</span>
               </button>
             ))}
-          </div>
-
-          {/* カスタム */}
-          <div className="custom-input-row">
-            <input
-              placeholder="コース名"
-              value={customName}
-              onChange={e => setCustomName(e.target.value)}
-            />
-            <input
-              placeholder="金額"
-              inputMode="numeric"
-              value={customPrice}
-              onChange={e => setCustomPrice(e.target.value)}
-              style={{ width: 100 }}
-            />
-            <button className="add-btn" onClick={handleCustomAdd}>追加</button>
           </div>
         </div>
 
