@@ -120,6 +120,53 @@
       margin-top: 4px;
     }
 
+    .today-total .discount-line {
+      font-size: 12px;
+      opacity: 0.9;
+      margin-top: 6px;
+      background: rgba(255,255,255,0.18);
+      border-radius: 8px;
+      padding: 4px 8px;
+      display: inline-block;
+    }
+
+    /* 内訳ヘッダ・宿泊割引トグル */
+    .entry-list-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px 10px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .entry-list-head h2 {
+      padding: 0;
+      border: none;
+    }
+
+    .toggle-btns { display: flex; gap: 8px; }
+
+    .toggle-btn {
+      padding: 7px 16px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--muted);
+      background: var(--accent-light);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .toggle-btn.active {
+      color: white;
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .day-discount { color: var(--danger); font-weight: 600; }
+    .day-discount .de-price { color: var(--danger); }
+
     /* コース追加 */
     .add-section {
       background: var(--card);
@@ -444,28 +491,31 @@
 
     .dept-tabs {
       display: flex;
-      gap: 6px;
+      gap: 4px;
       margin-bottom: 14px;
+      border-bottom: 2px solid var(--border);
     }
 
     .dept-tab {
-      flex: 1;
-      padding: 9px 8px;
-      text-align: center;
-      font-size: 13px;
+      padding: 10px 18px;
+      font-size: 14px;
       font-weight: 600;
       color: var(--muted);
       background: var(--accent-light);
       border: 1px solid var(--border);
-      border-radius: 10px;
+      border-bottom: none;
+      border-radius: 10px 10px 0 0;
+      margin-bottom: -2px;
       cursor: pointer;
       transition: all 0.15s;
     }
 
     .dept-tab.active {
-      background: var(--accent);
-      color: white;
-      border-color: var(--accent);
+      color: var(--accent);
+      background: var(--card);
+      border-color: var(--border);
+      border-bottom: 2px solid var(--card);
+      box-shadow: 0 -2px 6px rgba(0,0,0,0.04);
     }
 
     .cat-heading {
@@ -760,7 +810,7 @@
       <>
         <header>
           <h1>💄 サロン売上管理</h1>
-          <span className="version">Ver 1.06</span>
+          <span className="version">Ver 1.07</span>
         </header>
 
         <div className="tabs">
@@ -783,6 +833,8 @@
     const [entries, setEntries] = useState([]);
     const [presets, setPresets] = useState([]);
     const [dept, setDept] = useState(CATEGORIES[0]);
+    const [lodging, setLodging] = useState(false);
+    const [discount, setDiscount] = useState(false);
     const [customName, setCustomName] = useState('');
     const [customPrice, setCustomPrice] = useState('');
     const today = todayStr();
@@ -812,13 +864,29 @@
       return () => unsub();
     }, [uid, today]);
 
+    // 今日の宿泊・割引の状態を購読
+    useEffect(() => {
+      const ref = db.collection('users').doc(uid).collection('days').doc(today);
+      const unsub = ref.onSnapshot(snap => {
+        const d = snap.data() || {};
+        setLodging(!!d.lodging);
+        setDiscount(!!d.discount);
+      });
+      return () => unsub();
+    }, [uid, today]);
+
+    const dayRef = () => db.collection('users').doc(uid).collection('days').doc(today);
+
     const addEntry = async (name, price) => {
       if (!name || !price) return;
-      await db.collection('users').doc(uid)
-        .collection('days').doc(today)
-        .collection('entries')
+      // 親ドキュメントを作成（集計で日付が拾えるように）
+      await dayRef().set({ date: today }, { merge: true });
+      await dayRef().collection('entries')
         .add({ name, price: Number(price), createdAt: firebase.firestore.FieldValue.serverTimestamp() });
     };
+
+    const toggleLodging = () => dayRef().set({ lodging: !lodging, date: today }, { merge: true });
+    const toggleDiscount = () => dayRef().set({ discount: !discount, date: today }, { merge: true });
 
     const deleteEntry = async (id) => {
       await db.collection('users').doc(uid)
@@ -834,7 +902,10 @@
       setCustomPrice('');
     };
 
-    const total = entries.reduce((s, e) => s + e.price, 0);
+    const subtotal = entries.reduce((s, e) => s + e.price, 0);
+    const rate = discount ? (lodging ? 0.10 : 0.20) : 0;
+    const discountAmount = Math.round(subtotal * rate);
+    const total = subtotal - discountAmount;
 
     const groups = groupByCategory(presets);
     const deptNames = groups.map(g => g.category);
@@ -847,6 +918,11 @@
         <div className="today-total">
           <div className="label">{today.replace(/-/g, '/')} の売上</div>
           <div className="amount">{formatPrice(total)}</div>
+          {rate > 0 && (
+            <div className="discount-line">
+              小計 {formatPrice(subtotal)}　割引 {Math.round(rate * 100)}% (−{formatPrice(discountAmount)})
+            </div>
+          )}
           <div className="count">{entries.length} 件</div>
         </div>
 
@@ -883,7 +959,13 @@
 
         {/* 今日のリスト */}
         <div className="entry-list">
-          <h2>内訳</h2>
+          <div className="entry-list-head">
+            <h2>内訳</h2>
+            <div className="toggle-btns">
+              <button className={`toggle-btn ${lodging ? 'active' : ''}`} onClick={toggleLodging}>宿泊</button>
+              <button className={`toggle-btn ${discount ? 'active' : ''}`} onClick={toggleDiscount}>割引</button>
+            </div>
+          </div>
           {entries.length === 0
             ? <div className="empty-state">まだ入力がありません</div>
             : entries.map(e => (
@@ -924,10 +1006,15 @@
         .then(async snap => {
           const result = [];
           for (const doc of snap.docs) {
+            const meta = doc.data() || {};
             const entriesSnap = await doc.ref.collection('entries').get();
             const entries = entriesSnap.docs.map(d => d.data());
-            const total = entries.reduce((s, e) => s + e.price, 0);
-            result.push({ date: doc.id, entries, total });
+            const subtotal = entries.reduce((s, e) => s + e.price, 0);
+            const rate = meta.discount ? (meta.lodging ? 0.10 : 0.20) : 0;
+            const discountAmount = Math.round(subtotal * rate);
+            const total = subtotal - discountAmount;
+            if (entries.length === 0) continue; // エントリのない日は集計しない
+            result.push({ date: doc.id, entries, subtotal, rate, discountAmount, total, lodging: !!meta.lodging, discount: !!meta.discount });
           }
           result.sort((a, b) => b.date.localeCompare(a.date));
           setDays(result);
@@ -987,6 +1074,12 @@
                       <span className="de-price">{formatPrice(e.price)}</span>
                     </div>
                   ))}
+                  {d.rate > 0 && (
+                    <div className="day-entry day-discount">
+                      <span>{d.lodging ? '宿泊割引' : '割引'} {Math.round(d.rate * 100)}%</span>
+                      <span className="de-price">−{formatPrice(d.discountAmount)}</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
