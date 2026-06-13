@@ -211,9 +211,9 @@
 
     .add-section-header {
       display: flex;
-      align-items: flex-end;
-      gap: 12px;
-      margin-bottom: 0;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
     }
 
     .add-section-header h2 {
@@ -223,7 +223,29 @@
       text-transform: uppercase;
       letter-spacing: 0.06em;
       white-space: nowrap;
-      padding-bottom: 16px;
+    }
+
+    .add-section-header .dept-tabs {
+      border-bottom: none;
+      margin-bottom: 0;
+      flex: 0;
+      gap: 6px;
+    }
+
+    .add-section-header .dept-tab {
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      margin-bottom: 0;
+      padding: 6px 14px;
+      font-size: 13px;
+    }
+
+    .add-section-header .dept-tab.active {
+      background: var(--accent);
+      color: white;
+      border-color: var(--accent);
+      border-bottom: 1px solid var(--accent);
+      box-shadow: none;
     }
 
     .preset-grid {
@@ -588,9 +610,8 @@
     .dept-tabs {
       display: flex;
       gap: 4px;
-      margin-bottom: 0;
+      margin-bottom: 14px;
       border-bottom: 2px solid var(--border);
-      flex: 1;
     }
 
     .dept-tab {
@@ -921,7 +942,7 @@
       <>
         <header>
           <h1>💄 サロン売上管理</h1>
-          <span className="version">Ver 1.14</span>
+          <span className="version">Ver 1.15</span>
         </header>
 
         <div className="tabs">
