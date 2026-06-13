@@ -770,7 +770,7 @@
       await db.collection('users').doc(uid).collection('presets').add({
         name: newName.trim(),
         price: p,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        createdAt: Date.now()
       });
       setNewName('');
       setNewPrice('');
