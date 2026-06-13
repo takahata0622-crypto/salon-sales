@@ -102,6 +102,39 @@
       text-align: center;
     }
 
+    .date-nav {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .date-nav button {
+      background: rgba(255,255,255,0.25);
+      border: none;
+      border-radius: 8px;
+      color: white;
+      width: 32px;
+      height: 32px;
+      font-size: 18px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .date-nav button:disabled {
+      opacity: 0.3;
+      cursor: default;
+    }
+
+    .date-nav .date-label {
+      font-size: 14px;
+      font-weight: 700;
+      min-width: 140px;
+    }
+
     .today-total .label {
       font-size: 13px;
       opacity: 0.85;
@@ -879,7 +912,7 @@
       <>
         <header>
           <h1>💄 サロン売上管理</h1>
-          <span className="version">Ver 1.12</span>
+          <span className="version">Ver 1.13</span>
         </header>
 
         <div className="tabs">
@@ -904,7 +937,22 @@
     const [dept, setDept] = useState(CATEGORIES[0]);
     const [customName, setCustomName] = useState('');
     const [customPrice, setCustomPrice] = useState('');
+    const [viewDate, setViewDate] = useState(todayStr());
     const today = todayStr();
+
+    const prevDay = () => setViewDate(d => {
+      const dt = new Date(d + 'T00:00:00Z');
+      dt.setUTCDate(dt.getUTCDate() - 1);
+      return dt.toISOString().slice(0, 10);
+    });
+    const nextDay = () => setViewDate(d => {
+      if (d >= today) return d;
+      const dt = new Date(d + 'T00:00:00Z');
+      dt.setUTCDate(dt.getUTCDate() + 1);
+      return dt.toISOString().slice(0, 10);
+    });
+    const weekday = ['日','月','火','水','木','金','土'][new Date(viewDate + 'T00:00:00+09:00').getDay()];
+    const isToday = viewDate === today;
 
     // プリセット読み込み
     useEffect(() => {
@@ -918,10 +966,11 @@
       });
     }, [uid]);
 
-    // 今日のエントリ購読
+    // 選択日のエントリ購読
     useEffect(() => {
+      setEntries([]);
       const ref = db.collection('users').doc(uid)
-        .collection('days').doc(today)
+        .collection('days').doc(viewDate)
         .collection('entries')
         .orderBy('createdAt', 'asc');
 
@@ -929,9 +978,9 @@
         setEntries(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       });
       return () => unsub();
-    }, [uid, today]);
+    }, [uid, viewDate]);
 
-    const dayRef = () => db.collection('users').doc(uid).collection('days').doc(today);
+    const dayRef = () => db.collection('users').doc(uid).collection('days').doc(viewDate);
 
     const addEntry = async (name, price) => {
       if (!name || !price) return;
@@ -984,7 +1033,11 @@
       <>
         {/* 合計 */}
         <div className="today-total">
-          <div className="label">{today.replace(/-/g, '/')} の売上</div>
+          <div className="date-nav">
+            <button onClick={prevDay}>‹</button>
+            <span className="date-label">{viewDate.replace(/-/g, '/')} ({weekday}){isToday ? ' 今日' : ''}</span>
+            <button onClick={nextDay} disabled={isToday}>›</button>
+          </div>
           <div className="amount">{formatPrice(total)}</div>
           {(discountAmount > 0 || extraTotal > 0) && (
             <div className="discount-line">
@@ -998,7 +1051,7 @@
 
         {/* コース追加 */}
         <div className="add-section">
-          <h2>メニューを追加</h2>
+          <h2>{isToday ? 'メニューを追加' : '項目を追加'}</h2>
           <DeptTabs depts={deptNames} value={activeDept} onChange={setDept} />
           <div className="preset-grid">
             {deptItems.map(p => (
@@ -1031,7 +1084,7 @@
         <div className="entry-list">
           <h2>内訳</h2>
           {entries.length === 0
-            ? <div className="empty-state">まだ入力がありません</div>
+            ? <div className="empty-state">{isToday ? 'まだ入力がありません' : 'この日のデータはありません'}</div>
             : entries.map(e => (
               <div key={e.id} className="entry-item">
                 <div className="entry-main">
@@ -1071,9 +1124,8 @@
     const [month, setMonth] = useState(now.getUTCMonth() + 1);
     const [days, setDays] = useState([]);
     const [expanded, setExpanded] = useState(null);
-    const [editing, setEditing] = useState(false);
 
-    const load = React.useCallback(() => {
+    useEffect(() => {
       const monthStr = `${year}-${String(month).padStart(2, '0')}`;
       const start = `${monthStr}-01`;
       const end = `${monthStr}-31`;
@@ -1087,7 +1139,7 @@
           for (const doc of snap.docs) {
             const entriesSnap = await doc.ref.collection('entries').orderBy('createdAt', 'asc').get();
             const entries = entriesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-            if (entries.length === 0) continue; // エントリのない日は集計しない
+            if (entries.length === 0) continue;
             const subtotal = entries.reduce((s, e) => s + calcEntry(e).gross, 0);
             const discountAmount = entries.reduce((s, e) => s + calcEntry(e).discount, 0);
             const extraTotal = entries.reduce((s, e) => s + calcEntry(e).extra, 0);
@@ -1098,21 +1150,6 @@
           setDays(result);
         });
     }, [uid, year, month]);
-
-    useEffect(() => { load(); }, [load]);
-
-    // 過去の項目を編集する関数群
-    const entryRef = (date, id) =>
-      db.collection('users').doc(uid).collection('days').doc(date).collection('entries').doc(id);
-    const updateEntry = async (date, id, data) => {
-      await entryRef(date, id).update(data);
-      load();
-    };
-    const removeEntry = async (date, id) => {
-      if (!window.confirm('この項目を削除しますか？')) return;
-      await entryRef(date, id).delete();
-      load();
-    };
 
     const prevMonth = () => {
       if (month === 1) { setYear(y => y - 1); setMonth(12); }
@@ -1134,9 +1171,6 @@
             <span className="month-label">{year}年{month}月</span>
             <button onClick={nextMonth}>›</button>
           </div>
-          <button className={`edit-toggle ${editing ? 'active' : ''}`} onClick={() => setEditing(v => !v)}>
-            {editing ? '編集を終了' : '編集'}
-          </button>
         </div>
 
         <div className="month-summary">
@@ -1167,27 +1201,15 @@
                   {d.entries.map((e) => {
                     const c = calcEntry(e);
                     return (
-                      <div key={e.id} className="day-entry-block">
-                        <div className="day-entry">
-                          <span>
-                            {e.name}
-                            {c.rate > 0 ? `（${e.lodging ? '宿泊' : ''}割引${Math.round(c.rate * 100)}%）` : ''}
-                            {(e.extMin || 0) > 0 ? `（延長${e.extMin}分）` : ''}
-                            {e.shimei ? '（指名）' : ''}
-                            {e.seibetsu ? '（男女希望）' : ''}
-                          </span>
-                          <span className="de-price">{formatPrice(c.net)}</span>
-                        </div>
-                        {editing && (
-                          <div className="entry-toggles">
-                            <button className={`toggle-btn sm ${(e.extMin || 0) > 0 ? 'active' : ''}`} onClick={() => updateEntry(d.date, e.id, { extMin: ((e.extMin || 0) + 10) % 40 })}>延長{e.extMin || 0}分</button>
-                            <button className={`toggle-btn sm ${e.lodging ? 'active' : ''}`} onClick={() => updateEntry(d.date, e.id, { lodging: !e.lodging })}>宿泊</button>
-                            <button className={`toggle-btn sm ${e.discount ? 'active' : ''}`} onClick={() => updateEntry(d.date, e.id, { discount: !e.discount })}>割引</button>
-                            <button className={`toggle-btn sm ${e.shimei ? 'active' : ''}`} onClick={() => updateEntry(d.date, e.id, { shimei: !e.shimei })}>指名料</button>
-                            <button className={`toggle-btn sm ${e.seibetsu ? 'active' : ''}`} onClick={() => updateEntry(d.date, e.id, { seibetsu: !e.seibetsu })}>男女希望</button>
-                            <button className="delete-btn" onClick={() => removeEntry(d.date, e.id)}>✕</button>
-                          </div>
-                        )}
+                      <div key={e.id} className="day-entry">
+                        <span>
+                          {e.name}
+                          {c.rate > 0 ? `（${e.lodging ? '宿泊' : ''}割引${Math.round(c.rate * 100)}%）` : ''}
+                          {(e.extMin || 0) > 0 ? `（延長${e.extMin}分）` : ''}
+                          {e.shimei ? '（指名）' : ''}
+                          {e.seibetsu ? '（男女希望）' : ''}
+                        </span>
+                        <span className="de-price">{formatPrice(c.net)}</span>
                       </div>
                     );
                   })}
