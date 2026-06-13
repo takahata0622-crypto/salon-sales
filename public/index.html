@@ -390,6 +390,32 @@
       text-align: center;
     }
 
+    .edit-toggle {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 7px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--accent);
+      cursor: pointer;
+    }
+
+    .edit-toggle.active {
+      background: var(--accent);
+      color: white;
+      border-color: var(--accent);
+    }
+
+    .day-entry-block {
+      padding: 4px 0;
+    }
+
+    .day-entry-block .entry-toggles {
+      margin-top: 6px;
+      margin-bottom: 8px;
+    }
+
     .month-summary {
       background: var(--accent);
       color: white;
@@ -725,6 +751,24 @@
     return jst.toISOString().slice(11, 16);
   };
 
+  // 延長10分あたりの単価（メニュー種別ごと）
+  const extUnitFor = (name) => {
+    const n = name || '';
+    if (n.includes('ストレッチ')) return 1500;
+    if (n.includes('タイ古式') || n.includes('バリアロマ')) return 2000;
+    return 1350;
+  };
+  // 1件の金額内訳を計算（今日タブ・集計タブ共通）
+  const calcEntry = (e) => {
+    const ext = ((e.extMin || 0) / 10) * extUnitFor(e.name);
+    const gross = e.price + ext;
+    const rate = e.discount ? (e.lodging ? 0.10 : 0.20) : 0;
+    const discount = Math.round(gross * rate);
+    const extra = (e.shimei ? 500 : 0) + (e.seibetsu ? 300 : 0);
+    const net = gross - discount + extra;
+    return { ext, gross, rate, discount, extra, net };
+  };
+
   const CATEGORIES = ['ボディケア', 'タイ・バリ'];
   const UNCATEGORIZED = 'その他';
 
@@ -835,7 +879,7 @@
       <>
         <header>
           <h1>💄 サロン売上管理</h1>
-          <span className="version">Ver 1.11</span>
+          <span className="version">Ver 1.12</span>
         </header>
 
         <div className="tabs">
@@ -921,26 +965,14 @@
       setCustomPrice('');
     };
 
-    // 延長10分あたりの単価（メニュー種別ごと）
-    const extUnit = (e) => {
-      const n = e.name || '';
-      if (n.includes('ストレッチ')) return 1500;
-      if (n.includes('タイ古式') || n.includes('バリアロマ')) return 2000;
-      return 1350;
-    };
-    const extAmount = (e) => ((e.extMin || 0) / 10) * extUnit(e);
-    const entryGross = (e) => e.price + extAmount(e);
-    const entryRate = (e) => (e.discount ? (e.lodging ? 0.10 : 0.20) : 0);
-    const entryDiscount = (e) => Math.round(entryGross(e) * entryRate(e));
-    // 指名料・男女希望は割引対象外で後加算
-    const shimeiAmount = (e) => (e.shimei ? 500 : 0);
-    const seibetsuAmount = (e) => (e.seibetsu ? 300 : 0);
-    const entryExtra = (e) => shimeiAmount(e) + seibetsuAmount(e);
-    const entryNet = (e) => entryGross(e) - entryDiscount(e) + entryExtra(e);
+    const extAmount = (e) => calcEntry(e).ext;
+    const entryGross = (e) => calcEntry(e).gross;
+    const entryRate = (e) => calcEntry(e).rate;
+    const entryNet = (e) => calcEntry(e).net;
 
-    const subtotal = entries.reduce((s, e) => s + entryGross(e), 0);
-    const discountAmount = entries.reduce((s, e) => s + entryDiscount(e), 0);
-    const extraTotal = entries.reduce((s, e) => s + entryExtra(e), 0);
+    const subtotal = entries.reduce((s, e) => s + calcEntry(e).gross, 0);
+    const discountAmount = entries.reduce((s, e) => s + calcEntry(e).discount, 0);
+    const extraTotal = entries.reduce((s, e) => s + calcEntry(e).extra, 0);
     const total = subtotal - discountAmount + extraTotal;
 
     const groups = groupByCategory(presets);
@@ -1039,8 +1071,9 @@
     const [month, setMonth] = useState(now.getUTCMonth() + 1);
     const [days, setDays] = useState([]);
     const [expanded, setExpanded] = useState(null);
+    const [editing, setEditing] = useState(false);
 
-    useEffect(() => {
+    const load = React.useCallback(() => {
       const monthStr = `${year}-${String(month).padStart(2, '0')}`;
       const start = `${monthStr}-01`;
       const end = `${monthStr}-31`;
@@ -1050,21 +1083,36 @@
         .where(firebase.firestore.FieldPath.documentId(), '<=', end)
         .get()
         .then(async snap => {
-          const rateOf = (e) => (e.discount ? (e.lodging ? 0.10 : 0.20) : 0);
           const result = [];
           for (const doc of snap.docs) {
-            const entriesSnap = await doc.ref.collection('entries').get();
-            const entries = entriesSnap.docs.map(d => d.data());
+            const entriesSnap = await doc.ref.collection('entries').orderBy('createdAt', 'asc').get();
+            const entries = entriesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
             if (entries.length === 0) continue; // エントリのない日は集計しない
-            const subtotal = entries.reduce((s, e) => s + e.price, 0);
-            const discountAmount = entries.reduce((s, e) => s + Math.round(e.price * rateOf(e)), 0);
-            const total = subtotal - discountAmount;
-            result.push({ date: doc.id, entries, subtotal, discountAmount, total });
+            const subtotal = entries.reduce((s, e) => s + calcEntry(e).gross, 0);
+            const discountAmount = entries.reduce((s, e) => s + calcEntry(e).discount, 0);
+            const extraTotal = entries.reduce((s, e) => s + calcEntry(e).extra, 0);
+            const total = subtotal - discountAmount + extraTotal;
+            result.push({ date: doc.id, entries, subtotal, discountAmount, extraTotal, total });
           }
           result.sort((a, b) => b.date.localeCompare(a.date));
           setDays(result);
         });
     }, [uid, year, month]);
+
+    useEffect(() => { load(); }, [load]);
+
+    // 過去の項目を編集する関数群
+    const entryRef = (date, id) =>
+      db.collection('users').doc(uid).collection('days').doc(date).collection('entries').doc(id);
+    const updateEntry = async (date, id, data) => {
+      await entryRef(date, id).update(data);
+      load();
+    };
+    const removeEntry = async (date, id) => {
+      if (!window.confirm('この項目を削除しますか？')) return;
+      await entryRef(date, id).delete();
+      load();
+    };
 
     const prevMonth = () => {
       if (month === 1) { setYear(y => y - 1); setMonth(12); }
@@ -1086,6 +1134,9 @@
             <span className="month-label">{year}年{month}月</span>
             <button onClick={nextMonth}>›</button>
           </div>
+          <button className={`edit-toggle ${editing ? 'active' : ''}`} onClick={() => setEditing(v => !v)}>
+            {editing ? '編集を終了' : '編集'}
+          </button>
         </div>
 
         <div className="month-summary">
@@ -1113,13 +1164,30 @@
               </div>
               {expanded === d.date && (
                 <div className="day-card-body">
-                  {d.entries.map((e, i) => {
-                    const r = e.discount ? (e.lodging ? 0.10 : 0.20) : 0;
-                    const net = e.price - Math.round(e.price * r);
+                  {d.entries.map((e) => {
+                    const c = calcEntry(e);
                     return (
-                      <div key={i} className="day-entry">
-                        <span>{e.name}{r > 0 ? `（${e.lodging ? '宿泊' : ''}割引${Math.round(r * 100)}%）` : ''}</span>
-                        <span className="de-price">{formatPrice(net)}</span>
+                      <div key={e.id} className="day-entry-block">
+                        <div className="day-entry">
+                          <span>
+                            {e.name}
+                            {c.rate > 0 ? `（${e.lodging ? '宿泊' : ''}割引${Math.round(c.rate * 100)}%）` : ''}
+                            {(e.extMin || 0) > 0 ? `（延長${e.extMin}分）` : ''}
+                            {e.shimei ? '（指名）' : ''}
+                            {e.seibetsu ? '（男女希望）' : ''}
+                          </span>
+                          <span className="de-price">{formatPrice(c.net)}</span>
+                        </div>
+                        {editing && (
+                          <div className="entry-toggles">
+                            <button className={`toggle-btn sm ${(e.extMin || 0) > 0 ? 'active' : ''}`} onClick={() => updateEntry(d.date, e.id, { extMin: ((e.extMin || 0) + 10) % 40 })}>延長{e.extMin || 0}分</button>
+                            <button className={`toggle-btn sm ${e.lodging ? 'active' : ''}`} onClick={() => updateEntry(d.date, e.id, { lodging: !e.lodging })}>宿泊</button>
+                            <button className={`toggle-btn sm ${e.discount ? 'active' : ''}`} onClick={() => updateEntry(d.date, e.id, { discount: !e.discount })}>割引</button>
+                            <button className={`toggle-btn sm ${e.shimei ? 'active' : ''}`} onClick={() => updateEntry(d.date, e.id, { shimei: !e.shimei })}>指名料</button>
+                            <button className={`toggle-btn sm ${e.seibetsu ? 'active' : ''}`} onClick={() => updateEntry(d.date, e.id, { seibetsu: !e.seibetsu })}>男女希望</button>
+                            <button className="delete-btn" onClick={() => removeEntry(d.date, e.id)}>✕</button>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -1127,6 +1195,12 @@
                     <div className="day-entry day-discount">
                       <span>割引合計</span>
                       <span className="de-price">−{formatPrice(d.discountAmount)}</span>
+                    </div>
+                  )}
+                  {d.extraTotal > 0 && (
+                    <div className="day-entry">
+                      <span>追加料金合計</span>
+                      <span className="de-price">+{formatPrice(d.extraTotal)}</span>
                     </div>
                   )}
                 </div>
