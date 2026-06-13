@@ -545,6 +545,31 @@
       cursor: pointer;
     }
 
+    .reset-section {
+      margin-top: 18px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border);
+    }
+
+    .reset-btn {
+      width: 100%;
+      background: var(--card);
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      border-radius: 10px;
+      padding: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .reset-note {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 6px;
+      line-height: 1.5;
+    }
+
     .loading {
       text-align: center;
       padding: 40px;
@@ -595,18 +620,36 @@
     return jst.toISOString().slice(11, 16);
   };
 
-  const CATEGORIES = ['マッサージ部門', 'タイ・バリ部門'];
+  const CATEGORIES = ['ボディケア', 'タイ・バリ部門'];
   const UNCATEGORIZED = 'その他';
 
   const DEFAULT_PRESETS = [
-    { id: 'p1', name: 'もみほぐし 60分', price: 6000, category: 'マッサージ部門', isDefault: true },
-    { id: 'p2', name: 'もみほぐし 90分', price: 9000, category: 'マッサージ部門', isDefault: true },
-    { id: 'p3', name: 'アロマオイル 60分', price: 8000, category: 'マッサージ部門', isDefault: true },
-    { id: 'p4', name: 'フットケア 40分', price: 5000, category: 'マッサージ部門', isDefault: true },
-    { id: 'p5', name: 'タイ古式 60分', price: 7000, category: 'タイ・バリ部門', isDefault: true },
-    { id: 'p6', name: 'タイ古式 90分', price: 10000, category: 'タイ・バリ部門', isDefault: true },
-    { id: 'p7', name: 'バリニーズ 60分', price: 8000, category: 'タイ・バリ部門', isDefault: true },
-    { id: 'p8', name: 'バリニーズ 90分', price: 11000, category: 'タイ・バリ部門', isDefault: true },
+    // ボディケア部門（ボディケア・セレクトボディケア・部分集中・体幹ストレッチ）
+    { id: 'p1', name: 'シングル ボディケア40分', price: 5000, category: 'ボディケア', isDefault: true },
+    { id: 'p2', name: 'ボディケア全身コース60分', price: 7600, category: 'ボディケア', isDefault: true },
+    { id: 'p3', name: 'ボディケア全身+部分集中コース80分', price: 10000, category: 'ボディケア', isDefault: true },
+    { id: 'p4', name: 'セレクトボディケア60分', price: 7800, category: 'ボディケア', isDefault: true },
+    { id: 'p5', name: 'セレクトボディケア80分', price: 10400, category: 'ボディケア', isDefault: true },
+    { id: 'p6', name: 'セレクトボディケア100分', price: 13000, category: 'ボディケア', isDefault: true },
+    { id: 'p7', name: 'セレクトボディケア120分', price: 15600, category: 'ボディケア', isDefault: true },
+    { id: 'p8', name: '部分集中 頭＆首30分', price: 4500, category: 'ボディケア', isDefault: true },
+    { id: 'p9', name: '部分集中 頭＆肩30分', price: 4500, category: 'ボディケア', isDefault: true },
+    { id: 'p10', name: '部分集中 肩甲骨はがし30分', price: 4500, category: 'ボディケア', isDefault: true },
+    { id: 'p11', name: '部分集中 腸もみ30分', price: 4500, category: 'ボディケア', isDefault: true },
+    { id: 'p12', name: '部分集中 スリープヘッド30分', price: 4500, category: 'ボディケア', isDefault: true },
+    { id: 'p13', name: '体幹ストレッチ部分集中40分', price: 5500, category: 'ボディケア', isDefault: true },
+    { id: 'p14', name: '体幹ストレッチ全身ショート60分', price: 7800, category: 'ボディケア', isDefault: true },
+    { id: 'p15', name: '体幹ストレッチ全身スタンダード90分', price: 11000, category: 'ボディケア', isDefault: true },
+    // タイ・バリ部門（タイ古式セラピー・バリアロマトリートメント）
+    { id: 'p16', name: 'タイ古式セラピー全身60分', price: 8000, category: 'タイ・バリ部門', isDefault: true },
+    { id: 'p17', name: 'タイ古式セラピー全身90分', price: 11500, category: 'タイ・バリ部門', isDefault: true },
+    { id: 'p18', name: 'タイ古式セラピー全身+部分集中120分', price: 14500, category: 'タイ・バリ部門', isDefault: true },
+    { id: 'p19', name: 'タイ古式セラピー キャンペーン70分', price: 8500, category: 'タイ・バリ部門', isDefault: true },
+    { id: 'p20', name: 'バリアロマトリートメント背面40分', price: 7000, category: 'タイ・バリ部門', isDefault: true },
+    { id: 'p21', name: 'バリアロマトリートメント全身60分', price: 9800, category: 'タイ・バリ部門', isDefault: true },
+    { id: 'p22', name: 'バリアロマトリートメント全身+集中90分', price: 14000, category: 'タイ・バリ部門', isDefault: true },
+    { id: 'p23', name: 'バリアロマトリートメント全身+集中120分', price: 18000, category: 'タイ・バリ部門', isDefault: true },
+    { id: 'p24', name: 'バリアロマトリートメント キャンペーン70分', price: 10000, category: 'タイ・バリ部門', isDefault: true },
   ];
 
   // プリセットを大分類ごとにグループ化（CATEGORIES の順 → その他 → 独自分類）
@@ -624,6 +667,22 @@
     return groups;
   };
 
+  // 初期メニューを Firestore に一括登録（編集・削除できる実データとして保存）
+  const seedDefaultPresets = async (uid) => {
+    const col = db.collection('users').doc(uid).collection('presets');
+    const base = Date.now();
+    const batch = db.batch();
+    DEFAULT_PRESETS.forEach((m, i) => {
+      batch.set(col.doc(), {
+        name: m.name,
+        price: m.price,
+        category: m.category,
+        createdAt: base + i
+      });
+    });
+    await batch.commit();
+  };
+
   // ==================== コンポーネント ====================
 
   function App() {
@@ -632,9 +691,19 @@
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-      // 匿名ログイン
-      auth.signInAnonymously().then(result => {
-        setUid(result.user.uid);
+      // 匿名ログイン → 初回はメニューを自動登録
+      auth.signInAnonymously().then(async result => {
+        const u = result.user.uid;
+        try {
+          const col = db.collection('users').doc(u).collection('presets');
+          const snap = await col.limit(1).get();
+          if (snap.empty) {
+            await seedDefaultPresets(u);
+          }
+        } catch (e) {
+          console.error('seed error', e);
+        }
+        setUid(u);
         setLoading(false);
       }).catch(err => {
         console.error(err);
@@ -649,7 +718,7 @@
       <>
         <header>
           <h1>💄 サロン売上管理</h1>
-          <span className="version">Ver 1.04</span>
+          <span className="version">Ver 1.05</span>
         </header>
 
         <div className="tabs">
@@ -969,6 +1038,25 @@
       }
     };
 
+    const loadDefaultMenu = async () => {
+      if (!window.confirm('現在のメニューをすべて削除して、初期メニュー（ボディケア／タイ・バリ部門）を登録します。よろしいですか？')) return;
+      try {
+        const col = db.collection('users').doc(uid).collection('presets');
+        const snap = await col.get();
+        if (!snap.empty) {
+          const delBatch = db.batch();
+          snap.docs.forEach(d => delBatch.delete(d.ref));
+          await delBatch.commit();
+        }
+        await seedDefaultPresets(uid);
+        loadPresets();
+        alert('初期メニューを登録しました');
+      } catch (e) {
+        console.error(e);
+        alert('読み込みに失敗しました：' + (e && e.message ? e.message : e));
+      }
+    };
+
     const usingDefaults = presets.length > 0 && presets.every(p => p.isDefault);
 
     return (
@@ -1041,6 +1129,11 @@
             </select>
             <button onClick={addPreset}>追加</button>
           </div>
+        </div>
+
+        <div className="reset-section">
+          <button className="reset-btn" onClick={loadDefaultMenu}>初期メニューを読み込む（現在のメニューを置き換え）</button>
+          <div className="reset-note">標準メニュー（ボディケア／タイ・バリ部門）を一括登録します。エステ・あかすりは含みません。</div>
         </div>
       </div>
     );
