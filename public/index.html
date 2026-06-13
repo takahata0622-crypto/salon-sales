@@ -523,7 +523,7 @@
       <>
         <header>
           <h1>💄 サロン売上管理</h1>
-          <span className="version">Ver 1.01</span>
+          <span className="version">Ver 1.02</span>
         </header>
 
         <div className="tabs">
@@ -772,16 +772,24 @@
     useEffect(() => { loadPresets(); }, [loadPresets]);
 
     const addPreset = async () => {
-      const p = parseInt(newPrice.replace(/,/g, ''), 10);
-      if (!newName.trim() || isNaN(p) || p <= 0) return;
-      await db.collection('users').doc(uid).collection('presets').add({
-        name: newName.trim(),
-        price: p,
-        createdAt: Date.now()
-      });
-      setNewName('');
-      setNewPrice('');
-      loadPresets();
+      const p = parseInt(String(newPrice).replace(/,/g, ''), 10);
+      if (!newName.trim() || isNaN(p) || p <= 0) {
+        alert('コース名と金額（1以上の数字）を入力してください');
+        return;
+      }
+      try {
+        await db.collection('users').doc(uid).collection('presets').add({
+          name: newName.trim(),
+          price: p,
+          createdAt: Date.now()
+        });
+        setNewName('');
+        setNewPrice('');
+        loadPresets();
+      } catch (e) {
+        console.error(e);
+        alert('追加に失敗しました：' + (e && e.message ? e.message : e));
+      }
     };
 
     const deletePreset = async (id) => {
