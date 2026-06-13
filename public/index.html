@@ -442,6 +442,32 @@
     /* 大分類・編集UI */
     .preset-group { margin-bottom: 14px; }
 
+    .dept-tabs {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+
+    .dept-tab {
+      flex: 1;
+      padding: 9px 8px;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--muted);
+      background: var(--accent-light);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .dept-tab.active {
+      background: var(--accent);
+      color: white;
+      border-color: var(--accent);
+    }
+
     .cat-heading {
       font-size: 12px;
       font-weight: 700;
@@ -685,6 +711,22 @@
 
   // ==================== コンポーネント ====================
 
+  // 大部門の切り替えタブ
+  function DeptTabs({ depts, value, onChange }) {
+    if (depts.length <= 1) return null;
+    return (
+      <div className="dept-tabs">
+        {depts.map(d => (
+          <button
+            key={d}
+            className={`dept-tab ${value === d ? 'active' : ''}`}
+            onClick={() => onChange(d)}
+          >{d}</button>
+        ))}
+      </div>
+    );
+  }
+
   function App() {
     const [tab, setTab] = useState('today');
     const [uid, setUid] = useState(null);
@@ -718,7 +760,7 @@
       <>
         <header>
           <h1>💄 サロン売上管理</h1>
-          <span className="version">Ver 1.05</span>
+          <span className="version">Ver 1.06</span>
         </header>
 
         <div className="tabs">
@@ -740,6 +782,7 @@
   function TodayTab({ uid }) {
     const [entries, setEntries] = useState([]);
     const [presets, setPresets] = useState([]);
+    const [dept, setDept] = useState(CATEGORIES[0]);
     const [customName, setCustomName] = useState('');
     const [customPrice, setCustomPrice] = useState('');
     const today = todayStr();
@@ -793,6 +836,11 @@
 
     const total = entries.reduce((s, e) => s + e.price, 0);
 
+    const groups = groupByCategory(presets);
+    const deptNames = groups.map(g => g.category);
+    const activeDept = deptNames.includes(dept) ? dept : (deptNames[0] || dept);
+    const deptItems = (groups.find(g => g.category === activeDept) || { items: [] }).items;
+
     return (
       <>
         {/* 合計 */}
@@ -805,19 +853,15 @@
         {/* コース追加 */}
         <div className="add-section">
           <h2>メニューを追加</h2>
-          {groupByCategory(presets).map(g => (
-            <div key={g.category} className="preset-group">
-              <div className="cat-heading">{g.category}</div>
-              <div className="preset-grid">
-                {g.items.map(p => (
-                  <button key={p.id} className="preset-btn" onClick={() => addEntry(p.name, p.price)}>
-                    <span className="course-name">{p.name}</span>
-                    <span className="course-price">{formatPrice(p.price)}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
+          <DeptTabs depts={deptNames} value={activeDept} onChange={setDept} />
+          <div className="preset-grid">
+            {deptItems.map(p => (
+              <button key={p.id} className="preset-btn" onClick={() => addEntry(p.name, p.price)}>
+                <span className="course-name">{p.name}</span>
+                <span className="course-price">{formatPrice(p.price)}</span>
+              </button>
+            ))}
+          </div>
 
           {/* カスタム */}
           <div className="custom-input-row">
@@ -955,6 +999,7 @@
   // ========== 設定タブ ==========
   function SettingsTab({ uid }) {
     const [presets, setPresets] = useState([]);
+    const [dept, setDept] = useState(CATEGORIES[0]);
     const [newName, setNewName] = useState('');
     const [newPrice, setNewPrice] = useState('');
     const [newCategory, setNewCategory] = useState(CATEGORIES[0]);
@@ -1059,6 +1104,12 @@
 
     const usingDefaults = presets.length > 0 && presets.every(p => p.isDefault);
 
+    const groups = groupByCategory(presets);
+    const deptNames = groups.map(g => g.category);
+    const activeDept = deptNames.includes(dept) ? dept : (deptNames[0] || dept);
+    const deptItems = (groups.find(g => g.category === activeDept) || { items: [] }).items;
+    const onDeptChange = (d) => { setDept(d); setNewCategory(d); setEditingId(null); };
+
     return (
       <div className="manage-section">
         <h2>メニュー管理</h2>
@@ -1067,10 +1118,10 @@
           <div className="hint">下記は初期サンプルです。「メニューを追加」から登録すると、編集・削除できるようになります。</div>
         )}
 
-        {groupByCategory(presets).map(g => (
-          <div key={g.category} className="preset-group">
-            <div className="cat-heading">{g.category}</div>
-            {g.items.map(p => (
+        <DeptTabs depts={deptNames} value={activeDept} onChange={onDeptChange} />
+
+        <div className="preset-group">
+          {deptItems.map(p => (
               editingId === p.id ? (
                 <div key={p.id} className="preset-item editing">
                   <div className="edit-fields">
@@ -1104,9 +1155,11 @@
                   </div>
                 </div>
               )
-            ))}
-          </div>
-        ))}
+          ))}
+          {deptItems.length === 0 && (
+            <div className="empty-state">この部門のメニューはありません</div>
+          )}
+        </div>
 
         <div className="new-preset-section">
           <div className="cat-heading">メニューを追加</div>
