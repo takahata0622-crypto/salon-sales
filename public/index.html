@@ -61,6 +61,131 @@
       color: var(--muted);
     }
 
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .logout-btn {
+      background: var(--accent-light);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 5px 10px;
+      font-size: 12px;
+      color: var(--muted);
+      cursor: pointer;
+    }
+
+    .user-line {
+      padding: 8px 20px 0;
+      font-size: 13px;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    /* ログイン画面 */
+    .login-wrap {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .login-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px 24px;
+      width: 100%;
+      max-width: 360px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+    }
+
+    .login-card h1 {
+      font-size: 20px;
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .login-mode {
+      display: flex;
+      gap: 0;
+      margin-bottom: 18px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .login-mode button {
+      flex: 1;
+      padding: 9px;
+      font-size: 14px;
+      font-weight: 600;
+      background: var(--bg);
+      color: var(--muted);
+      border: none;
+      cursor: pointer;
+    }
+
+    .login-mode button.active {
+      background: var(--accent);
+      color: white;
+    }
+
+    .login-input {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 11px 12px;
+      font-size: 15px;
+      background: var(--bg);
+      color: var(--ink);
+      outline: none;
+      margin-bottom: 12px;
+      box-sizing: border-box;
+    }
+
+    .login-input:focus {
+      border-color: var(--accent);
+    }
+
+    .login-error {
+      background: rgba(220,53,69,0.1);
+      color: var(--danger);
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 13px;
+      margin-bottom: 12px;
+    }
+
+    .login-submit {
+      width: 100%;
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      padding: 12px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .login-submit:disabled {
+      opacity: 0.6;
+      cursor: default;
+    }
+
+    .login-hint {
+      margin-top: 14px;
+      font-size: 12px;
+      color: var(--muted);
+      text-align: center;
+      line-height: 1.5;
+    }
+
     .tabs {
       display: flex;
       gap: 0;
@@ -935,41 +1060,119 @@
     );
   }
 
+  // 名前を内部的なメールアドレスへ変換（日本語名でもOKにするためUTF-8をhex化）
+  const nameToEmail = (name) => {
+    const bytes = new TextEncoder().encode(name.trim().toLowerCase());
+    let hex = '';
+    bytes.forEach(b => { hex += b.toString(16).padStart(2, '0'); });
+    return `u${hex}@salon-sales.local`;
+  };
+
+  // ========== ログイン画面 ==========
+  function LoginScreen() {
+    const [mode, setMode] = useState('login'); // 'login' | 'signup'
+    const [name, setName] = useState('');
+    const [password, setPassword] = useState('');
+    const [error, setError] = useState('');
+    const [busy, setBusy] = useState(false);
+
+    const submit = async () => {
+      setError('');
+      const nm = name.trim();
+      if (!nm) { setError('名前を入力してください'); return; }
+      if (password.length < 6) { setError('パスワードは6文字以上で入力してください'); return; }
+      setBusy(true);
+      const email = nameToEmail(nm);
+      try {
+        if (mode === 'signup') {
+          const result = await auth.createUserWithEmailAndPassword(email, password);
+          await result.user.updateProfile({ displayName: nm });
+          await seedDefaultPresets(result.user.uid);
+        } else {
+          await auth.signInWithEmailAndPassword(email, password);
+        }
+        // onAuthStateChanged が拾ってApp側で画面遷移
+      } catch (err) {
+        const map = {
+          'auth/email-already-in-use': 'この名前は既に登録されています。「ログイン」を選んでください。',
+          'auth/user-not-found': 'この名前は登録されていません。「新規登録」を選んでください。',
+          'auth/wrong-password': 'パスワードが違います。',
+          'auth/invalid-credential': '名前またはパスワードが違います。',
+          'auth/weak-password': 'パスワードは6文字以上で入力してください。',
+          'auth/operation-not-allowed': 'メール/パスワードログインが有効になっていません（設定が必要です）。',
+          'auth/network-request-failed': 'ネットワークエラーが発生しました。',
+        };
+        setError(map[err.code] || ('エラー: ' + (err.message || err.code)));
+      } finally {
+        setBusy(false);
+      }
+    };
+
+    return (
+      <div className="login-wrap">
+        <div className="login-card">
+          <h1>💄 サロン売上管理</h1>
+          <div className="login-mode">
+            <button className={mode === 'login' ? 'active' : ''} onClick={() => { setMode('login'); setError(''); }}>ログイン</button>
+            <button className={mode === 'signup' ? 'active' : ''} onClick={() => { setMode('signup'); setError(''); }}>新規登録</button>
+          </div>
+          <input
+            className="login-input"
+            placeholder="名前"
+            value={name}
+            onChange={e => setName(e.target.value)}
+          />
+          <input
+            className="login-input"
+            type="password"
+            placeholder="パスワード（6文字以上）"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') submit(); }}
+          />
+          {error && <div className="login-error">{error}</div>}
+          <button className="login-submit" onClick={submit} disabled={busy}>
+            {busy ? '処理中...' : (mode === 'signup' ? '登録して始める' : 'ログイン')}
+          </button>
+          <div className="login-hint">
+            {mode === 'signup'
+              ? '初めての方はこちら。名前とパスワードを決めて登録してください。'
+              : '登録済みの名前とパスワードでログインしてください。'}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   function App() {
     const [tab, setTab] = useState('today');
-    const [uid, setUid] = useState(null);
+    const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-      // 匿名ログイン → 初回はメニューを自動登録
-      auth.signInAnonymously().then(async result => {
-        const u = result.user.uid;
-        try {
-          const col = db.collection('users').doc(u).collection('presets');
-          const snap = await col.limit(1).get();
-          if (snap.empty) {
-            await seedDefaultPresets(u);
-          }
-        } catch (e) {
-          console.error('seed error', e);
-        }
-        setUid(u);
-        setLoading(false);
-      }).catch(err => {
-        console.error(err);
+      const unsub = auth.onAuthStateChanged(u => {
+        setUser(u);
         setLoading(false);
       });
+      return () => unsub();
     }, []);
 
     if (loading) return <div className="loading">読み込み中...</div>;
-    if (!uid) return <div className="loading">エラーが発生しました</div>;
+    if (!user) return <LoginScreen />;
+
+    const uid = user.uid;
 
     return (
       <>
         <header>
           <h1>💄 サロン売上管理</h1>
-          <span className="version">Ver 1.18</span>
+          <div className="header-right">
+            <span className="version">Ver 1.19</span>
+            <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
+          </div>
         </header>
+
+        {user.displayName && <div className="user-line">{user.displayName} さん</div>}
 
         <div className="tabs">
           <button className={`tab ${tab === 'today' ? 'active' : ''}`} onClick={() => setTab('today')}>今日</button>
