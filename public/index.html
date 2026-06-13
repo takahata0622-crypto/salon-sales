@@ -439,6 +439,112 @@
       cursor: pointer;
     }
 
+    /* 大分類・編集UI */
+    .preset-group { margin-bottom: 14px; }
+
+    .cat-heading {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 0.04em;
+      margin: 4px 0 8px;
+      padding-left: 8px;
+      border-left: 3px solid var(--accent);
+    }
+
+    .pi-actions { display: flex; align-items: center; gap: 6px; }
+
+    .edit-link, .del-link {
+      background: var(--accent-light);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 5px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      color: var(--ink);
+    }
+
+    .del-link { color: var(--danger); }
+
+    .sample-tag {
+      font-size: 11px;
+      color: var(--muted);
+      background: var(--accent-light);
+      border-radius: 6px;
+      padding: 3px 8px;
+    }
+
+    .preset-item.editing {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 8px;
+    }
+
+    .edit-fields { display: flex; flex-direction: column; gap: 8px; }
+
+    .edit-fields input, .edit-row2 select, .new-preset-row2 select {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 13px;
+      background: var(--bg);
+      color: var(--ink);
+      outline: none;
+    }
+
+    .edit-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+    .edit-actions { display: flex; gap: 8px; }
+
+    .save-btn, .cancel-btn {
+      flex: 1;
+      border-radius: 8px;
+      padding: 8px 0;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid var(--border);
+    }
+
+    .save-btn { background: var(--accent); color: white; border-color: var(--accent); }
+    .cancel-btn { background: var(--card); color: var(--muted); }
+
+    .hint {
+      font-size: 12px;
+      color: var(--muted);
+      background: var(--accent-light);
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 12px;
+      line-height: 1.5;
+    }
+
+    .new-preset-section {
+      margin-top: 16px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+    }
+
+    .new-preset-row2 {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      margin-top: 8px;
+      align-items: center;
+    }
+
+    .new-preset-row2 button {
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 9px 18px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
     .loading {
       text-align: center;
       padding: 40px;
@@ -489,14 +595,34 @@
     return jst.toISOString().slice(11, 16);
   };
 
+  const CATEGORIES = ['マッサージ部門', 'タイ・バリ部門'];
+  const UNCATEGORIZED = 'その他';
+
   const DEFAULT_PRESETS = [
-    { id: 'p1', name: 'カット', price: 5000 },
-    { id: 'p2', name: 'カラー', price: 8000 },
-    { id: 'p3', name: 'パーマ', price: 12000 },
-    { id: 'p4', name: 'トリートメント', price: 4000 },
-    { id: 'p5', name: 'カット+カラー', price: 13000 },
-    { id: 'p6', name: 'ヘッドスパ', price: 6000 },
+    { id: 'p1', name: 'もみほぐし 60分', price: 6000, category: 'マッサージ部門', isDefault: true },
+    { id: 'p2', name: 'もみほぐし 90分', price: 9000, category: 'マッサージ部門', isDefault: true },
+    { id: 'p3', name: 'アロマオイル 60分', price: 8000, category: 'マッサージ部門', isDefault: true },
+    { id: 'p4', name: 'フットケア 40分', price: 5000, category: 'マッサージ部門', isDefault: true },
+    { id: 'p5', name: 'タイ古式 60分', price: 7000, category: 'タイ・バリ部門', isDefault: true },
+    { id: 'p6', name: 'タイ古式 90分', price: 10000, category: 'タイ・バリ部門', isDefault: true },
+    { id: 'p7', name: 'バリニーズ 60分', price: 8000, category: 'タイ・バリ部門', isDefault: true },
+    { id: 'p8', name: 'バリニーズ 90分', price: 11000, category: 'タイ・バリ部門', isDefault: true },
   ];
+
+  // プリセットを大分類ごとにグループ化（CATEGORIES の順 → その他 → 独自分類）
+  const groupByCategory = (presets) => {
+    const order = [...CATEGORIES, UNCATEGORIZED];
+    const seen = new Set();
+    const groups = [];
+    const push = (cat) => {
+      if (seen.has(cat)) return;
+      const items = presets.filter(p => (p.category || UNCATEGORIZED) === cat);
+      if (items.length) { groups.push({ category: cat, items }); seen.add(cat); }
+    };
+    order.forEach(push);
+    presets.forEach(p => push(p.category || UNCATEGORIZED));
+    return groups;
+  };
 
   // ==================== コンポーネント ====================
 
@@ -523,7 +649,7 @@
       <>
         <header>
           <h1>💄 サロン売上管理</h1>
-          <span className="version">Ver 1.03</span>
+          <span className="version">Ver 1.04</span>
         </header>
 
         <div className="tabs">
@@ -609,15 +735,20 @@
 
         {/* コース追加 */}
         <div className="add-section">
-          <h2>コースを追加</h2>
-          <div className="preset-grid">
-            {presets.map(p => (
-              <button key={p.id} className="preset-btn" onClick={() => addEntry(p.name, p.price)}>
-                <span className="course-name">{p.name}</span>
-                <span className="course-price">{formatPrice(p.price)}</span>
-              </button>
-            ))}
-          </div>
+          <h2>メニューを追加</h2>
+          {groupByCategory(presets).map(g => (
+            <div key={g.category} className="preset-group">
+              <div className="cat-heading">{g.category}</div>
+              <div className="preset-grid">
+                {g.items.map(p => (
+                  <button key={p.id} className="preset-btn" onClick={() => addEntry(p.name, p.price)}>
+                    <span className="course-name">{p.name}</span>
+                    <span className="course-price">{formatPrice(p.price)}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
 
           {/* カスタム */}
           <div className="custom-input-row">
@@ -757,6 +888,11 @@
     const [presets, setPresets] = useState([]);
     const [newName, setNewName] = useState('');
     const [newPrice, setNewPrice] = useState('');
+    const [newCategory, setNewCategory] = useState(CATEGORIES[0]);
+    const [editingId, setEditingId] = useState(null);
+    const [editName, setEditName] = useState('');
+    const [editPrice, setEditPrice] = useState('');
+    const [editCategory, setEditCategory] = useState(CATEGORIES[0]);
 
     const loadPresets = useCallback(() => {
       db.collection('users').doc(uid).collection('presets')
@@ -774,13 +910,14 @@
     const addPreset = async () => {
       const p = parseInt(String(newPrice).replace(/,/g, ''), 10);
       if (!newName.trim() || isNaN(p) || p <= 0) {
-        alert('コース名と金額（1以上の数字）を入力してください');
+        alert('メニュー名と金額（1以上の数字）を入力してください');
         return;
       }
       try {
         await db.collection('users').doc(uid).collection('presets').add({
           name: newName.trim(),
           price: p,
+          category: newCategory,
           createdAt: Date.now()
         });
         setNewName('');
@@ -792,42 +929,118 @@
       }
     };
 
-    const deletePreset = async (id) => {
-      if (!id.startsWith('p')) { // DEFAULT_PRESETS は id が 'p1' 等
-        await db.collection('users').doc(uid).collection('presets').doc(id).delete();
+    const startEdit = (p) => {
+      setEditingId(p.id);
+      setEditName(p.name);
+      setEditPrice(String(p.price));
+      setEditCategory(p.category || CATEGORIES[0]);
+    };
+
+    const cancelEdit = () => setEditingId(null);
+
+    const saveEdit = async (p) => {
+      const price = parseInt(String(editPrice).replace(/,/g, ''), 10);
+      if (!editName.trim() || isNaN(price) || price <= 0) {
+        alert('メニュー名と金額（1以上の数字）を入力してください');
+        return;
+      }
+      try {
+        await db.collection('users').doc(uid).collection('presets').doc(p.id).update({
+          name: editName.trim(),
+          price,
+          category: editCategory
+        });
+        setEditingId(null);
         loadPresets();
+      } catch (e) {
+        console.error(e);
+        alert('保存に失敗しました：' + (e && e.message ? e.message : e));
       }
     };
 
+    const deletePreset = async (p) => {
+      if (!window.confirm(`「${p.name}」を削除しますか？`)) return;
+      try {
+        await db.collection('users').doc(uid).collection('presets').doc(p.id).delete();
+        loadPresets();
+      } catch (e) {
+        console.error(e);
+        alert('削除に失敗しました：' + (e && e.message ? e.message : e));
+      }
+    };
+
+    const usingDefaults = presets.length > 0 && presets.every(p => p.isDefault);
+
     return (
       <div className="manage-section">
-        <h2>コースプリセット管理</h2>
+        <h2>メニュー管理</h2>
 
-        {presets.map(p => (
-          <div key={p.id} className="preset-item">
-            <div>
-              <div className="pi-name">{p.name}</div>
-              <div className="pi-price">{formatPrice(p.price)}</div>
-            </div>
-            {!p.id.startsWith('p') && (
-              <button className="delete-btn" onClick={() => deletePreset(p.id)}>✕</button>
-            )}
+        {usingDefaults && (
+          <div className="hint">下記は初期サンプルです。「メニューを追加」から登録すると、編集・削除できるようになります。</div>
+        )}
+
+        {groupByCategory(presets).map(g => (
+          <div key={g.category} className="preset-group">
+            <div className="cat-heading">{g.category}</div>
+            {g.items.map(p => (
+              editingId === p.id ? (
+                <div key={p.id} className="preset-item editing">
+                  <div className="edit-fields">
+                    <input value={editName} onChange={e => setEditName(e.target.value)} placeholder="メニュー名" />
+                    <div className="edit-row2">
+                      <input value={editPrice} inputMode="numeric" onChange={e => setEditPrice(e.target.value)} placeholder="金額" />
+                      <select value={editCategory} onChange={e => setEditCategory(e.target.value)}>
+                        {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="edit-actions">
+                    <button className="save-btn" onClick={() => saveEdit(p)}>保存</button>
+                    <button className="cancel-btn" onClick={cancelEdit}>取消</button>
+                  </div>
+                </div>
+              ) : (
+                <div key={p.id} className="preset-item">
+                  <div>
+                    <div className="pi-name">{p.name}</div>
+                    <div className="pi-price">{formatPrice(p.price)}</div>
+                  </div>
+                  <div className="pi-actions">
+                    {p.isDefault
+                      ? <span className="sample-tag">サンプル</span>
+                      : <>
+                          <button className="edit-link" onClick={() => startEdit(p)}>編集</button>
+                          <button className="del-link" onClick={() => deletePreset(p)}>削除</button>
+                        </>
+                    }
+                  </div>
+                </div>
+              )
+            ))}
           </div>
         ))}
 
-        <div className="new-preset-row">
-          <input
-            placeholder="コース名"
-            value={newName}
-            onChange={e => setNewName(e.target.value)}
-          />
-          <input
-            placeholder="金額"
-            inputMode="numeric"
-            value={newPrice}
-            onChange={e => setNewPrice(e.target.value)}
-          />
-          <button onClick={addPreset}>追加</button>
+        <div className="new-preset-section">
+          <div className="cat-heading">メニューを追加</div>
+          <div className="new-preset-row">
+            <input
+              placeholder="メニュー名"
+              value={newName}
+              onChange={e => setNewName(e.target.value)}
+            />
+            <input
+              placeholder="金額"
+              inputMode="numeric"
+              value={newPrice}
+              onChange={e => setNewPrice(e.target.value)}
+            />
+          </div>
+          <div className="new-preset-row2">
+            <select value={newCategory} onChange={e => setNewCategory(e.target.value)}>
+              {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <button onClick={addPreset}>追加</button>
+          </div>
         </div>
       </div>
     );
