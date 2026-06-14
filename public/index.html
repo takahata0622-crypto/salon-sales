@@ -1050,8 +1050,30 @@
       font-weight: bold;
       cursor: pointer;
       letter-spacing: 0.05em;
+      flex-shrink: 0;
     }
     .end-of-day-btn:disabled { opacity: 0.6; cursor: default; }
+    .end-of-day-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 16px 8px 0;
+      flex-wrap: wrap;
+    }
+    .send-status {
+      font-size: 13px;
+      font-weight: bold;
+      padding: 4px 10px;
+      border-radius: 12px;
+      white-space: nowrap;
+    }
+    .send-status.unsent { background: #fde8e8; color: #c0392b; }
+    .send-status.sent   { background: #e8f8ef; color: #27ae60; }
+    .send-caution {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.4;
+    }
     .send-result {
       text-align: center;
       margin-top: 8px;
@@ -1309,7 +1331,7 @@
         <header>
           <h1>💄 サロン売上管理</h1>
           <div className="header-right">
-            <span className="version">Ver 1.33</span>
+            <span className="version">Ver 1.34</span>
             <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
           </div>
         </header>
@@ -1851,6 +1873,10 @@
     );
     const [sending, setSending] = useState(false);
     const [sendResult, setSendResult] = useState(null);
+    const [sentDates, setSentDates] = useState(() => {
+      try { return new Set(JSON.parse(localStorage.getItem(`sentDates_${uid}`) || '[]')); }
+      catch { return new Set(); }
+    });
 
     // メニュー読み込み
     useEffect(() => {
@@ -2034,6 +2060,10 @@
         };
 
         await fetch(window.GAS_ENDPOINT, { method: 'POST', body: JSON.stringify(payload) });
+        const next = new Set(sentDates);
+        next.add(payload.fileName);
+        setSentDates(next);
+        localStorage.setItem(`sentDates_${uid}`, JSON.stringify([...next]));
         setSendResult('success');
       } catch (err) {
         setSendResult('error');
@@ -2174,18 +2204,27 @@
           )
         }
 
-        <button className="end-of-day-btn" onClick={handleEndOfDay} disabled={sending}>
-          {sending ? '送信中...' : `業務終了（${month}/${selectedDay} を転記）`}
-        </button>
+        {(() => {
+          const pad = (n) => String(n).padStart(2, '0');
+          const dateKey = `${year}${pad(month)}${pad(selectedDay)}`;
+          const isSent = sentDates.has(dateKey);
+          return (
+            <div className="end-of-day-row">
+              <span className={`send-status ${isSent ? 'sent' : 'unsent'}`}>
+                {isSent ? '送信済' : '未送信'}
+              </span>
+              <button className="end-of-day-btn" onClick={handleEndOfDay} disabled={sending}>
+                {sending ? '送信中...' : `訂正送信（${month}/${selectedDay}）`}
+              </button>
+              <span className="send-caution">指示なく前日より前のデータを訂正する場合は責任者に連絡をしてください。</span>
+            </div>
+          );
+        })()}
         {sendResult && (
           <div className={`send-result ${sendResult}`}>
             {sendResult === 'success' ? 'スプレッドシートに転記しました ✓' : '送信に失敗しました。再度お試しください。'}
           </div>
         )}
-
-        <div className="submit-note">
-          「業務終了」を押すと、選択中の日（{year}/{String(month).padStart(2,'0')}/{String(selectedDay).padStart(2,'0')}）の件数を、ファイル名「{year}{String(month).padStart(2,'0')}{String(selectedDay).padStart(2,'0')}」のスプレッドシートの自分の名前列に転記します。日付の列ヘッダーをタップして転記対象日を変更できます。
-        </div>
       </>
     );
   }
