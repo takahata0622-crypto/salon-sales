@@ -1276,7 +1276,7 @@
         <header>
           <h1>💄 サロン売上管理</h1>
           <div className="header-right">
-            <span className="version">Ver 1.25</span>
+            <span className="version">Ver 1.26</span>
             <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
           </div>
         </header>
@@ -1887,20 +1887,33 @@
     const dayCountTotals = {};
     let deptTotalAmount = 0;
     let deptTotalNoDisc = 0;
-    const NO_DISC_TIERS = new Set(['日帰り|定価', '宿泊|定価']);
+    // 部門のメニュー名セット
+    const deptMenuNames = new Set(deptItems.map(p => p.name));
+    // 割引前総額（gross）の日別集計
+    const grossAgg = {};
+    entries.forEach(e => {
+      if (!deptMenuNames.has(e.name)) return;
+      const tierKey = e.lodging
+        ? (e.discount ? '宿泊|10%OFF' : '宿泊|定価')
+        : (e.discount ? '日帰り|20%OFF' : '日帰り|定価');
+      const k = `${e.name}||${tierKey}`;
+      if (!grossAgg[k]) grossAgg[k] = {};
+      grossAgg[k][e._day] = (grossAgg[k][e._day] || 0) + calcEntry(e).gross + calcEntry(e).extra;
+    });
     deptItems.forEach(p => {
       SUBMIT_TIERS.forEach(t => {
         const tierKey = `${t.type}|${t.tier}`;
         const amtRow = amountAgg[`${p.name}||${tierKey}`] || {};
+        const grossRow = grossAgg[`${p.name}||${tierKey}`] || {};
         const cntRow = rowOf(p.name, t);
         dayList.forEach(d => {
           if (amtRow[d]) {
             dayAmounts[d] = (dayAmounts[d] || 0) + amtRow[d];
             deptTotalAmount += amtRow[d];
-            if (NO_DISC_TIERS.has(tierKey)) {
-              dayAmountsNoDisc[d] = (dayAmountsNoDisc[d] || 0) + amtRow[d];
-              deptTotalNoDisc += amtRow[d];
-            }
+          }
+          if (grossRow[d]) {
+            dayAmountsNoDisc[d] = (dayAmountsNoDisc[d] || 0) + grossRow[d];
+            deptTotalNoDisc += grossRow[d];
           }
           if (cntRow[d]) { dayCountTotals[d] = (dayCountTotals[d] || 0) + cntRow[d]; }
         });
@@ -1979,7 +1992,7 @@
                     <td className="row-total">{deptTotalAmount ? formatPrice(deptTotalAmount) : ''}</td>
                   </tr>
                   <tr>
-                    <td className="t-course sticky-col c1" colSpan={2}>割引なし合計</td>
+                    <td className="t-course sticky-col c1" colSpan={2}>割引前合計</td>
                     {dayList.map(d => (
                       <td key={d} className={d === selectedDay ? 'sel-col' : d === todayDay ? 'today-col' : ''}>
                         {d === selectedDay
