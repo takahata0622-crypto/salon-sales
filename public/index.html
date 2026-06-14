@@ -1309,7 +1309,7 @@
         <header>
           <h1>💄 サロン売上管理</h1>
           <div className="header-right">
-            <span className="version">Ver 1.29</span>
+            <span className="version">Ver 1.30</span>
             <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
           </div>
         </header>
@@ -1326,7 +1326,7 @@
         <div className="main">
           {tab === 'today' && <TodayTab uid={uid} />}
           {tab === 'history' && <HistoryTab uid={uid} />}
-          {tab === 'submit' && <SubmitTab uid={uid} />}
+          {tab === 'submit' && <SubmitTab uid={uid} userName={user.displayName || ''} />}
           {tab === 'settings' && <SettingsTab uid={uid} />}
         </div>
       </>
@@ -1831,7 +1831,7 @@
     { type: '宿泊',   tier: '10%OFF', lodging: true,  discount: true,  rate: 0.10 },
   ];
 
-  function SubmitTab({ uid }) {
+  function SubmitTab({ uid, userName }) {
     const now = toJST();
     const [year, setYear] = useState(now.getUTCFullYear());
     const [month, setMonth] = useState(now.getUTCMonth() + 1);
@@ -1978,6 +1978,7 @@
         }));
 
         const payload = {
+          userName,
           date: `${year}/${String(month).padStart(2, '0')}/${String(todayDay).padStart(2, '0')}`,
           groups: groupsData,
           totalJ: dayAmounts[todayDay] || 0,
