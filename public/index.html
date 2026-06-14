@@ -1392,7 +1392,7 @@
         <header>
           <h1>💄 サロン売上管理</h1>
           <div className="header-right">
-            <span className="version">Ver 1.41</span>
+            <span className="version">Ver 1.42</span>
             <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
           </div>
         </header>
@@ -1632,7 +1632,8 @@
       else setMonth(m => m + 1);
     };
 
-    const monthTotal = days.reduce((s, d) => s + d.total, 0);
+    // 月間売上は割引前金額（小計＋追加）で集計
+    const monthTotal = days.reduce((s, d) => s + d.subtotal + d.extraTotal, 0);
     const dayCount = days.length;
 
     return (
