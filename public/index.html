@@ -1276,7 +1276,7 @@
         <header>
           <h1>💄 サロン売上管理</h1>
           <div className="header-right">
-            <span className="version">Ver 1.24</span>
+            <span className="version">Ver 1.25</span>
             <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
           </div>
         </header>
@@ -1883,14 +1883,25 @@
       amountAgg[k][e._day] = (amountAgg[k][e._day] || 0) + calcEntry(e).net;
     });
     const dayAmounts = {};
+    const dayAmountsNoDisc = {};
     const dayCountTotals = {};
     let deptTotalAmount = 0;
+    let deptTotalNoDisc = 0;
+    const NO_DISC_TIERS = new Set(['日帰り|定価', '宿泊|定価']);
     deptItems.forEach(p => {
       SUBMIT_TIERS.forEach(t => {
-        const amtRow = amountAgg[`${p.name}||${t.type}|${t.tier}`] || {};
+        const tierKey = `${t.type}|${t.tier}`;
+        const amtRow = amountAgg[`${p.name}||${tierKey}`] || {};
         const cntRow = rowOf(p.name, t);
         dayList.forEach(d => {
-          if (amtRow[d]) { dayAmounts[d] = (dayAmounts[d] || 0) + amtRow[d]; deptTotalAmount += amtRow[d]; }
+          if (amtRow[d]) {
+            dayAmounts[d] = (dayAmounts[d] || 0) + amtRow[d];
+            deptTotalAmount += amtRow[d];
+            if (NO_DISC_TIERS.has(tierKey)) {
+              dayAmountsNoDisc[d] = (dayAmountsNoDisc[d] || 0) + amtRow[d];
+              deptTotalNoDisc += amtRow[d];
+            }
+          }
           if (cntRow[d]) { dayCountTotals[d] = (dayCountTotals[d] || 0) + cntRow[d]; }
         });
       });
@@ -1966,6 +1977,17 @@
                       </td>
                     ))}
                     <td className="row-total">{deptTotalAmount ? formatPrice(deptTotalAmount) : ''}</td>
+                  </tr>
+                  <tr>
+                    <td className="t-course sticky-col c1" colSpan={2}>割引なし合計</td>
+                    {dayList.map(d => (
+                      <td key={d} className={d === selectedDay ? 'sel-col' : d === todayDay ? 'today-col' : ''}>
+                        {d === selectedDay
+                          ? (dayAmountsNoDisc[d] ? formatPrice(dayAmountsNoDisc[d]) : '')
+                          : ''}
+                      </td>
+                    ))}
+                    <td className="row-total">{deptTotalNoDisc ? formatPrice(deptTotalNoDisc) : ''}</td>
                   </tr>
                 </tfoot>
               </table>
