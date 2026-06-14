@@ -940,8 +940,9 @@
     .submit-table th,
     .submit-table td {
       border: 1px solid var(--border);
-      padding: 7px 10px;
-      text-align: right;
+      padding: 7px 8px;
+      text-align: center;
+      min-width: 30px;
     }
 
     .submit-table thead th {
@@ -951,7 +952,18 @@
       text-align: center;
       position: sticky;
       top: 0;
+      z-index: 2;
     }
+
+    /* 左固定列（メニュー・区分） */
+    .submit-table .sticky-col {
+      position: sticky;
+      z-index: 1;
+      background: var(--card);
+    }
+    .submit-table thead .sticky-col { z-index: 3; }
+    .submit-table .sticky-col.c1 { left: 0; min-width: 120px; }
+    .submit-table .sticky-col.c2 { left: 120px; min-width: 92px; }
 
     .submit-table td.t-course {
       text-align: left;
@@ -963,6 +975,11 @@
     .submit-table td.t-type {
       text-align: left;
       color: var(--muted);
+    }
+
+    .submit-table td.row-total {
+      font-weight: 700;
+      background: var(--accent-light);
     }
 
     .submit-table tr.cat-row td {
@@ -1235,7 +1252,7 @@
         <header>
           <h1>💄 サロン売上管理</h1>
           <div className="header-right">
-            <span className="version">Ver 1.20</span>
+            <span className="version">Ver 1.21</span>
             <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
           </div>
         </header>
@@ -1764,6 +1781,7 @@
     const [entries, setEntries] = useState([]);
     const [presets, setPresets] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [dept, setDept] = useState(CATEGORIES[0]);
 
     // メニュー読み込み
     useEffect(() => {
@@ -1773,7 +1791,7 @@
         });
     }, [uid]);
 
-    // 選択月の全エントリ読み込み
+    // 選択月の全エントリ読み込み（日付つき）
     useEffect(() => {
       setLoading(true);
       const monthStr = `${year}-${String(month).padStart(2, '0')}`;
@@ -1786,8 +1804,9 @@
         .then(async snap => {
           const all = [];
           for (const doc of snap.docs) {
+            const day = parseInt(doc.id.slice(8, 10), 10);
             const es = await doc.ref.collection('entries').get();
-            es.docs.forEach(d => all.push(d.data()));
+            es.docs.forEach(d => all.push({ ...d.data(), _day: day }));
           }
           setEntries(all);
           setLoading(false);
@@ -1803,22 +1822,37 @@
       else setMonth(m => m + 1);
     };
 
-    // 区分ごとに件数・金額を集計（メニュー名 × 日帰り/宿泊 × 割引有無）
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const dayList = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+
+    // メニュー名×区分×日 ごとの件数を集計
     const agg = {};
     entries.forEach(e => {
       const tierKey = e.lodging
         ? (e.discount ? '宿泊|10%OFF' : '宿泊|定価')
         : (e.discount ? '日帰り|20%OFF' : '日帰り|定価');
       const k = `${e.name}||${tierKey}`;
-      if (!agg[k]) agg[k] = { count: 0, amount: 0 };
-      agg[k].count += 1;
-      agg[k].amount += calcEntry(e).net;
+      if (!agg[k]) agg[k] = {};
+      agg[k][e._day] = (agg[k][e._day] || 0) + 1;
     });
-    const cellOf = (name, t) => agg[`${name}||${t.type}|${t.tier}`] || { count: 0, amount: 0 };
+    const rowOf = (name, t) => agg[`${name}||${t.type}|${t.tier}`] || {};
 
     const groups = groupByCategory(presets);
-    const totalCount = entries.length;
-    const totalAmount = entries.reduce((s, e) => s + calcEntry(e).net, 0);
+    const deptNames = groups.map(g => g.category);
+    const activeDept = deptNames.includes(dept) ? dept : (deptNames[0] || dept);
+    const deptItems = (groups.find(g => g.category === activeDept) || { items: [] }).items;
+
+    // フッター用：選択部門の日別合計件数
+    const dayTotals = {};
+    let deptTotal = 0;
+    deptItems.forEach(p => {
+      SUBMIT_TIERS.forEach(t => {
+        const row = rowOf(p.name, t);
+        dayList.forEach(d => {
+          if (row[d]) { dayTotals[d] = (dayTotals[d] || 0) + row[d]; deptTotal += row[d]; }
+        });
+      });
+    });
 
     return (
       <>
@@ -1830,15 +1864,9 @@
           </div>
         </div>
 
-        <div className="month-summary">
-          <div>
-            <div className="stat-label">提出件数</div>
-            <div className="stat-value">{totalCount}件</div>
-          </div>
-          <div>
-            <div className="stat-label">提出金額</div>
-            <div className="stat-value">{formatPrice(totalAmount)}</div>
-          </div>
+        <div className="add-section-header" style={{ marginBottom: 12 }}>
+          <h2>部門</h2>
+          <DeptTabs depts={deptNames} value={activeDept} onChange={setDept} />
         </div>
 
         {loading
@@ -1848,40 +1876,36 @@
               <table className="submit-table">
                 <thead>
                   <tr>
-                    <th>メニュー</th>
-                    <th>区分</th>
-                    <th>単価</th>
-                    <th>件数</th>
-                    <th>金額</th>
+                    <th className="sticky-col c1">メニュー</th>
+                    <th className="sticky-col c2">区分</th>
+                    {dayList.map(d => <th key={d}>{d}</th>)}
+                    <th>合計</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {groups.map(g => (
-                    <React.Fragment key={g.category}>
-                      <tr className="cat-row"><td colSpan={5}>{g.category}</td></tr>
-                      {g.items.map(p => (
-                        SUBMIT_TIERS.map((t, i) => {
-                          const c = cellOf(p.name, t);
-                          const unit = t.rate ? Math.round(p.price * (1 - t.rate)) : p.price;
-                          return (
-                            <tr key={p.id + '-' + i} className={c.count === 0 ? 'zero' : ''}>
-                              {i === 0 && <td className="t-course" rowSpan={SUBMIT_TIERS.length}>{p.name}</td>}
-                              <td className="t-type">{t.type}{t.tier === '定価' ? '' : ' ' + t.tier}</td>
-                              <td>{formatPrice(unit)}</td>
-                              <td>{c.count || 0}</td>
-                              <td>{c.amount ? formatPrice(c.amount) : '—'}</td>
-                            </tr>
-                          );
-                        })
-                      ))}
-                    </React.Fragment>
+                  {deptItems.map(p => (
+                    SUBMIT_TIERS.map((t, i) => {
+                      const row = rowOf(p.name, t);
+                      const rowTotal = dayList.reduce((s, d) => s + (row[d] || 0), 0);
+                      return (
+                        <tr key={p.id + '-' + i} className={rowTotal === 0 ? 'zero' : ''}>
+                          {i === 0 && <td className="t-course sticky-col c1" rowSpan={SUBMIT_TIERS.length}>{p.name}</td>}
+                          <td className="t-type sticky-col c2">{t.type}{t.tier === '定価' ? '' : ' ' + t.tier}</td>
+                          {dayList.map(d => <td key={d}>{row[d] || ''}</td>)}
+                          <td className="row-total">{rowTotal || ''}</td>
+                        </tr>
+                      );
+                    })
                   ))}
+                  {deptItems.length === 0 && (
+                    <tr><td className="t-type" colSpan={daysInMonth + 3}>この部門のメニューはありません</td></tr>
+                  )}
                 </tbody>
                 <tfoot>
                   <tr>
-                    <td className="t-course" colSpan={3}>合計</td>
-                    <td>{totalCount}</td>
-                    <td>{formatPrice(totalAmount)}</td>
+                    <td className="t-course sticky-col c1" colSpan={2}>合計</td>
+                    {dayList.map(d => <td key={d}>{dayTotals[d] || ''}</td>)}
+                    <td className="row-total">{deptTotal || ''}</td>
                   </tr>
                 </tfoot>
               </table>
@@ -1890,7 +1914,7 @@
         }
 
         <div className="submit-note">
-          選択した月の入力データを、提出用シートの並び（コース × 日帰り／宿泊 × 定価／割引）に転記しています。金額は延長・指名料・男女希望の加算を含む実売上です。
+          選択した月の入力データを、1〜{daysInMonth}日の日別件数として転記しています（コース × 日帰り／宿泊 × 定価／割引）。部門タブで「ボディケア」「タイ・バリ」を切り替えできます。
         </div>
       </>
     );
