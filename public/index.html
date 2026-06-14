@@ -1309,7 +1309,7 @@
         <header>
           <h1>💄 サロン売上管理</h1>
           <div className="header-right">
-            <span className="version">Ver 1.30</span>
+            <span className="version">Ver 1.31</span>
             <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
           </div>
         </header>
@@ -1830,6 +1830,11 @@
     { type: '宿泊',   tier: '定価',    lodging: true,  discount: false, rate: 0   },
     { type: '宿泊',   tier: '10%OFF', lodging: true,  discount: true,  rate: 0.10 },
   ];
+  const EXT_UNITS = [
+    { label: 'ボディケア延長10分', unit: 1350 },
+    { label: 'ストレッチ延長10分', unit: 1500 },
+    { label: 'タイ・バリ延長10分', unit: 2000 },
+  ];
 
   function SubmitTab({ uid, userName }) {
     const now = toJST();
@@ -1955,6 +1960,24 @@
       });
     });
 
+    // 延長集計: extAgg[unit][tierKey][day] = 10分単位カウント
+    const extAgg = {};
+    entries.forEach(e => {
+      if ((e.extMin || 0) === 0) return;
+      const unit = extUnitFor(e.name);
+      if (!extAgg[unit]) extAgg[unit] = {};
+      const tierKey = e.lodging
+        ? (e.discount ? '宿泊|10%OFF' : '宿泊|定価')
+        : (e.discount ? '日帰り|20%OFF' : '日帰り|定価');
+      if (!extAgg[unit][tierKey]) extAgg[unit][tierKey] = {};
+      extAgg[unit][tierKey][e._day] = (extAgg[unit][tierKey][e._day] || 0) + (e.extMin / 10);
+    });
+
+    // 現在の部門に属するメニューの延長行
+    const deptExtItems = EXT_UNITS.filter(ex =>
+      entries.some(e => deptMenuNames.has(e.name) && (e.extMin || 0) > 0 && extUnitFor(e.name) === ex.unit)
+    );
+
     const handleEndOfDay = async () => {
       if (!window.GAS_ENDPOINT) {
         alert('GASのURLが設定されていません。index.html の GAS_ENDPOINT を設定してください。');
@@ -1963,10 +1986,10 @@
       setSending(true);
       setSendResult(null);
       try {
-        // 提出タブと同じ順序・形式でグループ化
-        const groupsData = groups.map(g => ({
-          dept: g.category,
-          items: g.items.flatMap(p =>
+        // 提出タブと同じ順序・形式でグループ化（延長行を含む）
+        const groupsData = groups.map(g => {
+          const gMenuNames = new Set(g.items.map(p => p.name));
+          const regularItems = g.items.flatMap(p =>
             SUBMIT_TIERS.map(t => {
               const tierLabel = t.type + (t.tier !== '定価' ? ' ' + t.tier : '');
               const tierKey = `${t.type}|${t.tier}`;
@@ -1974,8 +1997,23 @@
               const amt = (amountAgg[`${p.name}||${tierKey}`] || {})[todayDay] || 0;
               return { menu: p.name, tier: tierLabel, count: cnt, amount: amt };
             })
-          ),
-        }));
+          );
+          const extItems = EXT_UNITS.flatMap(ex =>
+            SUBMIT_TIERS.map(t => {
+              const tierLabel = t.type + (t.tier !== '定価' ? ' ' + t.tier : '');
+              let cnt = 0;
+              entries.forEach(e => {
+                if (e._day !== todayDay) return;
+                if (!gMenuNames.has(e.name)) return;
+                if ((e.extMin || 0) === 0) return;
+                if (extUnitFor(e.name) !== ex.unit) return;
+                if (e.lodging === t.lodging && e.discount === t.discount) cnt += e.extMin / 10;
+              });
+              return { menu: ex.label, tier: tierLabel, count: cnt, amount: 0 };
+            })
+          );
+          return { dept: g.category, items: [...regularItems, ...extItems] };
+        });
 
         const payload = {
           userName,
@@ -2056,6 +2094,37 @@
                       );
                     })
                   ))}
+                  {deptExtItems.map(ex =>
+                    SUBMIT_TIERS.map((t, i) => {
+                      const tierKey = `${t.type}|${t.tier}`;
+                      const deptRow = {};
+                      entries.forEach(e => {
+                        if (!deptMenuNames.has(e.name)) return;
+                        if ((e.extMin || 0) === 0) return;
+                        if (extUnitFor(e.name) !== ex.unit) return;
+                        const tk = e.lodging ? (e.discount ? '宿泊|10%OFF' : '宿泊|定価') : (e.discount ? '日帰り|20%OFF' : '日帰り|定価');
+                        if (tk !== tierKey) return;
+                        deptRow[e._day] = (deptRow[e._day] || 0) + (e.extMin / 10);
+                      });
+                      const rowTotal = dayList.reduce((s, d) => s + (deptRow[d] || 0), 0);
+                      const tierPrice = t.tier === '20%OFF' ? Math.round(ex.unit * 0.8) : t.tier === '10%OFF' ? Math.round(ex.unit * 0.9) : ex.unit;
+                      const rowAmount = dayList.reduce((s, d) => s + ((deptRow[d] || 0) * tierPrice), 0);
+                      return (
+                        <tr key={ex.label + i} className={rowTotal === 0 ? 'zero' : ''}>
+                          {i === 0 && <td className="t-course sticky-col c1" rowSpan={SUBMIT_TIERS.length}>{ex.label}</td>}
+                          <td className="t-type sticky-col c2">{t.type}{t.tier === '定価' ? '' : ' ' + t.tier}</td>
+                          <td className="sticky-col c3 col-price">{formatPrice(tierPrice)}</td>
+                          {dayList.map(d => (
+                            <td key={d} className={d === selectedDay ? 'sel-col' : d === todayDay ? 'today-col' : ''}>
+                              {deptRow[d] || ''}
+                            </td>
+                          ))}
+                          <td className="row-total">{rowTotal || ''}</td>
+                          <td className="row-total">{rowAmount ? formatPrice(rowAmount) : ''}</td>
+                        </tr>
+                      );
+                    })
+                  )}
                   {deptItems.length === 0 && (
                     <tr><td className="t-type" colSpan={daysInMonth + 5}>この部門のメニューはありません</td></tr>
                   )}
