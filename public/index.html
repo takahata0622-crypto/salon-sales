@@ -1005,6 +1005,12 @@
       font-weight: 700;
       background: var(--accent-light);
     }
+    .submit-table .col-price {
+      text-align: right;
+      color: var(--muted);
+      white-space: nowrap;
+      padding-right: 6px;
+    }
 
     .submit-table tr.cat-row td {
       background: var(--bg);
@@ -2008,6 +2014,7 @@
                   <tr>
                     <th className="sticky-col c1">メニュー</th>
                     <th className="sticky-col c2">区分</th>
+                    <th className="col-price">単価</th>
                     {dayList.map(d => (
                       <th
                         key={d}
@@ -2033,6 +2040,7 @@
                         <tr key={p.id + '-' + i} className={rowTotal === 0 ? 'zero' : ''}>
                           {i === 0 && <td className="t-course sticky-col c1" rowSpan={SUBMIT_TIERS.length}>{p.name}</td>}
                           <td className="t-type sticky-col c2">{t.type}{t.tier === '定価' ? '' : ' ' + t.tier}</td>
+                          <td className="col-price">{formatPrice(t.tier === '20%OFF' ? Math.round(p.price * 0.8) : t.tier === '10%OFF' ? Math.round(p.price * 0.9) : p.price)}</td>
                           {dayList.map(d => (
                             <td key={d} className={d === selectedDay ? 'sel-col' : d === todayDay ? 'today-col' : ''}>
                               {row[d] || ''}
@@ -2045,12 +2053,13 @@
                     })
                   ))}
                   {deptItems.length === 0 && (
-                    <tr><td className="t-type" colSpan={daysInMonth + 4}>この部門のメニューはありません</td></tr>
+                    <tr><td className="t-type" colSpan={daysInMonth + 5}>この部門のメニューはありません</td></tr>
                   )}
                 </tbody>
                 <tfoot>
                   <tr>
                     <td className="t-course sticky-col c1" colSpan={2}>割引合計（J）</td>
+                    <td></td>
                     {dayList.map(d => (
                       <td key={d} className={d === selectedDay ? 'sel-col' : d === todayDay ? 'today-col' : ''}>
                         {d === selectedDay
@@ -2063,6 +2072,7 @@
                   </tr>
                   <tr>
                     <td className="t-course sticky-col c1" colSpan={2}>合計（P）</td>
+                    <td></td>
                     {dayList.map(d => (
                       <td key={d} className={d === selectedDay ? 'sel-col' : d === todayDay ? 'today-col' : ''}>
                         {d === selectedDay
