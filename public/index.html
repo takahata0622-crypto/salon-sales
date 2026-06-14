@@ -1276,7 +1276,7 @@
         <header>
           <h1>💄 サロン売上管理</h1>
           <div className="header-right">
-            <span className="version">Ver 1.26</span>
+            <span className="version">Ver 1.27</span>
             <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
           </div>
         </header>
@@ -1953,7 +1953,8 @@
                         title={`${d}日を選択`}
                       >{d}</th>
                     ))}
-                    <th>合計</th>
+                    <th>件数</th>
+                    <th>金額</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1961,6 +1962,9 @@
                     SUBMIT_TIERS.map((t, i) => {
                       const row = rowOf(p.name, t);
                       const rowTotal = dayList.reduce((s, d) => s + (row[d] || 0), 0);
+                      const tierKey = `${t.type}|${t.tier}`;
+                      const amtRow = amountAgg[`${p.name}||${tierKey}`] || {};
+                      const rowAmount = dayList.reduce((s, d) => s + (amtRow[d] || 0), 0);
                       return (
                         <tr key={p.id + '-' + i} className={rowTotal === 0 ? 'zero' : ''}>
                           {i === 0 && <td className="t-course sticky-col c1" rowSpan={SUBMIT_TIERS.length}>{p.name}</td>}
@@ -1971,12 +1975,13 @@
                             </td>
                           ))}
                           <td className="row-total">{rowTotal || ''}</td>
+                          <td className="row-total">{rowAmount ? formatPrice(rowAmount) : ''}</td>
                         </tr>
                       );
                     })
                   ))}
                   {deptItems.length === 0 && (
-                    <tr><td className="t-type" colSpan={daysInMonth + 3}>この部門のメニューはありません</td></tr>
+                    <tr><td className="t-type" colSpan={daysInMonth + 4}>この部門のメニューはありません</td></tr>
                   )}
                 </tbody>
                 <tfoot>
@@ -1989,6 +1994,7 @@
                           : (dayCountTotals[d] || '')}
                       </td>
                     ))}
+                    <td className="row-total">{dayList.reduce((s,d)=>(s+(dayCountTotals[d]||0)),0) || ''}</td>
                     <td className="row-total">{deptTotalAmount ? formatPrice(deptTotalAmount) : ''}</td>
                   </tr>
                   <tr>
@@ -2000,6 +2006,7 @@
                           : ''}
                       </td>
                     ))}
+                    <td className="row-total"></td>
                     <td className="row-total">{deptTotalNoDisc ? formatPrice(deptTotalNoDisc) : ''}</td>
                   </tr>
                 </tfoot>
