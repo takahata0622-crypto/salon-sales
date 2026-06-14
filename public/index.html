@@ -596,6 +596,31 @@
       text-align: center;
     }
 
+    .day-nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .day-nav button {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 18px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .day-nav .day-label {
+      font-size: 17px;
+      font-weight: 700;
+      text-align: center;
+      flex: 1;
+    }
+
     .edit-toggle {
       background: var(--card);
       border: 1px solid var(--border);
@@ -1353,7 +1378,7 @@
         <header>
           <h1>💄 サロン売上管理</h1>
           <div className="header-right">
-            <span className="version">Ver 1.39</span>
+            <span className="version">Ver 1.40</span>
             <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
           </div>
         </header>
@@ -1949,6 +1974,23 @@
     const daysInMonth = new Date(year, month, 0).getDate();
     const dayList = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
+    // 前日・翌日（月またぎ対応）
+    const prevDay = () => {
+      if (selectedDay > 1) { setSelectedDay(selectedDay - 1); return; }
+      const pm = month === 1 ? 12 : month - 1;
+      const py = month === 1 ? year - 1 : year;
+      const lastDay = new Date(py, pm, 0).getDate();
+      setYear(py); setMonth(pm); setSelectedDay(lastDay);
+    };
+    const nextDay = () => {
+      if (selectedDay < daysInMonth) { setSelectedDay(selectedDay + 1); return; }
+      const nm = month === 12 ? 1 : month + 1;
+      const ny = month === 12 ? year + 1 : year;
+      setYear(ny); setMonth(nm); setSelectedDay(1);
+    };
+    const WD = ['日','月','火','水','木','金','土'];
+    const selWd = WD[new Date(year, month - 1, selectedDay).getDay()];
+
     // メニュー名×区分×日 ごとの件数を集計
     const agg = {};
     entries.forEach(e => {
@@ -2106,12 +2148,10 @@
 
     return (
       <>
-        <div className="month-header">
-          <div className="month-nav">
-            <button onClick={prevMonth}>‹</button>
-            <span className="month-label">{year}年{month}月</span>
-            <button onClick={nextMonth}>›</button>
-          </div>
+        <div className="day-nav">
+          <button onClick={prevDay}>‹ 前日</button>
+          <span className="day-label">{month}月{selectedDay}日（{selWd}）{selectedDay === todayDay ? ' 今日' : ''}</span>
+          <button onClick={nextDay}>翌日 ›</button>
         </div>
 
         <div className="add-section-header" style={{ marginBottom: 12 }}>
@@ -2129,15 +2169,6 @@
                     <th className="sticky-col c1">メニュー</th>
                     <th className="sticky-col c2">区分</th>
                     <th className="sticky-col c3">単価</th>
-                    {dayList.map(d => (
-                      <th
-                        key={d}
-                        data-day={d}
-                        className={d === selectedDay ? 'sel-col' : d === todayDay ? 'today-col' : ''}
-                        onClick={() => setSelectedDay(d)}
-                        title={`${d}日を選択`}
-                      >{d}</th>
-                    ))}
                     <th>件数</th>
                     <th>金額</th>
                   </tr>
@@ -2148,22 +2179,17 @@
                       const p = rowItem.preset;
                       return SUBMIT_TIERS.map((t, i) => {
                         const row = rowOf(p.name, t);
-                        const rowTotal = dayList.reduce((s, d) => s + (row[d] || 0), 0);
+                        const cnt = row[selectedDay] || 0;
                         const tierKey = `${t.type}|${t.tier}`;
                         const amtRow = amountAgg[`${p.name}||${tierKey}`] || {};
-                        const rowAmount = dayList.reduce((s, d) => s + (amtRow[d] || 0), 0);
+                        const amt = amtRow[selectedDay] || 0;
                         return (
-                          <tr key={p.id + '-' + i} className={rowTotal === 0 ? 'zero' : ''}>
+                          <tr key={p.id + '-' + i} className={cnt === 0 ? 'zero' : ''}>
                             {i === 0 && <td className="t-course sticky-col c1" rowSpan={SUBMIT_TIERS.length}>{p.name}</td>}
                             <td className="t-type sticky-col c2">{t.type}{t.tier === '定価' ? '' : ' ' + t.tier}</td>
                             <td className="sticky-col c3 col-price">{formatPrice(t.tier === '20%OFF' ? Math.round(p.price * 0.8) : t.tier === '10%OFF' ? Math.round(p.price * 0.9) : p.price)}</td>
-                            {dayList.map(d => (
-                              <td key={d} className={d === selectedDay ? 'sel-col' : d === todayDay ? 'today-col' : ''}>
-                                {row[d] || ''}
-                              </td>
-                            ))}
-                            <td className="row-total">{rowTotal || ''}</td>
-                            <td className="row-total">{rowAmount ? formatPrice(rowAmount) : ''}</td>
+                            <td className="row-total">{cnt || ''}</td>
+                            <td className="row-total">{amt ? formatPrice(amt) : ''}</td>
                           </tr>
                         );
                       });
@@ -2171,64 +2197,45 @@
                     const ex = rowItem.ex;
                     return SUBMIT_TIERS.map((t, i) => {
                       const tierKey = `${t.type}|${t.tier}`;
-                      const deptRow = {};
+                      let cnt = 0;
                       entries.forEach(e => {
+                        if (e._day !== selectedDay) return;
                         if (!deptMenuNames.has(e.name)) return;
                         if ((e.extMin || 0) === 0) return;
                         if (extUnitFor(e.name) !== ex.unit) return;
                         const tk = e.lodging ? (e.discount ? '宿泊|10%OFF' : '宿泊|定価') : (e.discount ? '日帰り|20%OFF' : '日帰り|定価');
                         if (tk !== tierKey) return;
-                        deptRow[e._day] = (deptRow[e._day] || 0) + (e.extMin / 10);
+                        cnt += e.extMin / 10;
                       });
-                      const rowTotal = dayList.reduce((s, d) => s + (deptRow[d] || 0), 0);
                       const tierPrice = t.tier === '20%OFF' ? Math.round(ex.unit * 0.8) : t.tier === '10%OFF' ? Math.round(ex.unit * 0.9) : ex.unit;
-                      const rowAmount = dayList.reduce((s, d) => s + ((deptRow[d] || 0) * tierPrice), 0);
+                      const amt = cnt * tierPrice;
                       return (
-                        <tr key={ex.label + '-' + i} className={rowTotal === 0 ? 'zero' : ''}>
+                        <tr key={ex.label + '-' + i} className={cnt === 0 ? 'zero' : ''}>
                           {i === 0 && <td className="t-course sticky-col c1" rowSpan={SUBMIT_TIERS.length}>{ex.label}</td>}
                           <td className="t-type sticky-col c2">{t.type}{t.tier === '定価' ? '' : ' ' + t.tier}</td>
                           <td className="sticky-col c3 col-price">{formatPrice(tierPrice)}</td>
-                          {dayList.map(d => (
-                            <td key={d} className={d === selectedDay ? 'sel-col' : d === todayDay ? 'today-col' : ''}>
-                              {deptRow[d] || ''}
-                            </td>
-                          ))}
-                          <td className="row-total">{rowTotal || ''}</td>
-                          <td className="row-total">{rowAmount ? formatPrice(rowAmount) : ''}</td>
+                          <td className="row-total">{cnt || ''}</td>
+                          <td className="row-total">{amt ? formatPrice(amt) : ''}</td>
                         </tr>
                       );
                     });
                   })}
                   {deptItems.length === 0 && (
-                    <tr><td className="t-type" colSpan={daysInMonth + 5}>この部門のメニューはありません</td></tr>
+                    <tr><td className="t-type" colSpan={5}>この部門のメニューはありません</td></tr>
                   )}
                 </tbody>
                 <tfoot>
                   <tr>
                     <td className="t-course sticky-col c1" colSpan={2}>割引合計（J）</td>
                     <td className="sticky-col c3"></td>
-                    {dayList.map(d => (
-                      <td key={d} className={d === selectedDay ? 'sel-col' : d === todayDay ? 'today-col' : ''}>
-                        {d === selectedDay
-                          ? (dayAmounts[d] ? formatPrice(dayAmounts[d]) : '')
-                          : ''}
-                      </td>
-                    ))}
-                    <td className="row-total">{dayList.reduce((s,d)=>(s+(dayCountTotals[d]||0)),0) || ''}</td>
-                    <td className="row-total">{deptTotalAmount ? formatPrice(deptTotalAmount) : ''}</td>
+                    <td className="row-total">{dayCountTotals[selectedDay] || ''}</td>
+                    <td className="row-total">{dayAmounts[selectedDay] ? formatPrice(dayAmounts[selectedDay]) : ''}</td>
                   </tr>
                   <tr>
                     <td className="t-course sticky-col c1" colSpan={2}>合計（P）</td>
-                    <td></td>
-                    {dayList.map(d => (
-                      <td key={d} className={d === selectedDay ? 'sel-col' : d === todayDay ? 'today-col' : ''}>
-                        {d === selectedDay
-                          ? (dayAmountsNoDisc[d] ? formatPrice(dayAmountsNoDisc[d]) : '')
-                          : ''}
-                      </td>
-                    ))}
+                    <td className="sticky-col c3"></td>
                     <td className="row-total"></td>
-                    <td className="row-total">{deptTotalNoDisc ? formatPrice(deptTotalNoDisc) : ''}</td>
+                    <td className="row-total">{dayAmountsNoDisc[selectedDay] ? formatPrice(dayAmountsNoDisc[selectedDay]) : ''}</td>
                   </tr>
                 </tfoot>
               </table>
