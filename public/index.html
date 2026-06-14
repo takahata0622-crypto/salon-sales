@@ -967,12 +967,26 @@
 
     .submit-table th.today-col,
     .submit-table td.today-col {
-      background: rgba(155, 106, 74, 0.15);
+      background: rgba(155, 106, 74, 0.13);
     }
     .submit-table thead th.today-col {
+      background: #6B3F22;
+      cursor: default;
+    }
+    .submit-table th.sel-col,
+    .submit-table td.sel-col {
+      background: rgba(155, 106, 74, 0.22);
+    }
+    .submit-table thead th.sel-col {
       background: var(--accent);
       outline: 2px solid #6B3F22;
       outline-offset: -2px;
+    }
+    .submit-table thead th[data-day] {
+      cursor: pointer;
+    }
+    .submit-table thead th[data-day]:hover {
+      background: rgba(155,106,74,0.7);
     }
 
     .submit-table td.t-course {
@@ -1262,7 +1276,7 @@
         <header>
           <h1>💄 サロン売上管理</h1>
           <div className="header-right">
-            <span className="version">Ver 1.23</span>
+            <span className="version">Ver 1.24</span>
             <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
           </div>
         </header>
@@ -1792,6 +1806,11 @@
     const [presets, setPresets] = useState([]);
     const [loading, setLoading] = useState(true);
     const [dept, setDept] = useState(CATEGORIES[0]);
+    const todayDay = (year === now.getUTCFullYear() && month === now.getUTCMonth() + 1)
+      ? now.getUTCDate() : -1;
+    const [selectedDay, setSelectedDay] = useState(() =>
+      (new Date().getMonth() + 1 === now.getUTCMonth() + 1) ? now.getUTCDate() : 1
+    );
 
     // メニュー読み込み
     useEffect(() => {
@@ -1853,8 +1872,6 @@
     const deptItems = (groups.find(g => g.category === activeDept) || { items: [] }).items;
 
     // フッター用：選択部門の日別合計金額
-    const todayDay = (year === now.getUTCFullYear() && month === now.getUTCMonth() + 1)
-      ? now.getUTCDate() : -1;
     // 日×メニュー×区分 ごとの金額集計
     const amountAgg = {};
     entries.forEach(e => {
@@ -1903,7 +1920,15 @@
                   <tr>
                     <th className="sticky-col c1">メニュー</th>
                     <th className="sticky-col c2">区分</th>
-                    {dayList.map(d => <th key={d} className={d === todayDay ? 'today-col' : ''}>{d}</th>)}
+                    {dayList.map(d => (
+                      <th
+                        key={d}
+                        data-day={d}
+                        className={d === selectedDay ? 'sel-col' : d === todayDay ? 'today-col' : ''}
+                        onClick={() => setSelectedDay(d)}
+                        title={`${d}日を選択`}
+                      >{d}</th>
+                    ))}
                     <th>合計</th>
                   </tr>
                 </thead>
@@ -1916,7 +1941,11 @@
                         <tr key={p.id + '-' + i} className={rowTotal === 0 ? 'zero' : ''}>
                           {i === 0 && <td className="t-course sticky-col c1" rowSpan={SUBMIT_TIERS.length}>{p.name}</td>}
                           <td className="t-type sticky-col c2">{t.type}{t.tier === '定価' ? '' : ' ' + t.tier}</td>
-                          {dayList.map(d => <td key={d} className={d === todayDay ? 'today-col' : ''}>{row[d] || ''}</td>)}
+                          {dayList.map(d => (
+                            <td key={d} className={d === selectedDay ? 'sel-col' : d === todayDay ? 'today-col' : ''}>
+                              {row[d] || ''}
+                            </td>
+                          ))}
                           <td className="row-total">{rowTotal || ''}</td>
                         </tr>
                       );
@@ -1928,10 +1957,10 @@
                 </tbody>
                 <tfoot>
                   <tr>
-                    <td className="t-course sticky-col c1" colSpan={2}>合計金額</td>
+                    <td className="t-course sticky-col c1" colSpan={2}>合計</td>
                     {dayList.map(d => (
-                      <td key={d} className={d === todayDay ? 'today-col' : ''}>
-                        {d === todayDay
+                      <td key={d} className={d === selectedDay ? 'sel-col' : d === todayDay ? 'today-col' : ''}>
+                        {d === selectedDay
                           ? (dayAmounts[d] ? formatPrice(dayAmounts[d]) : '')
                           : (dayCountTotals[d] || '')}
                       </td>
