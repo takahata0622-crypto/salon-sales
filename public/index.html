@@ -962,8 +962,18 @@
       background: var(--card);
     }
     .submit-table thead .sticky-col { z-index: 3; }
-    .submit-table .sticky-col.c1 { left: 0; min-width: 120px; }
-    .submit-table .sticky-col.c2 { left: 120px; min-width: 92px; }
+    .submit-table .sticky-col.c1 { left: 0; min-width: 72px; max-width: 72px; white-space: normal; word-break: break-all; }
+    .submit-table .sticky-col.c2 { left: 72px; min-width: 80px; }
+
+    .submit-table th.today-col,
+    .submit-table td.today-col {
+      background: rgba(155, 106, 74, 0.15);
+    }
+    .submit-table thead th.today-col {
+      background: var(--accent);
+      outline: 2px solid #6B3F22;
+      outline-offset: -2px;
+    }
 
     .submit-table td.t-course {
       text-align: left;
@@ -1252,7 +1262,7 @@
         <header>
           <h1>💄 サロン売上管理</h1>
           <div className="header-right">
-            <span className="version">Ver 1.21</span>
+            <span className="version">Ver 1.22</span>
             <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
           </div>
         </header>
@@ -1842,14 +1852,26 @@
     const activeDept = deptNames.includes(dept) ? dept : (deptNames[0] || dept);
     const deptItems = (groups.find(g => g.category === activeDept) || { items: [] }).items;
 
-    // フッター用：選択部門の日別合計件数
-    const dayTotals = {};
-    let deptTotal = 0;
+    // フッター用：選択部門の日別合計金額
+    const todayDay = (year === now.getUTCFullYear() && month === now.getUTCMonth() + 1)
+      ? now.getUTCDate() : -1;
+    // 日×メニュー×区分 ごとの金額集計
+    const amountAgg = {};
+    entries.forEach(e => {
+      const tierKey = e.lodging
+        ? (e.discount ? '宿泊|10%OFF' : '宿泊|定価')
+        : (e.discount ? '日帰り|20%OFF' : '日帰り|定価');
+      const k = `${e.name}||${tierKey}`;
+      if (!amountAgg[k]) amountAgg[k] = {};
+      amountAgg[k][e._day] = (amountAgg[k][e._day] || 0) + calcEntry(e).net;
+    });
+    const dayAmounts = {};
+    let deptTotalAmount = 0;
     deptItems.forEach(p => {
       SUBMIT_TIERS.forEach(t => {
-        const row = rowOf(p.name, t);
+        const row = amountAgg[`${p.name}||${t.type}|${t.tier}`] || {};
         dayList.forEach(d => {
-          if (row[d]) { dayTotals[d] = (dayTotals[d] || 0) + row[d]; deptTotal += row[d]; }
+          if (row[d]) { dayAmounts[d] = (dayAmounts[d] || 0) + row[d]; deptTotalAmount += row[d]; }
         });
       });
     });
@@ -1878,7 +1900,7 @@
                   <tr>
                     <th className="sticky-col c1">メニュー</th>
                     <th className="sticky-col c2">区分</th>
-                    {dayList.map(d => <th key={d}>{d}</th>)}
+                    {dayList.map(d => <th key={d} className={d === todayDay ? 'today-col' : ''}>{d}</th>)}
                     <th>合計</th>
                   </tr>
                 </thead>
@@ -1891,7 +1913,7 @@
                         <tr key={p.id + '-' + i} className={rowTotal === 0 ? 'zero' : ''}>
                           {i === 0 && <td className="t-course sticky-col c1" rowSpan={SUBMIT_TIERS.length}>{p.name}</td>}
                           <td className="t-type sticky-col c2">{t.type}{t.tier === '定価' ? '' : ' ' + t.tier}</td>
-                          {dayList.map(d => <td key={d}>{row[d] || ''}</td>)}
+                          {dayList.map(d => <td key={d} className={d === todayDay ? 'today-col' : ''}>{row[d] || ''}</td>)}
                           <td className="row-total">{rowTotal || ''}</td>
                         </tr>
                       );
@@ -1903,9 +1925,9 @@
                 </tbody>
                 <tfoot>
                   <tr>
-                    <td className="t-course sticky-col c1" colSpan={2}>合計</td>
-                    {dayList.map(d => <td key={d}>{dayTotals[d] || ''}</td>)}
-                    <td className="row-total">{deptTotal || ''}</td>
+                    <td className="t-course sticky-col c1" colSpan={2}>合計金額</td>
+                    {dayList.map(d => <td key={d} className={d === todayDay ? 'today-col' : ''}>{dayAmounts[d] ? formatPrice(dayAmounts[d]) : ''}</td>)}
+                    <td className="row-total">{deptTotalAmount ? formatPrice(deptTotalAmount) : ''}</td>
                   </tr>
                 </tfoot>
               </table>
