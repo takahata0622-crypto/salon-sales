@@ -920,6 +920,74 @@
       padding: 40px;
       color: var(--muted);
     }
+
+    /* 提出タブ */
+    .submit-scroll {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .submit-table {
+      border-collapse: collapse;
+      width: 100%;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .submit-table th,
+    .submit-table td {
+      border: 1px solid var(--border);
+      padding: 7px 10px;
+      text-align: right;
+    }
+
+    .submit-table thead th {
+      background: var(--accent);
+      color: white;
+      font-weight: 700;
+      text-align: center;
+      position: sticky;
+      top: 0;
+    }
+
+    .submit-table td.t-course {
+      text-align: left;
+      font-weight: 600;
+      background: var(--accent-light);
+      vertical-align: middle;
+    }
+
+    .submit-table td.t-type {
+      text-align: left;
+      color: var(--muted);
+    }
+
+    .submit-table tr.cat-row td {
+      background: var(--bg);
+      text-align: left;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 0.04em;
+    }
+
+    .submit-table tr.zero td:not(.t-course) {
+      color: #C9BEB3;
+    }
+
+    .submit-table tfoot td {
+      background: var(--accent-light);
+      font-weight: 700;
+    }
+
+    .submit-note {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 10px;
+      line-height: 1.5;
+    }
   </style>
 </head>
 <body>
@@ -1167,7 +1235,7 @@
         <header>
           <h1>💄 サロン売上管理</h1>
           <div className="header-right">
-            <span className="version">Ver 1.19</span>
+            <span className="version">Ver 1.20</span>
             <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
           </div>
         </header>
@@ -1177,12 +1245,14 @@
         <div className="tabs">
           <button className={`tab ${tab === 'today' ? 'active' : ''}`} onClick={() => setTab('today')}>今日</button>
           <button className={`tab ${tab === 'history' ? 'active' : ''}`} onClick={() => setTab('history')}>集計</button>
+          <button className={`tab ${tab === 'submit' ? 'active' : ''}`} onClick={() => setTab('submit')}>提出</button>
           <button className={`tab ${tab === 'settings' ? 'active' : ''}`} onClick={() => setTab('settings')}>設定</button>
         </div>
 
         <div className="main">
           {tab === 'today' && <TodayTab uid={uid} />}
           {tab === 'history' && <HistoryTab uid={uid} />}
+          {tab === 'submit' && <SubmitTab uid={uid} />}
           {tab === 'settings' && <SettingsTab uid={uid} />}
         </div>
       </>
@@ -1675,6 +1745,154 @@
           <div className="reset-note">標準メニュー（ボディケア／タイ・バリ）を一括登録します。最新のメニューに置き換えたいときに押してください。</div>
         </div>
       </div>
+    );
+  }
+
+  // ========== 提出タブ ==========
+  // 提出用シートの並び：コース × 区分（日帰り定価／日帰り20%OFF／宿泊定価／宿泊10%OFF）
+  const SUBMIT_TIERS = [
+    { type: '日帰り', tier: '定価',    lodging: false, discount: false, rate: 0   },
+    { type: '日帰り', tier: '20%OFF', lodging: false, discount: true,  rate: 0.20 },
+    { type: '宿泊',   tier: '定価',    lodging: true,  discount: false, rate: 0   },
+    { type: '宿泊',   tier: '10%OFF', lodging: true,  discount: true,  rate: 0.10 },
+  ];
+
+  function SubmitTab({ uid }) {
+    const now = toJST();
+    const [year, setYear] = useState(now.getUTCFullYear());
+    const [month, setMonth] = useState(now.getUTCMonth() + 1);
+    const [entries, setEntries] = useState([]);
+    const [presets, setPresets] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    // メニュー読み込み
+    useEffect(() => {
+      db.collection('users').doc(uid).collection('presets')
+        .orderBy('createdAt').get().then(snap => {
+          setPresets(snap.empty ? DEFAULT_PRESETS : snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        });
+    }, [uid]);
+
+    // 選択月の全エントリ読み込み
+    useEffect(() => {
+      setLoading(true);
+      const monthStr = `${year}-${String(month).padStart(2, '0')}`;
+      const start = `${monthStr}-01`;
+      const end = `${monthStr}-31`;
+      db.collection('users').doc(uid).collection('days')
+        .where(firebase.firestore.FieldPath.documentId(), '>=', start)
+        .where(firebase.firestore.FieldPath.documentId(), '<=', end)
+        .get()
+        .then(async snap => {
+          const all = [];
+          for (const doc of snap.docs) {
+            const es = await doc.ref.collection('entries').get();
+            es.docs.forEach(d => all.push(d.data()));
+          }
+          setEntries(all);
+          setLoading(false);
+        });
+    }, [uid, year, month]);
+
+    const prevMonth = () => {
+      if (month === 1) { setYear(y => y - 1); setMonth(12); }
+      else setMonth(m => m - 1);
+    };
+    const nextMonth = () => {
+      if (month === 12) { setYear(y => y + 1); setMonth(1); }
+      else setMonth(m => m + 1);
+    };
+
+    // 区分ごとに件数・金額を集計（メニュー名 × 日帰り/宿泊 × 割引有無）
+    const agg = {};
+    entries.forEach(e => {
+      const tierKey = e.lodging
+        ? (e.discount ? '宿泊|10%OFF' : '宿泊|定価')
+        : (e.discount ? '日帰り|20%OFF' : '日帰り|定価');
+      const k = `${e.name}||${tierKey}`;
+      if (!agg[k]) agg[k] = { count: 0, amount: 0 };
+      agg[k].count += 1;
+      agg[k].amount += calcEntry(e).net;
+    });
+    const cellOf = (name, t) => agg[`${name}||${t.type}|${t.tier}`] || { count: 0, amount: 0 };
+
+    const groups = groupByCategory(presets);
+    const totalCount = entries.length;
+    const totalAmount = entries.reduce((s, e) => s + calcEntry(e).net, 0);
+
+    return (
+      <>
+        <div className="month-header">
+          <div className="month-nav">
+            <button onClick={prevMonth}>‹</button>
+            <span className="month-label">{year}年{month}月</span>
+            <button onClick={nextMonth}>›</button>
+          </div>
+        </div>
+
+        <div className="month-summary">
+          <div>
+            <div className="stat-label">提出件数</div>
+            <div className="stat-value">{totalCount}件</div>
+          </div>
+          <div>
+            <div className="stat-label">提出金額</div>
+            <div className="stat-value">{formatPrice(totalAmount)}</div>
+          </div>
+        </div>
+
+        {loading
+          ? <div className="loading">読み込み中...</div>
+          : (
+            <div className="submit-scroll">
+              <table className="submit-table">
+                <thead>
+                  <tr>
+                    <th>メニュー</th>
+                    <th>区分</th>
+                    <th>単価</th>
+                    <th>件数</th>
+                    <th>金額</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {groups.map(g => (
+                    <React.Fragment key={g.category}>
+                      <tr className="cat-row"><td colSpan={5}>{g.category}</td></tr>
+                      {g.items.map(p => (
+                        SUBMIT_TIERS.map((t, i) => {
+                          const c = cellOf(p.name, t);
+                          const unit = t.rate ? Math.round(p.price * (1 - t.rate)) : p.price;
+                          return (
+                            <tr key={p.id + '-' + i} className={c.count === 0 ? 'zero' : ''}>
+                              {i === 0 && <td className="t-course" rowSpan={SUBMIT_TIERS.length}>{p.name}</td>}
+                              <td className="t-type">{t.type}{t.tier === '定価' ? '' : ' ' + t.tier}</td>
+                              <td>{formatPrice(unit)}</td>
+                              <td>{c.count || 0}</td>
+                              <td>{c.amount ? formatPrice(c.amount) : '—'}</td>
+                            </tr>
+                          );
+                        })
+                      ))}
+                    </React.Fragment>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td className="t-course" colSpan={3}>合計</td>
+                    <td>{totalCount}</td>
+                    <td>{formatPrice(totalAmount)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )
+        }
+
+        <div className="submit-note">
+          選択した月の入力データを、提出用シートの並び（コース × 日帰り／宿泊 × 定価／割引）に転記しています。金額は延長・指名料・男女希望の加算を含む実売上です。
+        </div>
+      </>
     );
   }
 
