@@ -1262,7 +1262,7 @@
         <header>
           <h1>💄 サロン売上管理</h1>
           <div className="header-right">
-            <span className="version">Ver 1.22</span>
+            <span className="version">Ver 1.23</span>
             <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
           </div>
         </header>
@@ -1866,12 +1866,15 @@
       amountAgg[k][e._day] = (amountAgg[k][e._day] || 0) + calcEntry(e).net;
     });
     const dayAmounts = {};
+    const dayCountTotals = {};
     let deptTotalAmount = 0;
     deptItems.forEach(p => {
       SUBMIT_TIERS.forEach(t => {
-        const row = amountAgg[`${p.name}||${t.type}|${t.tier}`] || {};
+        const amtRow = amountAgg[`${p.name}||${t.type}|${t.tier}`] || {};
+        const cntRow = rowOf(p.name, t);
         dayList.forEach(d => {
-          if (row[d]) { dayAmounts[d] = (dayAmounts[d] || 0) + row[d]; deptTotalAmount += row[d]; }
+          if (amtRow[d]) { dayAmounts[d] = (dayAmounts[d] || 0) + amtRow[d]; deptTotalAmount += amtRow[d]; }
+          if (cntRow[d]) { dayCountTotals[d] = (dayCountTotals[d] || 0) + cntRow[d]; }
         });
       });
     });
@@ -1926,7 +1929,13 @@
                 <tfoot>
                   <tr>
                     <td className="t-course sticky-col c1" colSpan={2}>合計金額</td>
-                    {dayList.map(d => <td key={d} className={d === todayDay ? 'today-col' : ''}>{dayAmounts[d] ? formatPrice(dayAmounts[d]) : ''}</td>)}
+                    {dayList.map(d => (
+                      <td key={d} className={d === todayDay ? 'today-col' : ''}>
+                        {d === todayDay
+                          ? (dayAmounts[d] ? formatPrice(dayAmounts[d]) : '')
+                          : (dayCountTotals[d] || '')}
+                      </td>
+                    ))}
                     <td className="row-total">{deptTotalAmount ? formatPrice(deptTotalAmount) : ''}</td>
                   </tr>
                 </tfoot>
