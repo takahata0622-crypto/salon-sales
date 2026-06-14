@@ -1090,18 +1090,32 @@
       flex-shrink: 0;
     }
     .end-of-day-btn:disabled { opacity: 0.6; cursor: default; }
+    .submit-footer {
+      position: sticky;
+      bottom: 0;
+      z-index: 10;
+      background: var(--bg);
+      margin: 16px -8px 0;
+      padding: 10px 8px;
+      border-top: 2px solid var(--border);
+    }
+    .day-totals {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      font-size: 15px;
+      margin-bottom: 10px;
+    }
+    .day-totals b {
+      margin-left: 6px;
+      font-size: 18px;
+      color: var(--accent);
+    }
     .end-of-day-row {
       display: flex;
       align-items: center;
       gap: 10px;
       flex-wrap: wrap;
-      position: sticky;
-      bottom: 0;
-      z-index: 10;
-      background: var(--bg);
-      padding: 12px 8px;
-      margin: 16px -8px 0;
-      border-top: 1px solid var(--border);
     }
     .send-status {
       display: inline-flex;
@@ -1378,7 +1392,7 @@
         <header>
           <h1>💄 サロン売上管理</h1>
           <div className="header-right">
-            <span className="version">Ver 1.40</span>
+            <span className="version">Ver 1.41</span>
             <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
           </div>
         </header>
@@ -2224,20 +2238,6 @@
                     <tr><td className="t-type" colSpan={5}>この部門のメニューはありません</td></tr>
                   )}
                 </tbody>
-                <tfoot>
-                  <tr>
-                    <td className="t-course sticky-col c1" colSpan={2}>割引合計（J）</td>
-                    <td className="sticky-col c3"></td>
-                    <td className="row-total">{dayCountTotals[selectedDay] || ''}</td>
-                    <td className="row-total">{dayAmounts[selectedDay] ? formatPrice(dayAmounts[selectedDay]) : ''}</td>
-                  </tr>
-                  <tr>
-                    <td className="t-course sticky-col c1" colSpan={2}>合計（P）</td>
-                    <td className="sticky-col c3"></td>
-                    <td className="row-total"></td>
-                    <td className="row-total">{dayAmountsNoDisc[selectedDay] ? formatPrice(dayAmountsNoDisc[selectedDay]) : ''}</td>
-                  </tr>
-                </tfoot>
               </table>
             </div>
           )
@@ -2248,22 +2248,28 @@
           const dateKey = `${year}${pad(month)}${pad(selectedDay)}`;
           const isSent = sentDates.has(dateKey);
           return (
-            <div className="end-of-day-row">
-              <span className={`send-status ${isSent ? 'sent' : 'unsent'}`}>
-                {isSent ? '送信済' : '未送信'}
-              </span>
-              <button className="end-of-day-btn" onClick={handleEndOfDay} disabled={sending}>
-                {sending ? '送信中...' : isSent ? `訂正送信（${month}/${selectedDay}）` : `業務終了（${month}/${selectedDay}）`}
-              </button>
-              <span className="send-caution">指示なく前日より前のデータを訂正する場合は責任者に連絡をしてください。</span>
+            <div className="submit-footer">
+              <div className="day-totals">
+                <span>割引合計（J）<b>{formatPrice(dayAmounts[selectedDay] || 0)}</b></span>
+                <span>合計（P）<b>{formatPrice(dayAmountsNoDisc[selectedDay] || 0)}</b></span>
+              </div>
+              <div className="end-of-day-row">
+                <span className={`send-status ${isSent ? 'sent' : 'unsent'}`}>
+                  {isSent ? '送信済' : '未送信'}
+                </span>
+                <button className="end-of-day-btn" onClick={handleEndOfDay} disabled={sending}>
+                  {sending ? '送信中...' : isSent ? `訂正送信（${month}/${selectedDay}）` : `業務終了（${month}/${selectedDay}）`}
+                </button>
+                <span className="send-caution">指示なく前日より前のデータを訂正する場合は責任者に連絡をしてください。</span>
+              </div>
+              {sendResult && (
+                <div className={`send-result ${sendResult}`}>
+                  {sendResult === 'success' ? 'スプレッドシートに転記しました ✓' : '送信に失敗しました。再度お試しください。'}
+                </div>
+              )}
             </div>
           );
         })()}
-        {sendResult && (
-          <div className={`send-result ${sendResult}`}>
-            {sendResult === 'success' ? 'スプレッドシートに転記しました ✓' : '送信に失敗しました。再度お試しください。'}
-          </div>
-        )}
       </>
     );
   }
