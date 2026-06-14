@@ -1069,8 +1069,14 @@
       display: flex;
       align-items: center;
       gap: 10px;
-      margin: 16px 8px 0;
       flex-wrap: wrap;
+      position: sticky;
+      bottom: 0;
+      z-index: 10;
+      background: var(--bg);
+      padding: 12px 8px;
+      margin: 16px -8px 0;
+      border-top: 1px solid var(--border);
     }
     .send-status {
       display: inline-flex;
@@ -1347,7 +1353,7 @@
         <header>
           <h1>💄 サロン売上管理</h1>
           <div className="header-right">
-            <span className="version">Ver 1.38</span>
+            <span className="version">Ver 1.39</span>
             <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
           </div>
         </header>
