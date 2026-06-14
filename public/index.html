@@ -1276,7 +1276,7 @@
         <header>
           <h1>💄 サロン売上管理</h1>
           <div className="header-right">
-            <span className="version">Ver 1.27</span>
+            <span className="version">Ver 1.28</span>
             <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
           </div>
         </header>
@@ -1986,7 +1986,7 @@
                 </tbody>
                 <tfoot>
                   <tr>
-                    <td className="t-course sticky-col c1" colSpan={2}>合計</td>
+                    <td className="t-course sticky-col c1" colSpan={2}>割引合計（J）</td>
                     {dayList.map(d => (
                       <td key={d} className={d === selectedDay ? 'sel-col' : d === todayDay ? 'today-col' : ''}>
                         {d === selectedDay
@@ -1998,7 +1998,7 @@
                     <td className="row-total">{deptTotalAmount ? formatPrice(deptTotalAmount) : ''}</td>
                   </tr>
                   <tr>
-                    <td className="t-course sticky-col c1" colSpan={2}>割引前合計</td>
+                    <td className="t-course sticky-col c1" colSpan={2}>合計（P）</td>
                     {dayList.map(d => (
                       <td key={d} className={d === selectedDay ? 'sel-col' : d === todayDay ? 'today-col' : ''}>
                         {d === selectedDay
