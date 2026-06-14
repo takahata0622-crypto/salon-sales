@@ -1309,7 +1309,7 @@
         <header>
           <h1>💄 サロン売上管理</h1>
           <div className="header-right">
-            <span className="version">Ver 1.32</span>
+            <span className="version">Ver 1.33</span>
             <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
           </div>
         </header>
@@ -2001,8 +2001,8 @@
             SUBMIT_TIERS.map(t => {
               const tierLabel = t.type + (t.tier !== '定価' ? ' ' + t.tier : '');
               const tierKey = `${t.type}|${t.tier}`;
-              const cnt = (agg[`${p.name}||${tierKey}`] || {})[todayDay] || 0;
-              const amt = (amountAgg[`${p.name}||${tierKey}`] || {})[todayDay] || 0;
+              const cnt = (agg[`${p.name}||${tierKey}`] || {})[selectedDay] || 0;
+              const amt = (amountAgg[`${p.name}||${tierKey}`] || {})[selectedDay] || 0;
               return { menu: p.name, tier: tierLabel, count: cnt, amount: amt };
             })
           );
@@ -2011,7 +2011,7 @@
               const tierLabel = t.type + (t.tier !== '定価' ? ' ' + t.tier : '');
               let cnt = 0;
               entries.forEach(e => {
-                if (e._day !== todayDay) return;
+                if (e._day !== selectedDay) return;
                 if (!gMenuNames.has(e.name)) return;
                 if ((e.extMin || 0) === 0) return;
                 if (extUnitFor(e.name) !== ex.unit) return;
@@ -2023,12 +2023,14 @@
           return { dept: g.category, items: [...regularItems, ...extItems] };
         });
 
+        const pad = (n) => String(n).padStart(2, '0');
         const payload = {
           userName,
-          date: `${year}/${String(month).padStart(2, '0')}/${String(todayDay).padStart(2, '0')}`,
+          fileName: `${year}${pad(month)}${pad(selectedDay)}`,
+          date: `${year}/${pad(month)}/${pad(selectedDay)}`,
           groups: groupsData,
-          totalJ: dayAmounts[todayDay] || 0,
-          totalP: dayAmountsNoDisc[todayDay] || 0,
+          totalJ: dayAmounts[selectedDay] || 0,
+          totalP: dayAmountsNoDisc[selectedDay] || 0,
         };
 
         await fetch(window.GAS_ENDPOINT, { method: 'POST', body: JSON.stringify(payload) });
@@ -2172,21 +2174,17 @@
           )
         }
 
-        {todayDay !== -1 && (
-          <>
-            <button className="end-of-day-btn" onClick={handleEndOfDay} disabled={sending}>
-              {sending ? '送信中...' : '業務終了'}
-            </button>
-            {sendResult && (
-              <div className={`send-result ${sendResult}`}>
-                {sendResult === 'success' ? 'スプレッドシートに転記しました ✓' : '送信に失敗しました。再度お試しください。'}
-              </div>
-            )}
-          </>
+        <button className="end-of-day-btn" onClick={handleEndOfDay} disabled={sending}>
+          {sending ? '送信中...' : `業務終了（${month}/${selectedDay} を転記）`}
+        </button>
+        {sendResult && (
+          <div className={`send-result ${sendResult}`}>
+            {sendResult === 'success' ? 'スプレッドシートに転記しました ✓' : '送信に失敗しました。再度お試しください。'}
+          </div>
         )}
 
         <div className="submit-note">
-          選択した月の入力データを、1〜{daysInMonth}日の日別件数として転記しています（コース × 日帰り／宿泊 × 定価／割引）。部門タブで「ボディケア」「タイ・バリ」を切り替えできます。
+          「業務終了」を押すと、選択中の日（{year}/{String(month).padStart(2,'0')}/{String(selectedDay).padStart(2,'0')}）の件数を、ファイル名「{year}{String(month).padStart(2,'0')}{String(selectedDay).padStart(2,'0')}」のスプレッドシートの自分の名前列に転記します。日付の列ヘッダーをタップして転記対象日を変更できます。
         </div>
       </>
     );
