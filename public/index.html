@@ -1991,7 +1991,7 @@
                       <td key={d} className={d === selectedDay ? 'sel-col' : d === todayDay ? 'today-col' : ''}>
                         {d === selectedDay
                           ? (dayAmounts[d] ? formatPrice(dayAmounts[d]) : '')
-                          : (dayCountTotals[d] || '')}
+                          : ''}
                       </td>
                     ))}
                     <td className="row-total">{dayList.reduce((s,d)=>(s+(dayCountTotals[d]||0)),0) || ''}</td>
