@@ -1954,23 +1954,23 @@
       setSending(true);
       setSendResult(null);
       try {
-        const nameToDept = {};
-        groups.forEach(g => g.items.forEach(p => { nameToDept[p.name] = g.category; }));
-
-        const rowMap = {};
-        entries.filter(e => e._day === todayDay).forEach(e => {
-          const tierLabel = e.lodging
-            ? (e.discount ? '宿泊 10%OFF' : '宿泊')
-            : (e.discount ? '日帰り 20%OFF' : '日帰り');
-          const key = `${nameToDept[e.name] || ''}__${e.name}__${tierLabel}`;
-          if (!rowMap[key]) rowMap[key] = { dept: nameToDept[e.name] || '', menu: e.name, tier: tierLabel, count: 0, amount: 0 };
-          rowMap[key].count += 1;
-          rowMap[key].amount += calcEntry(e).net;
-        });
+        // 提出タブと同じ順序・形式でグループ化
+        const groupsData = groups.map(g => ({
+          dept: g.category,
+          items: g.items.flatMap(p =>
+            SUBMIT_TIERS.map(t => {
+              const tierLabel = t.type + (t.tier !== '定価' ? ' ' + t.tier : '');
+              const tierKey = `${t.type}|${t.tier}`;
+              const cnt = (agg[`${p.name}||${tierKey}`] || {})[todayDay] || 0;
+              const amt = (amountAgg[`${p.name}||${tierKey}`] || {})[todayDay] || 0;
+              return { menu: p.name, tier: tierLabel, count: cnt, amount: amt };
+            })
+          ),
+        }));
 
         const payload = {
           date: `${year}/${String(month).padStart(2, '0')}/${String(todayDay).padStart(2, '0')}`,
-          rows: Object.values(rowMap),
+          groups: groupsData,
           totalJ: dayAmounts[todayDay] || 0,
           totalP: dayAmountsNoDisc[todayDay] || 0,
         };
