@@ -220,22 +220,7 @@
       text-align: center;
       line-height: 1.5;
     }
-    .login-reset-btn {
-      display: block;
-      margin: 12px auto 0;
-      background: none;
-      border: none;
-      color: var(--accent);
-      font-size: 12px;
-      cursor: pointer;
-      text-decoration: underline;
-    }
-    .login-reset-msg {
-      font-size: 12px;
-      color: #27ae60;
-      text-align: center;
-      margin-top: 8px;
-    }
+
 
     .tabs {
       display: flex;
@@ -1435,7 +1420,6 @@
     const [name, setName] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
-    const [resetMsg, setResetMsg] = useState('');
     const [busy, setBusy] = useState(false);
 
     const submit = async () => {
@@ -1493,7 +1477,6 @@
             onKeyDown={e => { if (e.key === 'Enter') submit(); }}
           />
           {error && <div className="login-error">{error}</div>}
-          {resetMsg && <div className="login-reset-msg">{resetMsg}</div>}
           <button className="login-submit" onClick={submit} disabled={busy}>
             {busy ? '処理中...' : (mode === 'signup' ? '登録して始める' : 'ログイン')}
           </button>
@@ -1502,20 +1485,6 @@
               ? '初めての方はこちら。名前とパスワードを決めて登録してください。'
               : '登録済みの名前とパスワードでログインしてください。'}
           </div>
-          {mode === 'login' && (
-            <button className="login-reset-btn" onClick={async () => {
-              const nm = name.trim();
-              if (!nm) { setError('名前を入力してください。'); return; }
-              const email = await nameToEmail(nm);
-              try {
-                await auth.sendPasswordResetEmail(email);
-                setError('');
-                setResetMsg('パスワードリセットメールを送信しました。メールを確認してください。');
-              } catch(e) {
-                setError('送信に失敗しました。名前が正しいか確認してください。');
-              }
-            }}>パスワードを忘れた方はこちら</button>
-          )}
         </div>
       </div>
     );
@@ -1574,7 +1543,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 1.64</span>
+              <span className="version">Ver 1.65</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
