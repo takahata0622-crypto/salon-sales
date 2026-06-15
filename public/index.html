@@ -1281,6 +1281,26 @@
       gap: 6px;
       flex-wrap: wrap;
     }
+    .goal-type-toggle {
+      display: flex;
+      border: 1.5px solid var(--accent);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .goal-type-toggle button {
+      padding: 4px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      border: none;
+      background: white;
+      color: var(--accent);
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .goal-type-toggle button.active {
+      background: var(--accent);
+      color: white;
+    }
     .goal-label {
       font-size: 12px;
       color: var(--muted);
@@ -1608,7 +1628,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 1.79</span>
+              <span className="version">Ver 1.80</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
@@ -1826,6 +1846,7 @@
     const [expanded, setExpanded] = useState(null);
     const [goalAmount, setGoalAmount] = useState(0);
     const [commission, setCommission] = useState(0);
+    const [goalType, setGoalType] = useState('sales'); // 'sales' | 'takehome'
     const [savingGoal, setSavingGoal] = useState(false);
 
     const monthKey = `${year}-${String(month).padStart(2,'0')}`;
@@ -1838,9 +1859,11 @@
             const key = monthKey;
             setGoalAmount(data[key]?.goal || 0);
             setCommission(data[key]?.commission || 0);
+            setGoalType(data[key]?.goalType || 'sales');
           } else {
             setGoalAmount(0);
             setCommission(0);
+            setGoalType('sales');
           }
         });
     }, [uid, year, month]);
@@ -1848,7 +1871,7 @@
     const saveGoal = async () => {
       setSavingGoal(true);
       await db.collection('users').doc(uid).collection('meta').doc('goals')
-        .set({ [monthKey]: { goal: goalAmount, commission } }, { merge: true });
+        .set({ [monthKey]: { goal: goalAmount, commission, goalType } }, { merge: true });
       setSavingGoal(false);
     };
 
@@ -1891,6 +1914,10 @@
     const monthTotal = days.reduce((s, d) => s + d.subtotal + d.extraTotal, 0);
     const dayCount = days.length;
     const payEstimate = commission > 0 ? Math.round(monthTotal * (commission / 100)) : 0;
+    // グラフ・達成率用の売上目標（手取目標の場合は必要売上に換算）
+    const salesTarget = goalAmount > 0
+      ? (goalType === 'takehome' && commission > 0 ? Math.round(goalAmount / (commission / 100)) : goalAmount)
+      : 0;
 
     return (
       <>
@@ -1920,7 +1947,10 @@
 
         <div className="goal-box">
           <div className="goal-row">
-            <label className="goal-label">目標金額</label>
+            <div className="goal-type-toggle">
+              <button className={goalType === 'sales' ? 'active' : ''} onClick={() => setGoalType('sales')}>目標売上</button>
+              <button className={goalType === 'takehome' ? 'active' : ''} onClick={() => setGoalType('takehome')}>目標手取</button>
+            </div>
             <input
               className="goal-input"
               type="number"
@@ -1947,13 +1977,14 @@
               {savingGoal ? '保存中' : '保存'}
             </button>
           </div>
-          {payEstimate > 0 && (
+          {(payEstimate > 0 || salesTarget > 0) && (
             <div className="goal-result">
-              支給見込み <strong>{formatPrice(payEstimate)}</strong>
-              {goalAmount > 0 && (
+              {payEstimate > 0 && <>支給見込み <strong>{formatPrice(payEstimate)}</strong>　</>}
+              {salesTarget > 0 && (
                 <span className="goal-progress">
-                  　目標達成率 {Math.round((monthTotal / goalAmount) * 100)}%
-                  {monthTotal >= goalAmount ? ' 🎉' : ''}
+                  目標達成率 {Math.round((monthTotal / salesTarget) * 100)}%
+                  {monthTotal >= salesTarget ? ' 🎉' : ''}
+                  {goalType === 'takehome' && <span style={{fontSize:'11px', color:'var(--muted)'}}> （必要売上 {formatPrice(salesTarget)}）</span>}
                 </span>
               )}
             </div>
@@ -1971,7 +2002,7 @@
           let run = 0;
           daily.forEach(v => { run += v; cum.push(run); });
           const maxDaily = Math.max(1, ...daily);
-          const maxCum = Math.max(1, run, goalAmount);
+          const maxCum = Math.max(1, run, salesTarget);
           const H = 200, padT = 12, padB = 22, padL = 40, padR = 46;
           const step = 24;
           const innerH = H - padT - padB;
@@ -2013,11 +2044,11 @@
                   {cum.map((v, i) => (
                     <circle key={i} cx={cx(i)} cy={yLine(v)} r="2.5" fill="#e67e22" />
                   ))}
-                  {goalAmount > 0 && (() => {
+                  {salesTarget > 0 && (() => {
                     const goalPath = Array.from({ length: dim }, (_, i) =>
-                      `${i === 0 ? 'M' : 'L'}${cx(i)},${yLine(goalAmount / 30 * (i + 1))}`
+                      `${i === 0 ? 'M' : 'L'}${cx(i)},${yLine(salesTarget / 30 * (i + 1))}`
                     ).join(' ');
-                    const startY = yLine(goalAmount / 30 * 1);
+                    const startY = yLine(salesTarget / 30 * 1);
                     return (
                       <g key="goal">
                         <path d={goalPath} fill="none" stroke="#27ae60" strokeWidth="1.5" strokeDasharray="5,3" />
