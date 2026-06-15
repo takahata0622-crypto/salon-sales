@@ -1067,7 +1067,9 @@
       padding: 12px 14px;
       margin-bottom: 10px;
     }
-    .confirm-date { font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+    .confirm-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .confirm-date { font-size: 14px; font-weight: 700; }
+    .confirm-count { font-size: 13px; font-weight: 700; color: var(--accent); }
     .confirm-names { display: flex; flex-wrap: wrap; gap: 6px; }
     .name-chip {
       background: var(--accent-light);
@@ -1433,7 +1435,7 @@
         <header>
           <h1>💄 サロン売上管理</h1>
           <div className="header-right">
-            <span className="version">Ver 1.45</span>
+            <span className="version">Ver 1.46</span>
             <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
           </div>
         </header>
@@ -1714,7 +1716,7 @@
           daily.forEach(v => { run += v; cum.push(run); });
           const maxDaily = Math.max(1, ...daily);
           const maxCum = Math.max(1, run);
-          const H = 200, padT = 12, padB = 22, padL = 6, padR = 6;
+          const H = 200, padT = 12, padB = 22, padL = 40, padR = 46;
           const step = 24;
           const innerH = H - padT - padB;
           const W = padL + padR + dim * step;
@@ -1723,6 +1725,12 @@
           const yBar = (v) => padT + innerH - (v / maxDaily) * innerH;
           const yLine = (v) => padT + innerH - (v / maxCum) * innerH;
           const linePath = cum.map((v, i) => `${i === 0 ? 'M' : 'L'}${cx(i)},${yLine(v)}`).join(' ');
+          const fmtAxis = (v) => {
+            if (v >= 10000) { const m = v / 10000; return (Number.isInteger(m) ? m : m.toFixed(1)) + '万'; }
+            if (v >= 1000) return Math.round(v / 1000) + '千';
+            return String(Math.round(v));
+          };
+          const ticks = [0, 0.5, 1];
           return (
             <div className="chart-box">
               <div className="chart-title">日別売上・月間累計</div>
@@ -1732,7 +1740,16 @@
               </div>
               <div className="chart-scroll">
                 <svg width={W} height={H} style={{ display: 'block' }}>
-                  <line x1={padL} y1={padT + innerH} x2={W - padR} y2={padT + innerH} stroke="var(--border)" />
+                  {ticks.map((f, i) => {
+                    const gy = padT + innerH - f * innerH;
+                    return (
+                      <g key={i}>
+                        <line x1={padL} y1={gy} x2={W - padR} y2={gy} stroke="var(--border)" strokeDasharray={f === 0 ? '' : '3,3'} />
+                        <text x={padL - 4} y={gy + 3} textAnchor="end" fontSize="9" fill="var(--accent)">{fmtAxis(maxDaily * f)}</text>
+                        <text x={W - padR + 4} y={gy + 3} textAnchor="start" fontSize="9" fill="#e67e22">{fmtAxis(maxCum * f)}</text>
+                      </g>
+                    );
+                  })}
                   {daily.map((v, i) => v > 0 && (
                     <rect key={i} x={cx(i) - barW / 2} y={yBar(v)} width={barW} height={padT + innerH - yBar(v)} fill="var(--accent)" rx="2" />
                   ))}
@@ -1858,7 +1875,10 @@
             ? <div className="empty-state" style={{background:'var(--card)',borderRadius:16,padding:32,color:'var(--muted)'}}>この月の送信記録はありません</div>
             : logs.map(l => (
               <div key={l.id} className="confirm-card">
-                <div className="confirm-date">{fmtDay(l.id)}</div>
+                <div className="confirm-head">
+                  <span className="confirm-date">{fmtDay(l.id)}</span>
+                  <span className="confirm-count">合計{l.names.length}人</span>
+                </div>
                 <div className="confirm-names">
                   {l.names.length === 0
                     ? <span className="confirm-empty">記録なし</span>
