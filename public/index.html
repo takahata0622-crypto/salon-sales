@@ -1010,7 +1010,7 @@
       border: 1px solid var(--border);
       border-radius: 16px;
       overflow: auto;
-      height: calc(100dvh - var(--topbar-h, 100px) - 56px - 100px);
+      height: calc(100dvh - var(--topbar-h, 100px) - 56px - var(--submit-footer-h, 120px) - 16px);
       min-height: 200px;
       -webkit-overflow-scrolling: touch;
     }
@@ -1635,7 +1635,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 1.93</span>
+              <span className="version">Ver 1.94</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
@@ -2253,6 +2253,19 @@
     const [sendErrMsg, setSendErrMsg] = useState('');
     const [sentDates, setSentDates] = useState(new Set());
 
+    // フッターの実高さを測定してスクロール領域の高さ計算に反映（Android で下が隠れる対策）
+    const footerRef = useRef(null);
+    useEffect(() => {
+      const setFH = () => {
+        if (footerRef.current) {
+          document.documentElement.style.setProperty('--submit-footer-h', footerRef.current.offsetHeight + 'px');
+        }
+      };
+      setFH();
+      window.addEventListener('resize', setFH);
+      return () => window.removeEventListener('resize', setFH);
+    }, [loading, sendResult, sending, selectedDay, sentDates]);
+
     // viewDate（親から共有）が変わったら年月日を同期
     useEffect(() => {
       const dt = new Date(viewDate + 'T00:00:00Z');
@@ -2623,7 +2636,7 @@
           const dateKey = `${year}${pad(month)}${pad(selectedDay)}`;
           const isSent = sentDates.has(dateKey);
           return (
-            <div className="submit-footer">
+            <div className="submit-footer" ref={footerRef}>
               <div className="day-totals">
                 <span>割引合計（J）<b>{formatPrice(dayAmounts[selectedDay] || 0)}</b></span>
                 <span>合計（P）<b>{formatPrice(dayAmountsNoDisc[selectedDay] || 0)}</b></span>
