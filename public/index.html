@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>サロン売上管理</title>
+  <title>B-one</title>
 
   <!-- Firebase compat SDK -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
@@ -54,9 +54,20 @@
     }
 
     header h1 {
-      font-size: 18px;
-      font-weight: 700;
-      letter-spacing: 0.02em;
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    header h1 .leaf-icon {
+      font-size: 22px;
+      line-height: 1;
+    }
+    header h1 .title-text {
+      font-style: italic;
     }
 
     header .version {
@@ -1417,7 +1428,7 @@
     return (
       <div className="login-wrap">
         <div className="login-card">
-          <h1>💄 サロン売上管理</h1>
+          <h1>🌿 B-one</h1>
           <div className="login-mode">
             <button className={mode === 'login' ? 'active' : ''} onClick={() => { setMode('login'); setError(''); }}>ログイン</button>
             <button className={mode === 'signup' ? 'active' : ''} onClick={() => { setMode('signup'); setError(''); }}>新規登録</button>
@@ -1500,9 +1511,9 @@
       <>
         <div className="topbar" ref={topbarRef}>
           <header>
-            <h1>💄 サロン売上管理</h1>
+            <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 1.52</span>
+              <span className="version">Ver 1.53</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
