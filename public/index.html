@@ -1086,6 +1086,10 @@
     .submit-table tbody .sticky-col {
       background: var(--accent-light);
     }
+    .submit-table thead .sticky-col {
+      background: var(--accent);
+      color: white;
+    }
     .chart-box {
       background: var(--card);
       border: 1px solid var(--border);
@@ -1513,7 +1517,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 1.54</span>
+              <span className="version">Ver 1.55</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
