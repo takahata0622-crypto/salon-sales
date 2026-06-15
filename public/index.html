@@ -94,6 +94,19 @@
       color: var(--muted);
       font-weight: 600;
     }
+    .dept-toggle-btn {
+      font-size: 12px;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 20px;
+      border: 1.5px solid var(--accent);
+      background: var(--accent);
+      color: white;
+      cursor: pointer;
+      white-space: nowrap;
+      margin-left: 4px;
+    }
+    .dept-toggle-btn:active { opacity: 0.8; }
 
     /* ログイン画面 */
     .login-wrap {
@@ -1474,14 +1487,20 @@
           <header>
             <h1>💄 サロン売上管理</h1>
             <div className="header-right">
-              <span className="version">Ver 1.50</span>
+              <span className="version">Ver 1.51</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
 
           <div className="user-row">
-            {user.displayName && <span className="user-line">{user.displayName} さん</span>}
-            <DeptTabs depts={CATEGORIES} value={dept} onChange={setDept} />
+            <div style={{display:'flex', alignItems:'center'}}>
+              {user.displayName && <span className="user-line">{user.displayName} さん</span>}
+              {CATEGORIES.length > 1 && (
+                <button className="dept-toggle-btn" onClick={() => setDept(dept === CATEGORIES[0] ? CATEGORIES[1] : CATEGORIES[0])}>
+                  {dept}
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="tabs">
