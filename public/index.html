@@ -665,6 +665,16 @@
       text-align: center;
       flex: 1;
     }
+    .today-back-btn {
+      font-size: 13px;
+      padding: 4px 12px;
+      border-radius: 20px;
+      border: 1.5px solid var(--accent);
+      background: white;
+      color: var(--accent);
+      cursor: pointer;
+      font-weight: 600;
+    }
 
     .edit-toggle {
       background: var(--card);
@@ -1470,6 +1480,7 @@
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
     const [dept, setDept] = useState(CATEGORIES[0]);
+    const [viewDate, setViewDate] = useState(todayStr());
 
     useEffect(() => {
       const unsub = auth.onAuthStateChanged(u => {
@@ -1517,7 +1528,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 1.55</span>
+              <span className="version">Ver 1.56</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
@@ -1542,9 +1553,9 @@
         </div>
 
         <div className="main">
-          {tab === 'today' && <TodayTab uid={uid} dept={dept} setDept={handleSetDept} />}
+          {tab === 'today' && <TodayTab uid={uid} dept={dept} setDept={handleSetDept} viewDate={viewDate} setViewDate={setViewDate} />}
           {tab === 'history' && <HistoryTab uid={uid} />}
-          {tab === 'submit' && <SubmitTab uid={uid} userName={user.displayName || ''} dept={dept} setDept={handleSetDept} />}
+          {tab === 'submit' && <SubmitTab uid={uid} userName={user.displayName || ''} dept={dept} setDept={handleSetDept} viewDate={viewDate} setViewDate={setViewDate} />}
           {tab === 'confirm' && <ConfirmTab />}
         </div>
       </>
@@ -1552,10 +1563,9 @@
   }
 
   // ========== 今日タブ ==========
-  function TodayTab({ uid, dept, setDept }) {
+  function TodayTab({ uid, dept, setDept, viewDate, setViewDate }) {
     const [entries, setEntries] = useState([]);
     const [presets, setPresets] = useState([]);
-    const [viewDate, setViewDate] = useState(todayStr());
     const today = todayStr();
 
     const prevDay = () => setViewDate(d => {
@@ -1652,6 +1662,7 @@
             <span className="date-label">{viewDate.replace(/-/g, '/')} ({weekday}){isToday ? ' 今日' : ''}</span>
             <button onClick={nextDay} disabled={isToday}>›</button>
           </div>
+          {!isToday && <button className="today-back-btn" onClick={() => setViewDate(today)}>今日に戻る</button>}
           <div className="amount">{formatPrice(total)}</div>
           {(discountAmount > 0 || extraTotal > 0) && (
             <div className="discount-line">
@@ -1997,7 +2008,7 @@
     { label: 'タイ・バリ延長10分', unit: 2000 },
   ];
 
-  function SubmitTab({ uid, userName, dept, setDept }) {
+  function SubmitTab({ uid, userName, dept, setDept, viewDate, setViewDate }) {
     const now = toJST();
     const [year, setYear] = useState(now.getUTCFullYear());
     const [month, setMonth] = useState(now.getUTCMonth() + 1);
@@ -2012,6 +2023,14 @@
     const [sending, setSending] = useState(false);
     const [sendResult, setSendResult] = useState(null);
     const [sentDates, setSentDates] = useState(new Set());
+
+    // viewDate（親から共有）が変わったら年月日を同期
+    useEffect(() => {
+      const dt = new Date(viewDate + 'T00:00:00Z');
+      setYear(dt.getUTCFullYear());
+      setMonth(dt.getUTCMonth() + 1);
+      setSelectedDay(dt.getUTCDate());
+    }, [viewDate]);
 
     // 送信済み日付をFirestoreから購読（端末間で同期）
     useEffect(() => {
@@ -2065,19 +2084,16 @@
     const daysInMonth = new Date(year, month, 0).getDate();
     const dayList = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
-    // 前日・翌日（月またぎ対応）
+    // 前日・翌日（月またぎ対応）— viewDate を更新し useEffect で年月日を同期
     const prevDay = () => {
-      if (selectedDay > 1) { setSelectedDay(selectedDay - 1); return; }
-      const pm = month === 1 ? 12 : month - 1;
-      const py = month === 1 ? year - 1 : year;
-      const lastDay = new Date(py, pm, 0).getDate();
-      setYear(py); setMonth(pm); setSelectedDay(lastDay);
+      const dt = new Date(`${year}-${String(month).padStart(2,'0')}-${String(selectedDay).padStart(2,'0')}T00:00:00Z`);
+      dt.setUTCDate(dt.getUTCDate() - 1);
+      setViewDate(dt.toISOString().slice(0, 10));
     };
     const nextDay = () => {
-      if (selectedDay < daysInMonth) { setSelectedDay(selectedDay + 1); return; }
-      const nm = month === 12 ? 1 : month + 1;
-      const ny = month === 12 ? year + 1 : year;
-      setYear(ny); setMonth(nm); setSelectedDay(1);
+      const dt = new Date(`${year}-${String(month).padStart(2,'0')}-${String(selectedDay).padStart(2,'0')}T00:00:00Z`);
+      dt.setUTCDate(dt.getUTCDate() + 1);
+      setViewDate(dt.toISOString().slice(0, 10));
     };
     const WD = ['日','月','火','水','木','金','土'];
     const selWd = WD[new Date(year, month - 1, selectedDay).getDay()];
@@ -2249,6 +2265,7 @@
           <span className="day-label">{month}月{selectedDay}日（{selWd}）{selectedDay === todayDay ? ' 今日' : ''}</span>
           <button onClick={nextDay}>翌日 ›</button>
         </div>
+        {selectedDay !== todayDay && <button className="today-back-btn" onClick={() => setViewDate(todayStr())}>今日に戻る</button>}
 
         {loading
           ? <div className="loading">読み込み中...</div>
