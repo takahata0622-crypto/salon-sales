@@ -1058,6 +1058,10 @@
       white-space: nowrap;
       padding-right: 6px;
     }
+    /* 左側の固定列（メニュー・区分・単価）も件数・金額と同じ茶色背景に */
+    .submit-table tbody .sticky-col {
+      background: var(--accent-light);
+    }
     .chart-box {
       background: var(--card);
       border: 1px solid var(--border);
@@ -1470,7 +1474,7 @@
           <header>
             <h1>💄 サロン売上管理</h1>
             <div className="header-right">
-              <span className="version">Ver 1.49</span>
+              <span className="version">Ver 1.50</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
