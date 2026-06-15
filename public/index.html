@@ -1628,7 +1628,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 1.82</span>
+              <span className="version">Ver 1.83</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
@@ -1945,6 +1945,19 @@
               <div className="stat-value">{formatPrice(Math.round(salesTarget / 30))}</div>
             </div>
           )}
+          {salesTarget > 0 && (() => {
+            const todayD = toJST().getUTCDate();
+            const targetToday = Math.round(salesTarget / 30 * todayD);
+            const rate = Math.round((monthTotal / targetToday) * 100);
+            return (
+              <div>
+                <div className="stat-label">今日時点の達成率</div>
+                <div className="stat-value" style={{color: rate >= 100 ? '#27ae60' : 'inherit'}}>
+                  {rate}%{rate >= 100 ? ' 🎉' : ''}
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
         <div className="goal-box">
@@ -1982,18 +1995,9 @@
           {(payEstimate > 0 || salesTarget > 0) && (
             <div className="goal-result">
               {payEstimate > 0 && <>支給見込み <strong>{formatPrice(payEstimate)}</strong>　</>}
-              {salesTarget > 0 && (() => {
-                const todayD = toJST().getUTCDate();
-                const targetToday = Math.round(salesTarget / 30 * todayD);
-                const rate = Math.round((monthTotal / targetToday) * 100);
-                return (
-                  <span className="goal-progress">
-                    今日時点の達成率 {rate}%
-                    {rate >= 100 ? ' 🎉' : ''}
-                    {goalType === 'takehome' && <span style={{fontSize:'11px', color:'var(--muted)'}}> （必要売上 {formatPrice(salesTarget)}）</span>}
-                  </span>
-                );
-              })()}
+              {goalType === 'takehome' && salesTarget > 0 && (
+                <span className="goal-progress">必要売上 {formatPrice(salesTarget)}</span>
+              )}
             </div>
           )}
         </div>
