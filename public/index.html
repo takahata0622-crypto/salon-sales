@@ -1628,7 +1628,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 1.85</span>
+              <span className="version">Ver 1.86</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
@@ -1937,7 +1937,7 @@
           const todayD = toJST().getUTCDate();
           const targetToday = salesTarget > 0 ? Math.round(salesTarget / 30 * todayD) : 0;
           const rate = targetToday > 0 ? Math.round((monthTotal / targetToday) * 100) : null;
-          const dailyAvg = workDays > 0 ? Math.round(monthTotal / workDays) : (todayD > 0 ? Math.round(monthTotal / todayD) : 0);
+          const dailyAvg = workDays > 0 ? Math.round(monthTotal / workDays) : (dayCount > 0 ? Math.round(monthTotal / dayCount) : 0);
           const goalDailyAvg = salesTarget > 0 ? Math.round(salesTarget / 30) : 0;
           return (
             <>
@@ -1963,7 +1963,7 @@
               </div>
               <div className="month-summary" style={{marginTop:6}}>
                 <div>
-                  <div className="stat-label">1日平均{workDays > 0 ? `（出勤${workDays}日）` : `（${todayD}日時点）`}</div>
+                  <div className="stat-label">1日平均{workDays > 0 ? `（出勤${workDays}日）` : `（${dayCount}日分）`}</div>
                   <div className="stat-value">{dailyAvg ? formatPrice(dailyAvg) : '—'}</div>
                 </div>
                 {goalDailyAvg > 0 && (
