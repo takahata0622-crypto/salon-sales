@@ -1542,7 +1542,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 1.62</span>
+              <span className="version">Ver 1.63</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
@@ -1854,7 +1854,7 @@
                 <span className="lg"><span className="sw" style={{ background: 'var(--accent)' }}></span>日別売上（棒）</span>
                 <span className="lg"><span className="sw" style={{ background: '#e67e22' }}></span>月間累計（線）</span>
               </div>
-              <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} style={{ display: 'block' }}>
+              <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block' }}>
                   {ticks.map((f, i) => {
                     const gy = padT + innerH - f * innerH;
                     return (
