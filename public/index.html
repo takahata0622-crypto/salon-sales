@@ -1606,7 +1606,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 1.73</span>
+              <span className="version">Ver 1.74</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
@@ -2015,11 +2015,11 @@
                     const goalPath = Array.from({ length: dim }, (_, i) =>
                       `${i === 0 ? 'M' : 'L'}${cx(i)},${yLine(goalAmount / 30 * (i + 1))}`
                     ).join(' ');
-                    const endY = yLine(goalAmount / 30 * dim);
+                    const startY = yLine(goalAmount / 30 * 1);
                     return (
                       <g key="goal">
                         <path d={goalPath} fill="none" stroke="#27ae60" strokeWidth="1.5" strokeDasharray="5,3" />
-                        <text x={W - padR + 4} y={endY + 3} fontSize="8" fill="#27ae60">目標</text>
+                        <text x={padL + 2} y={startY - 3} fontSize="8" fill="#27ae60">目標</text>
                       </g>
                     );
                   })()}
