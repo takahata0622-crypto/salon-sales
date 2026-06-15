@@ -37,6 +37,13 @@
       min-height: 100vh;
     }
 
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--bg);
+      padding-bottom: 8px;
+    }
     header {
       background: var(--card);
       border-bottom: 1px solid var(--border);
@@ -44,9 +51,6 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      position: sticky;
-      top: 0;
-      z-index: 100;
     }
 
     header h1 {
@@ -77,8 +81,15 @@
       cursor: pointer;
     }
 
+    .user-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 8px 16px 0;
+      flex-wrap: wrap;
+    }
     .user-line {
-      padding: 8px 20px 0;
       font-size: 13px;
       color: var(--muted);
       font-weight: 600;
@@ -1416,6 +1427,7 @@
     const [tab, setTab] = useState('today');
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [dept, setDept] = useState(CATEGORIES[0]);
 
     useEffect(() => {
       const unsub = auth.onAuthStateChanged(u => {
@@ -1432,27 +1444,34 @@
 
     return (
       <>
-        <header>
-          <h1>💄 サロン売上管理</h1>
-          <div className="header-right">
-            <span className="version">Ver 1.46</span>
-            <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
+        <div className="topbar">
+          <header>
+            <h1>💄 サロン売上管理</h1>
+            <div className="header-right">
+              <span className="version">Ver 1.47</span>
+              <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
+            </div>
+          </header>
+
+          <div className="user-row">
+            {user.displayName && <span className="user-line">{user.displayName} さん</span>}
+            {(tab === 'today' || tab === 'submit') && (
+              <DeptTabs depts={CATEGORIES} value={dept} onChange={setDept} />
+            )}
           </div>
-        </header>
 
-        {user.displayName && <div className="user-line">{user.displayName} さん</div>}
-
-        <div className="tabs">
-          <button className={`tab ${tab === 'today' ? 'active' : ''}`} onClick={() => setTab('today')}>今日</button>
-          <button className={`tab ${tab === 'history' ? 'active' : ''}`} onClick={() => setTab('history')}>集計</button>
-          <button className={`tab ${tab === 'submit' ? 'active' : ''}`} onClick={() => setTab('submit')}>提出</button>
-          <button className={`tab ${tab === 'confirm' ? 'active' : ''}`} onClick={() => setTab('confirm')}>確認</button>
+          <div className="tabs">
+            <button className={`tab ${tab === 'today' ? 'active' : ''}`} onClick={() => setTab('today')}>今日</button>
+            <button className={`tab ${tab === 'history' ? 'active' : ''}`} onClick={() => setTab('history')}>集計</button>
+            <button className={`tab ${tab === 'submit' ? 'active' : ''}`} onClick={() => setTab('submit')}>提出</button>
+            <button className={`tab ${tab === 'confirm' ? 'active' : ''}`} onClick={() => setTab('confirm')}>確認</button>
+          </div>
         </div>
 
         <div className="main">
-          {tab === 'today' && <TodayTab uid={uid} />}
+          {tab === 'today' && <TodayTab uid={uid} dept={dept} setDept={setDept} />}
           {tab === 'history' && <HistoryTab uid={uid} />}
-          {tab === 'submit' && <SubmitTab uid={uid} userName={user.displayName || ''} />}
+          {tab === 'submit' && <SubmitTab uid={uid} userName={user.displayName || ''} dept={dept} setDept={setDept} />}
           {tab === 'confirm' && <ConfirmTab />}
         </div>
       </>
@@ -1460,10 +1479,9 @@
   }
 
   // ========== 今日タブ ==========
-  function TodayTab({ uid }) {
+  function TodayTab({ uid, dept, setDept }) {
     const [entries, setEntries] = useState([]);
     const [presets, setPresets] = useState([]);
-    const [dept, setDept] = useState(CATEGORIES[0]);
     const [viewDate, setViewDate] = useState(todayStr());
     const today = todayStr();
 
@@ -1576,7 +1594,6 @@
         <div className="add-section">
           <div className="add-section-header">
             <h2>{isToday ? 'メニューを追加' : '項目を追加'}</h2>
-            <DeptTabs depts={deptNames} value={activeDept} onChange={setDept} />
           </div>
           <div className="preset-grid">
             {deptItems.map(p => (
@@ -1905,14 +1922,13 @@
     { label: 'タイ・バリ延長10分', unit: 2000 },
   ];
 
-  function SubmitTab({ uid, userName }) {
+  function SubmitTab({ uid, userName, dept, setDept }) {
     const now = toJST();
     const [year, setYear] = useState(now.getUTCFullYear());
     const [month, setMonth] = useState(now.getUTCMonth() + 1);
     const [entries, setEntries] = useState([]);
     const [presets, setPresets] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [dept, setDept] = useState(CATEGORIES[0]);
     const todayDay = (year === now.getUTCFullYear() && month === now.getUTCMonth() + 1)
       ? now.getUTCDate() : -1;
     const [selectedDay, setSelectedDay] = useState(() =>
@@ -2157,11 +2173,6 @@
           <button onClick={prevDay}>‹ 前日</button>
           <span className="day-label">{month}月{selectedDay}日（{selWd}）{selectedDay === todayDay ? ' 今日' : ''}</span>
           <button onClick={nextDay}>翌日 ›</button>
-        </div>
-
-        <div className="add-section-header" style={{ marginBottom: 12 }}>
-          <h2>部門</h2>
-          <DeptTabs depts={deptNames} value={activeDept} onChange={setDept} />
         </div>
 
         {loading
