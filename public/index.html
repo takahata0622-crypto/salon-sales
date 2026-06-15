@@ -1635,7 +1635,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 1.92</span>
+              <span className="version">Ver 1.93</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
@@ -2228,6 +2228,15 @@
     ...PRICING.extUnits.filter(u => u.match.length === 0),
     ...PRICING.extUnits.filter(u => u.match.length > 0),
   ].map(u => ({ label: u.label, unit: u.unit }));
+  // 追加料金行（男女希望／指名）— 割引なしの固定料金、日帰り／宿泊の2区分
+  const FEE_ROWS = [
+    { key: 'seibetsu', label: '男女希望', fee: PRICING.fees.seibetsu },
+    { key: 'shimei',   label: '指名',     fee: PRICING.fees.shimei },
+  ];
+  const FEE_TIERS = [
+    { type: '日帰り', lodging: false },
+    { type: '宿泊',   lodging: true  },
+  ];
 
   function SubmitTab({ uid, userName, dept, setDept, viewDate, setViewDate }) {
     const now = toJST();
@@ -2445,7 +2454,20 @@
               return { menu: ex.label, tier: tierLabel, count: cnt, amount: 0 };
             })
           );
-          return { dept: g.category, items: [...regularItems, ...extItems] };
+          const feeItems = FEE_ROWS.flatMap(fr =>
+            FEE_TIERS.map(ft => {
+              let cnt = 0;
+              entries.forEach(e => {
+                if (e._day !== selectedDay) return;
+                if (!gMenuNames.has(e.name)) return;
+                if (!e[fr.key]) return;
+                if (!!e.lodging !== ft.lodging) return;
+                cnt += 1;
+              });
+              return { menu: fr.label, tier: ft.type, count: cnt, amount: cnt * fr.fee };
+            })
+          );
+          return { dept: g.category, items: [...regularItems, ...extItems, ...feeItems] };
         });
 
         const pad = (n) => String(n).padStart(2, '0');
@@ -2568,6 +2590,28 @@
                   {deptItems.length === 0 && (
                     <tr><td className="t-type" colSpan={5}>この部門のメニューはありません</td></tr>
                   )}
+                  {deptItems.length > 0 && FEE_ROWS.map(fr => (
+                    FEE_TIERS.map((ft, i) => {
+                      let cnt = 0;
+                      entries.forEach(e => {
+                        if (e._day !== selectedDay) return;
+                        if (!deptMenuNames.has(e.name)) return;
+                        if (!e[fr.key]) return;
+                        if (!!e.lodging !== ft.lodging) return;
+                        cnt += 1;
+                      });
+                      const amt = cnt * fr.fee;
+                      return (
+                        <tr key={fr.key + '-' + i} className={cnt === 0 ? 'zero' : ''}>
+                          {i === 0 && <td className="t-course sticky-col c1" rowSpan={FEE_TIERS.length}>{fr.label}</td>}
+                          <td className="t-type sticky-col c2">{ft.type}</td>
+                          <td className="sticky-col c3 col-price">{formatPrice(fr.fee)}</td>
+                          <td className="row-total">{cnt || ''}</td>
+                          <td className="row-total">{amt ? formatPrice(amt) : ''}</td>
+                        </tr>
+                      );
+                    })
+                  ))}
                 </tbody>
               </table>
             </div>
