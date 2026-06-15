@@ -4,9 +4,14 @@ service cloud.firestore {
     match /users/{uid}/{document=**} {
       allow read, write: if request.auth != null && request.auth.uid == uid;
     }
-    // 送信記録（全スタッフが閲覧・追記可能）
+    // 送信記録（全スタッフが閲覧可能・追記のみ／他人の記録は削除不可）
     match /submitLog/{date} {
-      allow read, write: if request.auth != null;
+      allow read:   if request.auth != null;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null
+                    && request.resource.data.names is list
+                    && request.resource.data.names.hasAll(resource.data.names);
+      allow delete: if false;
     }
   }
 }
