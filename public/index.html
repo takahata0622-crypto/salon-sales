@@ -668,13 +668,15 @@
     }
     .today-back-btn {
       font-size: 13px;
-      padding: 4px 12px;
+      padding: 4px 10px;
       border-radius: 20px;
       border: 1.5px solid var(--accent);
       background: white;
       color: var(--accent);
       cursor: pointer;
       font-weight: 600;
+      white-space: nowrap;
+      flex-shrink: 0;
     }
 
     .edit-toggle {
@@ -1546,7 +1548,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 1.67</span>
+              <span className="version">Ver 1.68</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
@@ -1678,10 +1680,13 @@
           <div className="date-nav">
             <button onClick={prevDay}>‹</button>
             <span className="date-label">{viewDate.replace(/-/g, '/')} ({weekday}){isToday ? ' 今日' : ''}</span>
-            {isToday
-              ? <button onClick={nextDay} disabled={true}>›</button>
-              : <button className="today-back-btn" onClick={() => setViewDate(today)}>今日に戻る</button>}
+            <button onClick={nextDay} disabled={isToday}>›</button>
           </div>
+          {!isToday && (
+            <div style={{textAlign:'center', marginBottom:6}}>
+              <button className="today-back-btn" onClick={() => setViewDate(today)}>今日に戻る</button>
+            </div>
+          )}
           <div className="amount">{formatPrice(total)}</div>
           {(discountAmount > 0 || extraTotal > 0) && (
             <div className="discount-line">
@@ -2285,10 +2290,13 @@
         <div className="day-nav">
           <button onClick={prevDay}>‹ 前日</button>
           <span className="day-label">{month}月{selectedDay}日（{selWd}）{selectedDay === todayDay ? ' 今日' : ''}</span>
-          {selectedDay === todayDay
-            ? <button onClick={nextDay}>翌日 ›</button>
-            : <button className="today-back-btn" onClick={() => setViewDate(todayStr())}>今日に戻る</button>}
+          <button onClick={nextDay}>翌日 ›</button>
         </div>
+        {selectedDay !== todayDay && (
+          <div style={{textAlign:'center', marginBottom:8}}>
+            <button className="today-back-btn" onClick={() => setViewDate(todayStr())}>今日に戻る</button>
+          </div>
+        )}
 
         {loading
           ? <div className="loading">読み込み中...</div>
