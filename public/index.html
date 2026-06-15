@@ -1009,7 +1009,7 @@
       background: var(--card);
       border: 1px solid var(--border);
       border-radius: 16px;
-      overflow-x: auto;
+      overflow: auto;
       max-height: 70vh;
       -webkit-overflow-scrolling: touch;
     }
@@ -1035,7 +1035,7 @@
       font-weight: 700;
       text-align: center;
       position: sticky;
-      top: var(--topbar-h, 0px);
+      top: 0;
       z-index: 2;
     }
 
@@ -1606,7 +1606,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 1.76</span>
+              <span className="version">Ver 1.77</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
