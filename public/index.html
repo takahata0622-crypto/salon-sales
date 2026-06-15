@@ -1250,6 +1250,19 @@
     }
     .send-result.success { color: #27ae60; }
     .send-result.error   { color: #c0392b; }
+    .sending-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 9999;
+      background: #c0392b;
+      color: white;
+      text-align: center;
+      font-size: 14px;
+      font-weight: bold;
+      padding: 10px 16px;
+      letter-spacing: 0.04em;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
   </style>
 </head>
 <body>
@@ -1529,7 +1542,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 1.58</span>
+              <span className="version">Ver 1.59</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
@@ -2261,6 +2274,11 @@
 
     return (
       <>
+        {sending && (
+          <div className="sending-overlay">
+            ⚠️ 送信中です。完了するまでアプリを閉じないでください...
+          </div>
+        )}
         <div className="day-nav">
           <button onClick={prevDay}>‹ 前日</button>
           <span className="day-label">{month}月{selectedDay}日（{selWd}）{selectedDay === todayDay ? ' 今日' : ''}</span>
