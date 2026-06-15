@@ -1628,7 +1628,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 1.86</span>
+              <span className="version">Ver 1.87</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
@@ -1938,7 +1938,7 @@
           const targetToday = salesTarget > 0 ? Math.round(salesTarget / 30 * todayD) : 0;
           const rate = targetToday > 0 ? Math.round((monthTotal / targetToday) * 100) : null;
           const dailyAvg = workDays > 0 ? Math.round(monthTotal / workDays) : (dayCount > 0 ? Math.round(monthTotal / dayCount) : 0);
-          const goalDailyAvg = salesTarget > 0 ? Math.round(salesTarget / 30) : 0;
+          const goalDailyAvg = salesTarget > 0 && workDays > 0 ? Math.round(salesTarget / workDays) : 0;
           return (
             <>
               <div className="month-summary">
