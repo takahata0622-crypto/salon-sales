@@ -3,7 +3,8 @@
 ## デプロイ方法
 
 - デプロイは **GitHub Actions** が自動で行う（firebase deploy は不要）
-- ブランチにプッシュするだけで Actions が走る
+- デプロイ用ワークフロー（`.github/workflows/deploy.yml`）は **`main` ブランチへの push のときだけ** 走る
+- **変更は常に `main` に直接 push する**（ユーザー指定の方針。PR や確認は不要、毎回そのまま main へ）
 
 ## バージョン管理
 
