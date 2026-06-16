@@ -1691,7 +1691,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 2.01</span>
+              <span className="version">Ver 2.02</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
@@ -2520,17 +2520,17 @@
     });
 
     // メニュー1件分の行（4区分）を描画する共通関数
+    // 金額は単価×件数のみ（延長・指名等のオプションは別行で集計するため含めない）
     const renderMenuRows = (p) => SUBMIT_TIERS.map((t, i) => {
       const row = rowOf(p.name, t);
       const cnt = row[selectedDay] || 0;
-      const tierKey = `${t.type}|${t.tier}`;
-      const amtRow = amountAgg[`${p.name}||${tierKey}`] || {};
-      const amt = amtRow[selectedDay] || 0;
+      const tierPrice = t.tier === '20%OFF' ? Math.round(p.price * 0.8) : t.tier === '10%OFF' ? Math.round(p.price * 0.9) : p.price;
+      const amt = cnt * tierPrice;
       return (
         <tr key={p.id + '-' + i} className={cnt === 0 ? 'zero' : ''}>
           {i === 0 && <td className="t-course sticky-col c1" rowSpan={SUBMIT_TIERS.length}>{p.name}</td>}
           <td className="t-type sticky-col c2">{t.type}{t.tier === '定価' ? '' : ' ' + t.tier}</td>
-          <td className="sticky-col c3 col-price">{formatPrice(t.tier === '20%OFF' ? Math.round(p.price * 0.8) : t.tier === '10%OFF' ? Math.round(p.price * 0.9) : p.price)}</td>
+          <td className="sticky-col c3 col-price">{formatPrice(tierPrice)}</td>
           <td className="row-total">{cnt || ''}</td>
           <td className="row-total">{amt ? formatPrice(amt) : ''}</td>
         </tr>
@@ -2554,7 +2554,8 @@
               const tierLabel = t.type + (t.tier !== '定価' ? ' ' + t.tier : '');
               const tierKey = `${t.type}|${t.tier}`;
               const cnt = (agg[`${p.name}||${tierKey}`] || {})[selectedDay] || 0;
-              const amt = (amountAgg[`${p.name}||${tierKey}`] || {})[selectedDay] || 0;
+              const tierPrice = t.tier === '20%OFF' ? Math.round(p.price * 0.8) : t.tier === '10%OFF' ? Math.round(p.price * 0.9) : p.price;
+              const amt = cnt * tierPrice;
               return { menu: p.name, tier: tierLabel, count: cnt, amount: amt };
             })
           );
