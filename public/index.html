@@ -1691,7 +1691,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 2.07</span>
+              <span className="version">Ver 2.08</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
@@ -2017,7 +2017,12 @@
     // 月間売上は割引前金額（小計＋追加）で集計
     const monthTotal = days.reduce((s, d) => s + d.subtotal + d.extraTotal, 0);
     const dayCount = days.length;
-    const payEstimate = commission > 0 ? Math.round(monthTotal * (commission / 100)) : 0;
+    // 支給ルール：指名料は歩合をかけず100%支給、男女希望は支給対象外（0%）
+    const shimeiTotal = days.reduce((s, d) => s + d.entries.reduce((t, e) => t + (e.shimei ? PRICING.fees.shimei : 0), 0), 0);
+    const seibetsuTotal = days.reduce((s, d) => s + d.entries.reduce((t, e) => t + (e.seibetsu ? PRICING.fees.seibetsu : 0), 0), 0);
+    // 歩合の対象額（指名料・男女希望を除いた売上）
+    const commissionBase = monthTotal - shimeiTotal - seibetsuTotal;
+    const payEstimate = commission > 0 ? Math.round(commissionBase * (commission / 100)) + shimeiTotal : 0;
     // グラフ・達成率用の売上目標（手取目標の場合は必要売上に換算）
     const salesTarget = goalAmount > 0
       ? (goalType === 'takehome' && commission > 0 ? Math.round(goalAmount / (commission / 100)) : goalAmount)
