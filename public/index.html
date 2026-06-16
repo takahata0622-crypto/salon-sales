@@ -1691,7 +1691,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 2.15</span>
+              <span className="version">Ver 2.16</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
@@ -2590,7 +2590,8 @@
       setSendErrMsg('');
       try {
         // 提出タブと同じ順序・形式でグループ化（延長行を含む）
-        const groupsData = groups.map(g => {
+        // 選択中の部門だけを送信する（例：ボディケア選択時はボディケアのみ）
+        const groupsData = groups.filter(g => g.category === activeDept).map(g => {
           const gMenuNames = new Set(g.items.map(p => p.name));
           const regularItems = g.items.flatMap(p =>
             SUBMIT_TIERS.map(t => {
