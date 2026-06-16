@@ -2248,8 +2248,9 @@
     .map(u => ({ key: u.key, label: u.label, unit: u.unit }));
   // 追加料金行（男女希望／指名）— 全部門共通・割引なしの固定料金、日帰り／宿泊の2区分
   const FEE_ROWS = [
-    { key: 'seibetsu', label: '男女希望', fee: PRICING.fees.seibetsu },
-    { key: 'shimei',   label: '指名',     fee: PRICING.fees.shimei },
+    { key: 'seibetsu',    label: '男女希望', fee: PRICING.fees.seibetsu },
+    { key: 'shimei',      label: '指名',     fee: PRICING.fees.shimei },
+    { key: 'ganseihirou', label: '眼精疲労', fee: PRICING.fees.ganseihirou },
   ];
   // タイ・バリ部門専用の追加料金行（眼精疲労）
   const TAIBARI_FEE_ROWS = [
