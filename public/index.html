@@ -1691,7 +1691,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 2.03</span>
+              <span className="version">Ver 2.04</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
@@ -1912,7 +1912,7 @@
                   <button className={`toggle-btn sm ${e.seibetsu ? 'active' : ''}`} onClick={() => toggleEntrySeibetsu(e)}>男女希望</button>
                   {entryRate(e) > 0 && <span className="entry-disc-note">{Math.round(entryRate(e) * 100)}%オフ</span>}
                   {((e.extMin || 0) > 0 || entryRate(e) > 0 || e.ganseihirou || e.shimei || e.seibetsu) && (
-                    <span className="entry-disc-note" style={{color:'var(--text)'}}>{entryBreakdown(e)}</span>
+                    <span className="entry-disc-note" style={{color:'var(--danger)'}}>{entryBreakdown(e)}</span>
                   )}
                 </div>
                 <input
