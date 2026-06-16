@@ -1691,7 +1691,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 2.05</span>
+              <span className="version">Ver 2.06</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
@@ -1814,19 +1814,19 @@
     const entryGross = (e) => calcEntry(e).gross;
     const entryRate = (e) => calcEntry(e).rate;
     const entryNet = (e) => calcEntry(e).net;
-    // 割引後の金額で内訳の計算式を組み立てる（例: コース4,500＋延長1,215＋男女希望300）
+    // 内訳の計算式の各項目を組み立てる（例: コース4,500＋延長1,215＋男女希望300）
+    // discounted=true の項目（コース・延長）は割引後の金額で、金額のみ赤文字で表示する
     const entryBreakdown = (e) => {
       const c = calcEntry(e);
-      const yen = (n) => n.toLocaleString();
       // 延長は単体で割引を適用、コースは合計から逆算して端数のズレを残額に寄せる
       const extNet = c.rate > 0 ? c.ext - Math.round(c.ext * c.rate) : c.ext;
       const courseNet = (c.gross - c.discount) - extNet;
-      const parts = [`コース${yen(courseNet)}`];
-      if ((e.extMin || 0) > 0) parts.push(`延長${yen(extNet)}`);
-      if (e.ganseihirou) parts.push(`眼精疲労${yen(PRICING.fees.ganseihirou)}`);
-      if (e.shimei) parts.push(`指名${yen(PRICING.fees.shimei)}`);
-      if (e.seibetsu) parts.push(`男女希望${yen(PRICING.fees.seibetsu)}`);
-      return parts.join('＋');
+      const parts = [{ label: 'コース', amount: courseNet, discounted: c.rate > 0 }];
+      if ((e.extMin || 0) > 0) parts.push({ label: '延長', amount: extNet, discounted: c.rate > 0 });
+      if (e.ganseihirou) parts.push({ label: '眼精疲労', amount: PRICING.fees.ganseihirou, discounted: false });
+      if (e.shimei) parts.push({ label: '指名', amount: PRICING.fees.shimei, discounted: false });
+      if (e.seibetsu) parts.push({ label: '男女希望', amount: PRICING.fees.seibetsu, discounted: false });
+      return parts;
     };
 
     const subtotal = entries.reduce((s, e) => s + calcEntry(e).gross, 0);
@@ -1912,7 +1912,15 @@
                   <button className={`toggle-btn sm ${e.seibetsu ? 'active' : ''}`} onClick={() => toggleEntrySeibetsu(e)}>男女希望</button>
                   {entryRate(e) > 0 && <span className="entry-disc-note">{Math.round(entryRate(e) * 100)}%オフ</span>}
                   {((e.extMin || 0) > 0 || entryRate(e) > 0 || e.ganseihirou || e.shimei || e.seibetsu) && (
-                    <span className="entry-disc-note" style={{color: entryRate(e) > 0 ? 'var(--danger)' : 'var(--ink)'}}>{entryBreakdown(e)}</span>
+                    <span className="entry-disc-note" style={{color:'var(--ink)'}}>
+                      {entryBreakdown(e).map((p, i) => (
+                        <React.Fragment key={i}>
+                          {i > 0 && '＋'}
+                          {p.label}
+                          <span style={p.discounted ? {color:'var(--danger)'} : undefined}>{p.amount.toLocaleString()}</span>
+                        </React.Fragment>
+                      ))}
+                    </span>
                   )}
                 </div>
                 <input
