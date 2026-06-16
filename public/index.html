@@ -1391,9 +1391,10 @@
   const PRICING = {
     // 延長10分あたり単価（match のいずれかを名前に含めば適用。match 空が既定）
     extUnits: [
-      { match: ['ストレッチ'],            unit: 1500, label: 'ストレッチ延長10分' },
-      { match: ['タイ古式', 'バリアロマ'], unit: 2000, label: 'タイ・バリ延長10分' },
-      { match: [],                         unit: 1350, label: 'ボディケア延長10分' }, // 既定
+      { key: 'stretch', match: ['ストレッチ'],  unit: 1500, label: 'ストレッチ延長10分' },
+      { key: 'bari',    match: ['バリアロマ'],  unit: 2000, label: 'バリ延長10分' },
+      { key: 'tai',     match: ['タイ古式'],    unit: 2000, label: 'タイ延長10分' },
+      { key: 'body',    match: [],              unit: 1350, label: 'ボディケア延長10分' }, // 既定
     ],
     discountRate: { lodging: 0.10, dayuse: 0.20 }, // 宿泊10% / 日帰り20%
     fees: { shimei: 500, seibetsu: 300, ganseihirou: 2500 }, // 指名料 / 男女希望 / 眼精疲労（タイ・バリのみ）
@@ -1406,13 +1407,14 @@
   };
 
   // 延長10分あたりの単価（メニュー種別ごと）
-  const extUnitFor = (name) => {
+  const extInfoFor = (name) => {
     const n = name || '';
     const hit = PRICING.extUnits.find(u => u.match.length && u.match.some(m => n.includes(m)));
-    if (hit) return hit.unit;
-    const def = PRICING.extUnits.find(u => u.match.length === 0);
-    return def ? def.unit : 1350;
+    if (hit) return hit;
+    return PRICING.extUnits.find(u => u.match.length === 0) || PRICING.extUnits[PRICING.extUnits.length - 1];
   };
+  const extUnitFor = (name) => extInfoFor(name).unit;
+  const extKeyFor = (name) => extInfoFor(name).key;
   // 1件の金額内訳を計算（今日タブ・集計タブ共通）
   const calcEntry = (e) => {
     const ext = ((e.extMin || 0) / 10) * extUnitFor(e.name);
@@ -1641,7 +1643,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 1.95</span>
+              <span className="version">Ver 1.96</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
@@ -2238,12 +2240,19 @@
   // 提出表示順（ボディケア=既定 → ストレッチ → タイ・バリ）を維持して PRICING から導出
   const EXT_UNITS = [
     ...PRICING.extUnits.filter(u => u.match.length === 0),
-    ...PRICING.extUnits.filter(u => u.match.length > 0),
-  ].map(u => ({ label: u.label, unit: u.unit }));
-  // 追加料金行（男女希望／指名）— 割引なしの固定料金、日帰り／宿泊の2区分
+    ...PRICING.extUnits.filter(u => u.match.length > 0 && u.key !== 'bari' && u.key !== 'tai'),
+  ].map(u => ({ key: u.key, label: u.label, unit: u.unit }));
+  // タイ・バリ部門専用の延長行（バリ→タイの順で末尾に表示）
+  const TAIBARI_EXT_UNITS = PRICING.extUnits
+    .filter(u => u.key === 'bari' || u.key === 'tai')
+    .map(u => ({ key: u.key, label: u.label, unit: u.unit }));
+  // 追加料金行（男女希望／指名）— 全部門共通・割引なしの固定料金、日帰り／宿泊の2区分
   const FEE_ROWS = [
-    { key: 'seibetsu',    label: '男女希望', fee: PRICING.fees.seibetsu },
-    { key: 'shimei',      label: '指名',     fee: PRICING.fees.shimei },
+    { key: 'seibetsu', label: '男女希望', fee: PRICING.fees.seibetsu },
+    { key: 'shimei',   label: '指名',     fee: PRICING.fees.shimei },
+  ];
+  // タイ・バリ部門専用の追加料金行（眼精疲労）
+  const TAIBARI_FEE_ROWS = [
     { key: 'ganseihirou', label: '眼精疲労', fee: PRICING.fees.ganseihirou },
   ];
   const FEE_TIERS = [
@@ -2419,29 +2428,20 @@
       });
     });
 
-    // 延長集計: extAgg[unit][tierKey][day] = 10分単位カウント
-    const extAgg = {};
-    entries.forEach(e => {
-      if ((e.extMin || 0) === 0) return;
-      const unit = extUnitFor(e.name);
-      if (!extAgg[unit]) extAgg[unit] = {};
-      const tierKey = e.lodging
-        ? (e.discount ? '宿泊|10%OFF' : '宿泊|定価')
-        : (e.discount ? '日帰り|20%OFF' : '日帰り|定価');
-      if (!extAgg[unit][tierKey]) extAgg[unit][tierKey] = {};
-      extAgg[unit][tierKey][e._day] = (extAgg[unit][tierKey][e._day] || 0) + (e.extMin / 10);
-    });
+    const isTaiBariDept = activeDept === 'タイ・バリ';
 
     // 部門の表示行をスプレッドシート順に構築（メニュー群の直後に対応する延長行を常設）
-    const extByUnit = {};
-    EXT_UNITS.forEach(ex => { extByUnit[ex.unit] = ex; });
+    // タイ・バリ部門のみ、延長行を末尾にまとめて表示する（バリ→タイの順）
+    const extByKey = {};
+    EXT_UNITS.forEach(ex => { extByKey[ex.key] = ex; });
     const submitRowList = [];
     deptItems.forEach((p, idx) => {
       submitRowList.push({ kind: 'menu', preset: p });
-      const curUnit = extUnitFor(p.name);
-      const nextUnit = idx + 1 < deptItems.length ? extUnitFor(deptItems[idx + 1].name) : null;
-      if (nextUnit !== curUnit && extByUnit[curUnit]) {
-        submitRowList.push({ kind: 'ext', ex: extByUnit[curUnit] });
+      if (isTaiBariDept) return;
+      const curKey = extKeyFor(p.name);
+      const nextKey = idx + 1 < deptItems.length ? extKeyFor(deptItems[idx + 1].name) : null;
+      if (nextKey !== curKey && extByKey[curKey]) {
+        submitRowList.push({ kind: 'ext', ex: extByKey[curKey] });
       }
     });
 
@@ -2466,7 +2466,9 @@
               return { menu: p.name, tier: tierLabel, count: cnt, amount: amt };
             })
           );
-          const extItems = EXT_UNITS.flatMap(ex =>
+          const isTaiBariG = g.category === 'タイ・バリ';
+          const extUnitsForG = isTaiBariG ? TAIBARI_EXT_UNITS : EXT_UNITS;
+          const extItems = extUnitsForG.flatMap(ex =>
             SUBMIT_TIERS.map(t => {
               const tierLabel = t.type + (t.tier !== '定価' ? ' ' + t.tier : '');
               let cnt = 0;
@@ -2474,13 +2476,14 @@
                 if (e._day !== selectedDay) return;
                 if (!gMenuNames.has(e.name)) return;
                 if ((e.extMin || 0) === 0) return;
-                if (extUnitFor(e.name) !== ex.unit) return;
+                if (extKeyFor(e.name) !== ex.key) return;
                 if (e.lodging === t.lodging && e.discount === t.discount) cnt += e.extMin / 10;
               });
               return { menu: ex.label, tier: tierLabel, count: cnt, amount: 0 };
             })
           );
-          const feeItems = FEE_ROWS.flatMap(fr =>
+          const feeRowsForG = isTaiBariG ? [...TAIBARI_FEE_ROWS, ...FEE_ROWS] : FEE_ROWS;
+          const feeItems = feeRowsForG.flatMap(fr =>
             FEE_TIERS.map(ft => {
               let cnt = 0;
               entries.forEach(e => {
@@ -2595,7 +2598,7 @@
                         if (e._day !== selectedDay) return;
                         if (!deptMenuNames.has(e.name)) return;
                         if ((e.extMin || 0) === 0) return;
-                        if (extUnitFor(e.name) !== ex.unit) return;
+                        if (extKeyFor(e.name) !== ex.key) return;
                         const tk = e.lodging ? (e.discount ? '宿泊|10%OFF' : '宿泊|定価') : (e.discount ? '日帰り|20%OFF' : '日帰り|定価');
                         if (tk !== tierKey) return;
                         cnt += e.extMin / 10;
@@ -2616,6 +2619,54 @@
                   {deptItems.length === 0 && (
                     <tr><td className="t-type" colSpan={5}>この部門のメニューはありません</td></tr>
                   )}
+                  {deptItems.length > 0 && isTaiBariDept && TAIBARI_FEE_ROWS.map(fr => (
+                    FEE_TIERS.map((ft, i) => {
+                      let cnt = 0;
+                      entries.forEach(e => {
+                        if (e._day !== selectedDay) return;
+                        if (!deptMenuNames.has(e.name)) return;
+                        if (!e[fr.key]) return;
+                        if (!!e.lodging !== ft.lodging) return;
+                        cnt += 1;
+                      });
+                      const amt = cnt * fr.fee;
+                      return (
+                        <tr key={fr.key + '-' + i} className={cnt === 0 ? 'zero' : ''}>
+                          {i === 0 && <td className="t-course sticky-col c1" rowSpan={FEE_TIERS.length}>{fr.label}</td>}
+                          <td className="t-type sticky-col c2">{ft.type}</td>
+                          <td className="sticky-col c3 col-price">{formatPrice(fr.fee)}</td>
+                          <td className="row-total">{cnt || ''}</td>
+                          <td className="row-total">{amt ? formatPrice(amt) : ''}</td>
+                        </tr>
+                      );
+                    })
+                  ))}
+                  {deptItems.length > 0 && isTaiBariDept && TAIBARI_EXT_UNITS.map(ex => (
+                    SUBMIT_TIERS.map((t, i) => {
+                      const tierKey = `${t.type}|${t.tier}`;
+                      let cnt = 0;
+                      entries.forEach(e => {
+                        if (e._day !== selectedDay) return;
+                        if (!deptMenuNames.has(e.name)) return;
+                        if ((e.extMin || 0) === 0) return;
+                        if (extKeyFor(e.name) !== ex.key) return;
+                        const tk = e.lodging ? (e.discount ? '宿泊|10%OFF' : '宿泊|定価') : (e.discount ? '日帰り|20%OFF' : '日帰り|定価');
+                        if (tk !== tierKey) return;
+                        cnt += e.extMin / 10;
+                      });
+                      const tierPrice = t.tier === '20%OFF' ? Math.round(ex.unit * 0.8) : t.tier === '10%OFF' ? Math.round(ex.unit * 0.9) : ex.unit;
+                      const amt = cnt * tierPrice;
+                      return (
+                        <tr key={ex.key + '-' + i} className={cnt === 0 ? 'zero' : ''}>
+                          {i === 0 && <td className="t-course sticky-col c1" rowSpan={SUBMIT_TIERS.length}>{ex.label}</td>}
+                          <td className="t-type sticky-col c2">{t.type}{t.tier === '定価' ? '' : ' ' + t.tier}</td>
+                          <td className="sticky-col c3 col-price">{formatPrice(tierPrice)}</td>
+                          <td className="row-total">{cnt || ''}</td>
+                          <td className="row-total">{amt ? formatPrice(amt) : ''}</td>
+                        </tr>
+                      );
+                    })
+                  ))}
                   {deptItems.length > 0 && FEE_ROWS.map(fr => (
                     FEE_TIERS.map((ft, i) => {
                       let cnt = 0;
