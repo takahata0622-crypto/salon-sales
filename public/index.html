@@ -1691,7 +1691,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 2.10</span>
+              <span className="version">Ver 2.11</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
@@ -2079,12 +2079,6 @@
                     <div className="stat-value">{formatPrice(goalDailyAvg)}</div>
                   </div>
                 )}
-                {payEstimate > 0 && (
-                  <div>
-                    <div className="stat-label">支給見込み</div>
-                    <div className="stat-value">{formatPrice(payEstimate)}</div>
-                  </div>
-                )}
               </div>
               <div className="month-summary" style={{marginTop:6}}>
                 <div>
@@ -2095,6 +2089,12 @@
                   <div className="stat-label">指名金額</div>
                   <div className="stat-value">{formatPrice(shimeiTotal)}</div>
                 </div>
+                {payEstimate > 0 && (
+                  <div>
+                    <div className="stat-label">支給見込み</div>
+                    <div className="stat-value">{formatPrice(payEstimate)}</div>
+                  </div>
+                )}
               </div>
             </>
           );
