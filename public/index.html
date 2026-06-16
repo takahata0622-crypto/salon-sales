@@ -1459,6 +1459,7 @@
     { id: 'p6', name: 'セレクトボディケア100分', price: 13000, category: 'ボディケア', isDefault: true },
     { id: 'p7', name: 'セレクトボディケア120分', price: 15600, category: 'ボディケア', isDefault: true },
     { id: 'p8', name: '部分集中30分', price: 4500, category: 'ボディケア', isDefault: true },
+    { id: 'p9', name: '初売りチケット', price: 0, category: 'ボディケア', isDefault: true },
     { id: 'p10', name: 'ストレッチ40分', price: 5500, category: 'ボディケア', isDefault: true },
     { id: 'p11', name: 'ストレッチ60分', price: 7800, category: 'ボディケア', isDefault: true },
     { id: 'p12', name: 'ストレッチ90分', price: 11000, category: 'ボディケア', isDefault: true },
@@ -1472,6 +1473,8 @@
     { id: 'p20', name: 'バリアロマ70分', price: 10000, category: 'タイ・バリ', isDefault: true },
     { id: 'p21', name: 'バリアロマ90分', price: 14000, category: 'タイ・バリ', isDefault: true },
     { id: 'p22', name: 'バリアロマ120分', price: 18000, category: 'タイ・バリ', isDefault: true },
+    { id: 'p23', name: 'バリ初売りチケット', price: 0, category: 'タイ・バリ', isDefault: true },
+    { id: 'p24', name: 'タイ初売りチケット', price: 0, category: 'タイ・バリ', isDefault: true },
   ];
 
   // プリセットを大分類ごとにグループ化（CATEGORIES の順 → その他 → 独自分類）
@@ -1503,6 +1506,31 @@
       });
     });
     await batch.commit();
+  };
+
+  // 既存ユーザーに不足している既定メニューを正しい並び順で補完する
+  // （DEFAULT_PRESETS に項目を追加した場合の移行用）
+  const syncMissingDefaultPresets = async (uid, storedDocs) => {
+    const byName = new Map(storedDocs.map(d => [d.name, d]));
+    const missing = DEFAULT_PRESETS.filter(dp => !byName.has(dp.name));
+    if (!missing.length) return false;
+    const col = db.collection('users').doc(uid).collection('presets');
+    const batch = db.batch();
+    missing.forEach(dp => {
+      const idx = DEFAULT_PRESETS.findIndex(x => x.name === dp.name);
+      // 直前にある既存の既定メニューの createdAt を基準に並び順を決める
+      let createdAt = Date.now();
+      for (let i = idx - 1; i >= 0; i--) {
+        const prev = byName.get(DEFAULT_PRESETS[i].name);
+        if (prev && typeof prev.createdAt === 'number') {
+          createdAt = prev.createdAt + 0.001 * (idx - i);
+          break;
+        }
+      }
+      batch.set(col.doc(), { name: dp.name, price: dp.price, category: dp.category, createdAt });
+    });
+    await batch.commit();
+    return true;
   };
 
   // ==================== コンポーネント ====================
@@ -1663,7 +1691,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 1.97</span>
+              <span className="version">Ver 1.98</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
@@ -1720,11 +1748,18 @@
     // プリセット読み込み
     useEffect(() => {
       const ref = db.collection('users').doc(uid).collection('presets');
-      ref.orderBy('createdAt').get().then(snap => {
+      ref.orderBy('createdAt').get().then(async snap => {
         if (snap.empty) {
           setPresets(DEFAULT_PRESETS);
+          return;
+        }
+        const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const added = await syncMissingDefaultPresets(uid, docs);
+        if (added) {
+          const snap2 = await ref.orderBy('createdAt').get();
+          setPresets(snap2.docs.map(d => ({ id: d.id, ...d.data() })));
         } else {
-          setPresets(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+          setPresets(docs);
         }
       });
     }, [uid]);
@@ -2333,10 +2368,21 @@
 
     // メニュー読み込み
     useEffect(() => {
-      db.collection('users').doc(uid).collection('presets')
-        .orderBy('createdAt').get().then(snap => {
-          setPresets(snap.empty ? DEFAULT_PRESETS : snap.docs.map(d => ({ id: d.id, ...d.data() })));
-        });
+      const ref = db.collection('users').doc(uid).collection('presets');
+      ref.orderBy('createdAt').get().then(async snap => {
+        if (snap.empty) {
+          setPresets(DEFAULT_PRESETS);
+          return;
+        }
+        const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const added = await syncMissingDefaultPresets(uid, docs);
+        if (added) {
+          const snap2 = await ref.orderBy('createdAt').get();
+          setPresets(snap2.docs.map(d => ({ id: d.id, ...d.data() })));
+        } else {
+          setPresets(docs);
+        }
+      });
     }, [uid]);
 
     // 選択月の全エントリ読み込み（日付つき）
