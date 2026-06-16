@@ -1691,7 +1691,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 1.99</span>
+              <span className="version">Ver 2.00</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
@@ -1781,7 +1781,7 @@
     const dayRef = () => db.collection('users').doc(uid).collection('days').doc(viewDate);
 
     const addEntry = async (name, price) => {
-      if (!name || !price) return;
+      if (!name || price == null || price === '') return;
       // 親ドキュメントを作成（集計で日付が拾えるように）
       await dayRef().set({ date: today }, { merge: true });
       await dayRef().collection('entries')
