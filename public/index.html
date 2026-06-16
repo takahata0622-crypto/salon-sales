@@ -1691,7 +1691,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 2.11</span>
+              <span className="version">Ver 2.12</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
@@ -2055,8 +2055,8 @@
                 </div>
                 {salesTarget > 0 && (
                   <div>
-                    <div className="stat-label">{goalType === 'takehome' ? '必要売上' : '目標売上'}</div>
-                    <div className="stat-value">{formatPrice(salesTarget)}</div>
+                    <div className="stat-label">{goalType === 'takehome' ? '今日時点の必要売上' : '今日時点の目標売上'}</div>
+                    <div className="stat-value">{formatPrice(targetToday)}</div>
                   </div>
                 )}
                 {rate !== null && (
