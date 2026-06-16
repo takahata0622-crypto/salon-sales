@@ -318,6 +318,26 @@
       letter-spacing: -0.02em;
     }
 
+    .today-total .amount-pair {
+      display: flex;
+      justify-content: center;
+      align-items: baseline;
+      gap: 18px;
+    }
+
+    .today-total .amount-pair .amount-item {
+      font-size: 30px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .today-total .amount-pair .amount-tag {
+      font-size: 14px;
+      font-weight: 700;
+      opacity: 0.8;
+      margin-right: 4px;
+    }
+
     .today-total .count {
       font-size: 12px;
       opacity: 0.75;
@@ -1643,7 +1663,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 1.96</span>
+              <span className="version">Ver 1.97</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
@@ -1764,6 +1784,7 @@
     const discountAmount = entries.reduce((s, e) => s + calcEntry(e).discount, 0);
     const extraTotal = entries.reduce((s, e) => s + calcEntry(e).extra, 0);
     const total = subtotal - discountAmount + extraTotal;
+    const totalNoDisc = subtotal + extraTotal;
 
     const groups = groupByCategory(presets);
     const deptNames = groups.map(g => g.category);
@@ -1784,10 +1805,13 @@
               <button className="today-back-btn" onClick={() => setViewDate(today)}>今日に戻る</button>
             </div>
           )}
-          <div className="amount">{formatPrice(total)}</div>
+          <div className="amount-pair">
+            <span className="amount-item"><span className="amount-tag">P</span>{formatPrice(totalNoDisc)}</span>
+            <span className="amount-item"><span className="amount-tag">J</span>{formatPrice(total)}</span>
+          </div>
           {(discountAmount > 0 || extraTotal > 0) && (
             <div className="discount-line">
-              小計 {formatPrice(subtotal)}
+              コース {formatPrice(subtotal)}
               {discountAmount > 0 && <>　割引 −{formatPrice(discountAmount)}</>}
               {extraTotal > 0 && <>　追加 +{formatPrice(extraTotal)}</>}
             </div>
