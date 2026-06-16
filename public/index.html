@@ -1396,7 +1396,13 @@
       { match: [],                         unit: 1350, label: 'ボディケア延長10分' }, // 既定
     ],
     discountRate: { lodging: 0.10, dayuse: 0.20 }, // 宿泊10% / 日帰り20%
-    fees: { shimei: 500, seibetsu: 300 },          // 指名料 / 男女希望
+    fees: { shimei: 500, seibetsu: 300, ganseihirou: 2500 }, // 指名料 / 男女希望 / 眼精疲労（タイ・バリのみ）
+  };
+
+  // タイ・バリのメニューかどうか（眼精疲労オプションの対象判定）
+  const isTaiBariMenu = (name) => {
+    const n = name || '';
+    return n.includes('タイ古式') || n.includes('バリアロマ');
   };
 
   // 延長10分あたりの単価（メニュー種別ごと）
@@ -1413,7 +1419,7 @@
     const gross = e.price + ext;
     const rate = e.discount ? (e.lodging ? PRICING.discountRate.lodging : PRICING.discountRate.dayuse) : 0;
     const discount = Math.round(gross * rate);
-    const extra = (e.shimei ? PRICING.fees.shimei : 0) + (e.seibetsu ? PRICING.fees.seibetsu : 0);
+    const extra = (e.shimei ? PRICING.fees.shimei : 0) + (e.seibetsu ? PRICING.fees.seibetsu : 0) + (e.ganseihirou ? PRICING.fees.ganseihirou : 0);
     const net = gross - discount + extra;
     return { ext, gross, rate, discount, extra, net };
   };
@@ -1635,7 +1641,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 1.94</span>
+              <span className="version">Ver 1.95</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
@@ -1722,7 +1728,7 @@
       // 親ドキュメントを作成（集計で日付が拾えるように）
       await dayRef().set({ date: today }, { merge: true });
       await dayRef().collection('entries')
-        .add({ name, price: Number(price), lodging: false, discount: false, extMin: 0, shimei: false, seibetsu: false, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+        .add({ name, price: Number(price), lodging: false, discount: false, extMin: 0, shimei: false, seibetsu: false, ganseihirou: false, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
     };
 
     const toggleEntryLodging = (e) =>
@@ -1736,6 +1742,8 @@
       dayRef().collection('entries').doc(e.id).update({ shimei: !e.shimei });
     const toggleEntrySeibetsu = (e) =>
       dayRef().collection('entries').doc(e.id).update({ seibetsu: !e.seibetsu });
+    const toggleEntryGanseihirou = (e) =>
+      dayRef().collection('entries').doc(e.id).update({ ganseihirou: !e.ganseihirou });
     const saveEntryMemo = (e, memo) => {
       if ((e.memo || '') === memo) return;
       dayRef().collection('entries').doc(e.id).update({ memo });
@@ -1820,12 +1828,16 @@
                 </div>
                 <div className="entry-toggles">
                   <button className={`toggle-btn sm ${(e.extMin || 0) > 0 ? 'active' : ''}`} onClick={() => cycleEntryExt(e)}>延長{e.extMin || 0}分</button>
+                  {isTaiBariMenu(e.name) && (
+                    <button className={`toggle-btn sm ${e.ganseihirou ? 'active' : ''}`} onClick={() => toggleEntryGanseihirou(e)}>眼精疲労</button>
+                  )}
                   <button className={`toggle-btn sm ${e.lodging ? 'active' : ''}`} onClick={() => toggleEntryLodging(e)}>宿泊</button>
                   <button className={`toggle-btn sm ${e.discount ? 'active' : ''}`} onClick={() => toggleEntryDiscount(e)}>割引</button>
                   <button className={`toggle-btn sm ${e.shimei ? 'active' : ''}`} onClick={() => toggleEntryShimei(e)}>指名料</button>
                   <button className={`toggle-btn sm ${e.seibetsu ? 'active' : ''}`} onClick={() => toggleEntrySeibetsu(e)}>男女希望</button>
                   {(e.extMin || 0) > 0 && <span className="entry-disc-note">延長+{formatPrice(extAmount(e))}</span>}
                   {entryRate(e) > 0 && <span className="entry-disc-note">{Math.round(entryRate(e) * 100)}%オフ</span>}
+                  {e.ganseihirou && <span className="entry-disc-note" style={{color:'var(--text)'}}>眼精疲労+2,500</span>}
                   {e.shimei && <span className="entry-disc-note" style={{color:'var(--text)'}}>指名+500</span>}
                   {e.seibetsu && <span className="entry-disc-note" style={{color:'var(--text)'}}>希望+300</span>}
                 </div>
@@ -2230,8 +2242,9 @@
   ].map(u => ({ label: u.label, unit: u.unit }));
   // 追加料金行（男女希望／指名）— 割引なしの固定料金、日帰り／宿泊の2区分
   const FEE_ROWS = [
-    { key: 'seibetsu', label: '男女希望', fee: PRICING.fees.seibetsu },
-    { key: 'shimei',   label: '指名',     fee: PRICING.fees.shimei },
+    { key: 'seibetsu',    label: '男女希望', fee: PRICING.fees.seibetsu },
+    { key: 'shimei',      label: '指名',     fee: PRICING.fees.shimei },
+    { key: 'ganseihirou', label: '眼精疲労', fee: PRICING.fees.ganseihirou },
   ];
   const FEE_TIERS = [
     { type: '日帰り', lodging: false },
