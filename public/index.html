@@ -1691,7 +1691,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 2.00</span>
+              <span className="version">Ver 2.01</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
@@ -2504,8 +2504,12 @@
     // タイ・バリ部門のみ、延長行を末尾にまとめて表示する（バリ→タイの順）
     const extByKey = {};
     EXT_UNITS.forEach(ex => { extByKey[ex.key] = ex; });
+    // タイ・バリの初売りチケットは眼精疲労の後に表示するため、コース群からは除外する
+    const isTicketMenu = (name) => (name || '').includes('初売りチケット');
+    const taibariTickets = isTaiBariDept ? deptItems.filter(p => isTicketMenu(p.name)) : [];
     const submitRowList = [];
     deptItems.forEach((p, idx) => {
+      if (isTaiBariDept && isTicketMenu(p.name)) return;
       submitRowList.push({ kind: 'menu', preset: p });
       if (isTaiBariDept) return;
       const curKey = extKeyFor(p.name);
@@ -2513,6 +2517,24 @@
       if (nextKey !== curKey && extByKey[curKey]) {
         submitRowList.push({ kind: 'ext', ex: extByKey[curKey] });
       }
+    });
+
+    // メニュー1件分の行（4区分）を描画する共通関数
+    const renderMenuRows = (p) => SUBMIT_TIERS.map((t, i) => {
+      const row = rowOf(p.name, t);
+      const cnt = row[selectedDay] || 0;
+      const tierKey = `${t.type}|${t.tier}`;
+      const amtRow = amountAgg[`${p.name}||${tierKey}`] || {};
+      const amt = amtRow[selectedDay] || 0;
+      return (
+        <tr key={p.id + '-' + i} className={cnt === 0 ? 'zero' : ''}>
+          {i === 0 && <td className="t-course sticky-col c1" rowSpan={SUBMIT_TIERS.length}>{p.name}</td>}
+          <td className="t-type sticky-col c2">{t.type}{t.tier === '定価' ? '' : ' ' + t.tier}</td>
+          <td className="sticky-col c3 col-price">{formatPrice(t.tier === '20%OFF' ? Math.round(p.price * 0.8) : t.tier === '10%OFF' ? Math.round(p.price * 0.9) : p.price)}</td>
+          <td className="row-total">{cnt || ''}</td>
+          <td className="row-total">{amt ? formatPrice(amt) : ''}</td>
+        </tr>
+      );
     });
 
     const handleEndOfDay = async () => {
@@ -2642,23 +2664,7 @@
                 <tbody>
                   {submitRowList.map(rowItem => {
                     if (rowItem.kind === 'menu') {
-                      const p = rowItem.preset;
-                      return SUBMIT_TIERS.map((t, i) => {
-                        const row = rowOf(p.name, t);
-                        const cnt = row[selectedDay] || 0;
-                        const tierKey = `${t.type}|${t.tier}`;
-                        const amtRow = amountAgg[`${p.name}||${tierKey}`] || {};
-                        const amt = amtRow[selectedDay] || 0;
-                        return (
-                          <tr key={p.id + '-' + i} className={cnt === 0 ? 'zero' : ''}>
-                            {i === 0 && <td className="t-course sticky-col c1" rowSpan={SUBMIT_TIERS.length}>{p.name}</td>}
-                            <td className="t-type sticky-col c2">{t.type}{t.tier === '定価' ? '' : ' ' + t.tier}</td>
-                            <td className="sticky-col c3 col-price">{formatPrice(t.tier === '20%OFF' ? Math.round(p.price * 0.8) : t.tier === '10%OFF' ? Math.round(p.price * 0.9) : p.price)}</td>
-                            <td className="row-total">{cnt || ''}</td>
-                            <td className="row-total">{amt ? formatPrice(amt) : ''}</td>
-                          </tr>
-                        );
-                      });
+                      return renderMenuRows(rowItem.preset);
                     }
                     const ex = rowItem.ex;
                     return SUBMIT_TIERS.map((t, i) => {
@@ -2711,6 +2717,7 @@
                       );
                     })
                   ))}
+                  {deptItems.length > 0 && isTaiBariDept && taibariTickets.map(p => renderMenuRows(p))}
                   {deptItems.length > 0 && isTaiBariDept && TAIBARI_EXT_UNITS.map(ex => (
                     SUBMIT_TIERS.map((t, i) => {
                       const tierKey = `${t.type}|${t.tier}`;
