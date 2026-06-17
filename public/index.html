@@ -613,6 +613,14 @@
       font-weight: 500;
     }
 
+    .entry-slip {
+      display: inline-block;
+      margin-right: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
     .entry-info .entry-time {
       font-size: 11px;
       color: var(--muted);
@@ -1446,6 +1454,9 @@
     fees: { shimei: 500, seibetsu: 300, ganseihirou: 2500 }, // 指名料 / 男女希望 / 眼精疲労（タイ・バリのみ）
   };
 
+  // 内訳の各項目に付ける伝票ラベル（伝票①、伝票②…）。①〜⑳は丸数字、それ以降は数字表記
+  const slipLabel = (idx) => '伝票' + (idx < 20 ? String.fromCharCode(0x2460 + idx) : (idx + 1));
+
   // タイ・バリのメニューかどうか（眼精疲労オプションの対象判定）
   const isTaiBariMenu = (name) => {
     const n = name || '';
@@ -1717,7 +1728,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 2.18</span>
+              <span className="version">Ver 2.19</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
@@ -1914,11 +1925,11 @@
           <h2>内訳 <span style={{fontSize:'11px', color:'var(--muted)', fontWeight:'normal'}}>※実際の伝票の金額と照らし合わせてください</span></h2>
           {entries.length === 0
             ? <div className="empty-state">{isToday ? 'まだ入力がありません' : 'この日のデータはありません'}</div>
-            : entries.map(e => (
+            : entries.map((e, idx) => (
               <div key={e.id} className="entry-item">
                 <div className="entry-main">
                   <div className="entry-info">
-                    <div className="entry-name">{e.name}</div>
+                    <div className="entry-name"><span className="entry-slip">{slipLabel(idx)}</span>{e.name}</div>
                     <div className="entry-time">{formatTime(e.createdAt)}</div>
                   </div>
                   <div className="entry-right">
