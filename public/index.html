@@ -570,6 +570,26 @@
       margin-top: 8px;
     }
 
+    /* オプションボタンを全幅・3列の2段グリッドで表示 */
+    .entry-toggle-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .entry-toggle-grid .toggle-btn.sm {
+      width: 100%;
+    }
+
+    /* 割引率・計算式の注記 */
+    .entry-notes {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
     .entry-orig {
       font-size: 12px;
       color: var(--muted);
@@ -583,9 +603,9 @@
     }
 
     .toggle-btn.sm {
-      padding: 4px 12px;
-      font-size: 12px;
-      border-radius: 16px;
+      padding: 11px 10px;
+      font-size: 14px;
+      border-radius: 10px;
     }
 
     .entry-info .entry-name {
@@ -612,14 +632,20 @@
     }
 
     .delete-btn {
-      background: none;
-      border: none;
-      color: var(--muted);
+      background: #fde8e8;
+      border: 1px solid var(--danger);
+      color: var(--danger);
       cursor: pointer;
-      font-size: 16px;
-      padding: 4px;
+      font-size: 14px;
+      font-weight: 700;
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      padding: 0;
       line-height: 1;
+      flex-shrink: 0;
     }
+    .delete-btn:active { opacity: 0.7; }
 
     .empty-state {
       text-align: center;
@@ -1691,7 +1717,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 2.17</span>
+              <span className="version">Ver 2.18</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
@@ -1901,7 +1927,7 @@
                     <button className="delete-btn" onClick={() => deleteEntry(e.id)}>✕</button>
                   </div>
                 </div>
-                <div className="entry-toggles">
+                <div className="entry-toggle-grid">
                   <button className={`toggle-btn sm ${(e.extMin || 0) > 0 ? 'active' : ''}`} onClick={() => cycleEntryExt(e)}>延長{e.extMin || 0}分</button>
                   {isTaiBariMenu(e.name) && (
                     <button className={`toggle-btn sm ${e.ganseihirou ? 'active' : ''}`} onClick={() => toggleEntryGanseihirou(e)}>眼精疲労</button>
@@ -1910,19 +1936,23 @@
                   <button className={`toggle-btn sm ${e.discount ? 'active' : ''}`} onClick={() => toggleEntryDiscount(e)}>割引</button>
                   <button className={`toggle-btn sm ${e.shimei ? 'active' : ''}`} onClick={() => toggleEntryShimei(e)}>指名料</button>
                   <button className={`toggle-btn sm ${e.seibetsu ? 'active' : ''}`} onClick={() => toggleEntrySeibetsu(e)}>男女希望</button>
-                  {entryRate(e) > 0 && <span className="entry-disc-note">{Math.round(entryRate(e) * 100)}%オフ</span>}
-                  {((e.extMin || 0) > 0 || entryRate(e) > 0 || e.ganseihirou || e.shimei || e.seibetsu) && (
-                    <span className="entry-disc-note" style={{color:'var(--ink)'}}>
-                      {entryBreakdown(e).map((p, i) => (
-                        <React.Fragment key={i}>
-                          {i > 0 && '＋'}
-                          {p.label}
-                          <span style={p.discounted ? {color:'var(--danger)'} : undefined}>{p.amount.toLocaleString()}</span>
-                        </React.Fragment>
-                      ))}
-                    </span>
-                  )}
                 </div>
+                {(entryRate(e) > 0 || (e.extMin || 0) > 0 || e.ganseihirou || e.shimei || e.seibetsu) && (
+                  <div className="entry-notes">
+                    {entryRate(e) > 0 && <span className="entry-disc-note">{Math.round(entryRate(e) * 100)}%オフ</span>}
+                    {((e.extMin || 0) > 0 || entryRate(e) > 0 || e.ganseihirou || e.shimei || e.seibetsu) && (
+                      <span className="entry-disc-note" style={{color:'var(--ink)'}}>
+                        {entryBreakdown(e).map((p, i) => (
+                          <React.Fragment key={i}>
+                            {i > 0 && '＋'}
+                            {p.label}
+                            <span style={p.discounted ? {color:'var(--danger)'} : undefined}>{p.amount.toLocaleString()}</span>
+                          </React.Fragment>
+                        ))}
+                      </span>
+                    )}
+                  </div>
+                )}
                 <input
                   key={e.memo || ''}
                   className="entry-memo"
