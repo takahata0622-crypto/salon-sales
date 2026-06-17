@@ -666,6 +666,29 @@
     }
     .delete-btn:active { opacity: 0.7; }
 
+    .reorder-btns {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .reorder-btn {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--ink);
+      cursor: pointer;
+      font-size: 10px;
+      line-height: 1;
+      width: 24px;
+      height: 14px;
+      padding: 0;
+      border-radius: 4px;
+    }
+    .reorder-btn:disabled {
+      opacity: 0.3;
+      cursor: default;
+    }
+    .reorder-btn:active:not(:disabled) { opacity: 0.7; }
+
     .empty-state {
       text-align: center;
       padding: 32px;
@@ -1739,7 +1762,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 2.21</span>
+              <span className="version">Ver 2.22</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
@@ -1858,6 +1881,18 @@
       await dayRef().collection('entries').doc(id).delete();
     };
 
+    // 並び替え：隣り合うエントリの createdAt を入れ替えて順番を変更する
+    const moveEntry = async (idx, dir) => {
+      const j = idx + dir;
+      if (j < 0 || j >= entries.length) return;
+      const a = entries[idx], b = entries[j];
+      if (!a.createdAt || !b.createdAt) return;
+      const batch = db.batch();
+      batch.update(dayRef().collection('entries').doc(a.id), { createdAt: b.createdAt });
+      batch.update(dayRef().collection('entries').doc(b.id), { createdAt: a.createdAt });
+      await batch.commit();
+    };
+
     const extAmount = (e) => calcEntry(e).ext;
     const entryGross = (e) => calcEntry(e).gross;
     const entryRate = (e) => calcEntry(e).rate;
@@ -1945,6 +1980,10 @@
                   <div className="entry-right">
                     {entryRate(e) > 0 && <span className="entry-orig">{formatPrice(entryGross(e) + calcEntry(e).extra)}</span>}
                     <span className="entry-price">{formatPrice(entryNet(e))}</span>
+                    <div className="reorder-btns">
+                      <button className="reorder-btn" disabled={idx === 0} onClick={() => moveEntry(idx, -1)}>▲</button>
+                      <button className="reorder-btn" disabled={idx === entries.length - 1} onClick={() => moveEntry(idx, 1)}>▼</button>
+                    </div>
                     <button className="delete-btn" onClick={() => deleteEntry(e.id)}>✕</button>
                   </div>
                 </div>
