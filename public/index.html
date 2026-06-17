@@ -539,9 +539,20 @@
 
     .entry-item:last-child { border-bottom: none; }
 
-    .entry-memo {
-      width: 100%;
+    .entry-memo-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
       margin-top: 8px;
+    }
+    .entry-memo-row .entry-time {
+      flex-shrink: 0;
+      margin-top: 0;
+    }
+
+    .entry-memo {
+      flex: 1;
+      width: 100%;
       border: 1px solid var(--border);
       border-radius: 8px;
       padding: 7px 10px;
@@ -1728,7 +1739,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 2.20</span>
+              <span className="version">Ver 2.21</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
@@ -1930,7 +1941,6 @@
                 <div className="entry-main">
                   <div className="entry-info">
                     <div className="entry-name"><span className="entry-slip">{slipLabel(idx)}</span>{e.name}</div>
-                    <div className="entry-time">{formatTime(e.createdAt)}</div>
                   </div>
                   <div className="entry-right">
                     {entryRate(e) > 0 && <span className="entry-orig">{formatPrice(entryGross(e) + calcEntry(e).extra)}</span>}
@@ -1964,13 +1974,16 @@
                     )}
                   </div>
                 )}
-                <input
-                  key={e.memo || ''}
-                  className="entry-memo"
-                  placeholder="メモ"
-                  defaultValue={e.memo || ''}
-                  onBlur={ev => saveEntryMemo(e, ev.target.value.trim())}
-                />
+                <div className="entry-memo-row">
+                  <input
+                    key={e.memo || ''}
+                    className="entry-memo"
+                    placeholder="メモ"
+                    defaultValue={e.memo || ''}
+                    onBlur={ev => saveEntryMemo(e, ev.target.value.trim())}
+                  />
+                  <span className="entry-time">{formatTime(e.createdAt)}</span>
+                </div>
               </div>
             ))
           }
