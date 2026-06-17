@@ -1,0 +1,13 @@
+{
+  "name": "salon-sales",
+  "private": true,
+  "version": "1.0.0",
+  "description": "デプロイ用ビルド（JSXを事前変換してブラウザ内Babelを無くす）",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.1"
+  }
+}
