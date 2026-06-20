@@ -1835,7 +1835,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 2.31</span>
+              <span className="version">Ver 2.32</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
@@ -2250,6 +2250,10 @@
     const salesTarget = goalAmount > 0
       ? (goalType === 'takehome' && commission > 0 ? Math.round(goalAmount / (commission / 100)) : goalAmount)
       : 0;
+    // 達成率（月選択行の右端でも使うため上位スコープで算出）
+    const todayD = toJST().getUTCDate();
+    const targetToday = salesTarget > 0 ? Math.round(salesTarget / 30 * todayD) : 0;
+    const rate = targetToday > 0 ? Math.round((monthTotal / targetToday) * 100) : null;
 
     return (
       <>
@@ -2260,12 +2264,17 @@
             <span className="month-label">{year}年{month}月</span>
             <button onClick={nextMonth}>›</button>
           </div>
+          {rate !== null && (
+            <div style={{textAlign:'right', lineHeight:1.2}}>
+              <div className="stat-label" style={{fontSize:11, opacity:0.7}}>今日時点の達成率</div>
+              <div style={{fontSize:18, fontWeight:700, color: rate >= 100 ? '#27ae60' : 'inherit'}}>
+                {rate}%{rate >= 100 ? ' 🎉' : ''}
+              </div>
+            </div>
+          )}
         </div>
 
         {(() => {
-          const todayD = toJST().getUTCDate();
-          const targetToday = salesTarget > 0 ? Math.round(salesTarget / 30 * todayD) : 0;
-          const rate = targetToday > 0 ? Math.round((monthTotal / targetToday) * 100) : null;
           const dailyAvg = dayCount > 0 ? Math.round(monthTotal / dayCount) : 0;
           const goalDailyAvg = salesTarget > 0 && workDays > 0 ? Math.round(salesTarget / workDays) : 0;
           return (
@@ -2275,18 +2284,14 @@
                   <div className="stat-label">月間売上</div>
                   <div className="stat-value">{formatPrice(monthTotal)}</div>
                 </div>
+                <div>
+                  <div className="stat-label">チケット込月間売上</div>
+                  <div className="stat-value">{formatPrice(monthTotal + ticketSalaryBase)}</div>
+                </div>
                 {salesTarget > 0 && (
                   <div>
                     <div className="stat-label">{goalType === 'takehome' ? '今日時点の必要売上' : '今日時点の目標売上'}</div>
                     <div className="stat-value">{formatPrice(targetToday)}</div>
-                  </div>
-                )}
-                {rate !== null && (
-                  <div>
-                    <div className="stat-label">今日時点の達成率</div>
-                    <div className="stat-value" style={{color: rate >= 100 ? '#27ae60' : 'inherit'}}>
-                      {rate}%{rate >= 100 ? ' 🎉' : ''}
-                    </div>
                   </div>
                 )}
               </div>
@@ -2324,18 +2329,6 @@
                   </div>
                 )}
               </div>
-              {ticketCount > 0 && (
-                <div className="month-summary" style={{marginTop:6}}>
-                  <div>
-                    <div className="stat-label">初売りチケット</div>
-                    <div className="stat-value">{ticketCount}枚</div>
-                  </div>
-                  <div>
-                    <div className="stat-label">給料加算（歩合対象）</div>
-                    <div className="stat-value">{formatPrice(ticketSalaryBase)}</div>
-                  </div>
-                </div>
-              )}
             </>
           );
         })()}
