@@ -1301,6 +1301,7 @@
     .cal-wd.sun { color: var(--danger); }
     .cal-wd.sat { color: #3F6BA3; }
     .cal-cell {
+      position: relative;
       background: var(--card);
       border: 1px solid var(--border);
       border-radius: 10px;
@@ -1310,6 +1311,16 @@
       flex-direction: column;
       align-items: center;
       gap: 3px;
+    }
+    /* 自分が送信済みの日に表示するチェック（左上） */
+    .cal-mine {
+      position: absolute;
+      top: 3px;
+      left: 4px;
+      font-size: 13px;
+      font-weight: 900;
+      color: #27ae60;
+      line-height: 1;
     }
     .cal-cell.empty { background: transparent; border: none; }
     .cal-cell.has { cursor: pointer; }
@@ -1874,7 +1885,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 2.35</span>
+              <span className="version">Ver 2.36</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
@@ -2651,6 +2662,7 @@
                   const att = attByDay[d] != null ? attByDay[d] : null;
                   const has = count > 0 || att != null;
                   const clickable = has || admin; // 管理者は空の日も選択して出勤人数を入力できる
+                  const mine = !!(userName && names && names.includes(userName)); // 自分が送信済みか
                   const wdCls = wd === 0 ? ' sun' : wd === 6 ? ' sat' : '';
                   return (
                     <div
@@ -2658,6 +2670,7 @@
                       className={`cal-cell${has ? ' has' : ''}${selected === d ? ' selected' : ''}`}
                       onClick={clickable ? () => setSelected(s => s === d ? null : d) : undefined}
                     >
+                      {mine && <span className="cal-mine">✓</span>}
                       <span className={`cal-daynum${wdCls}`}>{d}</span>
                       {has && <span className="cal-count">{count}/{att != null ? att : '−'}</span>}
                     </div>
