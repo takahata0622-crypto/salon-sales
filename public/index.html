@@ -1895,7 +1895,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 2.39</span>
+              <span className="version">Ver 2.40</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
@@ -2581,11 +2581,11 @@
       const pad = (n) => String(n).padStart(2, '0');
       const start = `${year}${pad(month)}01`;
       const end = `${year}${pad(month)}31`;
-      db.collection('submitLog')
+      // リアルタイム購読：送信／未送信に戻した変更（✓・人数）を即時反映する
+      const unsub = db.collection('submitLog')
         .where(firebase.firestore.FieldPath.documentId(), '>=', start)
         .where(firebase.firestore.FieldPath.documentId(), '<=', end)
-        .get()
-        .then(snap => {
+        .onSnapshot(snap => {
           const result = snap.docs.map(d => ({
             id: d.id,
             names: (d.data().names || []),
@@ -2594,8 +2594,8 @@
           result.sort((a, b) => a.id.localeCompare(b.id));
           setLogs(result);
           setLoading(false);
-        })
-        .catch(() => { setLogs([]); setLoading(false); });
+        }, () => { setLogs([]); setLoading(false); });
+      return () => unsub();
     }, [year, month]);
 
     const prevMonth = () => {
