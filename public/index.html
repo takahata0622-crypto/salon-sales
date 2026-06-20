@@ -1249,6 +1249,60 @@
     }
     .confirm-empty { font-size: 13px; color: var(--muted); }
 
+    /* 確認タブ：カレンダー表示 */
+    .cal-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+      margin-bottom: 4px;
+    }
+    .cal-wd {
+      text-align: center;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted);
+      padding: 4px 0;
+    }
+    .cal-wd.sun { color: var(--danger); }
+    .cal-wd.sat { color: #3F6BA3; }
+    .cal-cell {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      min-height: 54px;
+      padding: 4px 2px 5px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+    }
+    .cal-cell.empty { background: transparent; border: none; }
+    .cal-cell.has { cursor: pointer; }
+    .cal-cell.selected {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px var(--accent);
+    }
+    .cal-daynum { font-size: 13px; font-weight: 700; color: var(--ink); }
+    .cal-daynum.sun { color: var(--danger); }
+    .cal-daynum.sat { color: #3F6BA3; }
+    .cal-count {
+      margin-top: auto;
+      font-size: 12px;
+      font-weight: 800;
+      color: #fff;
+      background: var(--accent);
+      border-radius: 10px;
+      padding: 1px 8px;
+      line-height: 1.5;
+    }
+    .cal-panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 14px;
+      margin-top: 12px;
+    }
+
     .submit-table tr.cat-row td {
       background: var(--bg);
       text-align: left;
@@ -1776,7 +1830,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 2.27</span>
+              <span className="version">Ver 2.28</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
@@ -2368,9 +2422,11 @@
     const [month, setMonth] = useState(now.getUTCMonth() + 1);
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [selected, setSelected] = useState(null);
 
     useEffect(() => {
       setLoading(true);
+      setSelected(null);
       const pad = (n) => String(n).padStart(2, '0');
       const start = `${year}${pad(month)}01`;
       const end = `${year}${pad(month)}31`;
@@ -2397,11 +2453,20 @@
     };
 
     const WD = ['日','月','火','水','木','金','土'];
-    const fmtDay = (id) => {
-      const d = parseInt(id.slice(6, 8), 10);
-      const wd = WD[new Date(parseInt(id.slice(0,4),10), parseInt(id.slice(4,6),10)-1, d).getDay()];
-      return `${month}月${d}日（${wd}）`;
-    };
+
+    // 日(1〜31) → 送信者名の配列
+    const namesByDay = {};
+    logs.forEach(l => { namesByDay[parseInt(l.id.slice(6, 8), 10)] = l.names; });
+
+    // カレンダーのセルを構築（日曜始まり〜土曜終わり）
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const firstWd = new Date(year, month - 1, 1).getDay(); // 0=日
+    const cells = [];
+    for (let i = 0; i < firstWd; i++) cells.push(null);
+    for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+    while (cells.length % 7 !== 0) cells.push(null);
+
+    const selNames = selected != null ? (namesByDay[selected] || []) : null;
 
     return (
       <>
@@ -2413,26 +2478,54 @@
               <button onClick={nextMonth}>›</button>
             </div>
           </div>
-          <div className="confirm-note">日付ごとに、業務終了（送信）を行ったスタッフ名を表示します。</div>
+          <div className="confirm-note">日付をタップすると、その日に業務終了（送信）を行ったスタッフ名を表示します。</div>
         </div>
 
         {loading
           ? <div className="loading">読み込み中...</div>
-          : logs.length === 0
-            ? <div className="empty-state" style={{background:'var(--card)',borderRadius:16,padding:32,color:'var(--muted)'}}>この月の送信記録はありません</div>
-            : logs.map(l => (
-              <div key={l.id} className="confirm-card">
-                <div className="confirm-head">
-                  <span className="confirm-date">{fmtDay(l.id)}</span>
-                  <span className="confirm-count">合計{l.names.length}人</span>
-                </div>
-                <div className="confirm-names">
-                  {l.names.length === 0
-                    ? <span className="confirm-empty">記録なし</span>
-                    : l.names.map((n, i) => <span key={i} className="name-chip">{n}</span>)}
-                </div>
+          : <>
+              <div className="cal-grid">
+                {WD.map((w, i) => (
+                  <div key={`wd${i}`} className={`cal-wd${i === 0 ? ' sun' : i === 6 ? ' sat' : ''}`}>{w}</div>
+                ))}
+                {cells.map((d, i) => {
+                  if (d == null) return <div key={`c${i}`} className="cal-cell empty" />;
+                  const wd = i % 7;
+                  const names = namesByDay[d];
+                  const count = names ? names.length : 0;
+                  const has = count > 0;
+                  const wdCls = wd === 0 ? ' sun' : wd === 6 ? ' sat' : '';
+                  return (
+                    <div
+                      key={`c${i}`}
+                      className={`cal-cell${has ? ' has' : ''}${selected === d ? ' selected' : ''}`}
+                      onClick={has ? () => setSelected(s => s === d ? null : d) : undefined}
+                    >
+                      <span className={`cal-daynum${wdCls}`}>{d}</span>
+                      {has && <span className="cal-count">{count}人</span>}
+                    </div>
+                  );
+                })}
               </div>
-            ))
+
+              {selected != null && (
+                <div className="cal-panel">
+                  <div className="confirm-head">
+                    <span className="confirm-date">{month}月{selected}日（{WD[new Date(year, month - 1, selected).getDay()]}）</span>
+                    <span className="confirm-count">合計{selNames.length}人</span>
+                  </div>
+                  <div className="confirm-names">
+                    {selNames.length === 0
+                      ? <span className="confirm-empty">記録なし</span>
+                      : selNames.map((n, i) => <span key={i} className="name-chip">{n}</span>)}
+                  </div>
+                </div>
+              )}
+
+              {logs.length === 0 && (
+                <div className="confirm-note" style={{marginTop:12,textAlign:'center'}}>この月の送信記録はありません</div>
+              )}
+            </>
         }
       </>
     );
