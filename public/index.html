@@ -1830,7 +1830,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 2.29</span>
+              <span className="version">Ver 2.30</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
@@ -1855,7 +1855,7 @@
         </div>
 
         <div className="main">
-          {tab === 'today' && <TodayTab uid={uid} dept={dept} setDept={handleSetDept} viewDate={viewDate} setViewDate={setViewDate} />}
+          {tab === 'today' && <TodayTab uid={uid} userName={user.displayName || ''} dept={dept} setDept={handleSetDept} viewDate={viewDate} setViewDate={setViewDate} />}
           {tab === 'history' && <HistoryTab uid={uid} />}
           {tab === 'submit' && <SubmitTab uid={uid} userName={user.displayName || ''} dept={dept} setDept={handleSetDept} viewDate={viewDate} setViewDate={setViewDate} />}
           {tab === 'confirm' && <ConfirmTab />}
@@ -1865,7 +1865,7 @@
   }
 
   // ========== 今日タブ ==========
-  function TodayTab({ uid, dept, setDept, viewDate, setViewDate }) {
+  function TodayTab({ uid, userName, dept, setDept, viewDate, setViewDate }) {
     const [entries, setEntries] = useState([]);
     const [presets, setPresets] = useState([]);
     const [submittedDates, setSubmittedDates] = useState(new Set());
@@ -1932,13 +1932,27 @@
     const dayRef = () => db.collection('users').doc(uid).collection('days').doc(viewDate);
 
     // 表示中の日付が送信済みのとき、編集前に確認する。
+    // OKしたら、その日を「未送信」に戻す（提出タブのボタンが業務終了に戻り、確認タブの名前も外れる）。
     // 一度OKしたらその日は同一セッション中は再確認しない（操作のたびに出ないように）。
     const viewKey = viewDate.replace(/-/g, ''); // YYYYMMDD
+    const revertToUnsent = (key) => {
+      // 自分の送信済みフラグを外す
+      db.collection('users').doc(uid).collection('meta').doc('submitState')
+        .set({ dates: firebase.firestore.FieldValue.arrayRemove(key) }, { merge: true });
+      // 共有の送信記録（確認タブ）からも自分の名前を外す
+      if (userName) {
+        db.collection('submitLog').doc(key)
+          .set({ names: firebase.firestore.FieldValue.arrayRemove(userName) }, { merge: true });
+      }
+    };
     const confirmEditIfSubmitted = () => {
       if (!submittedDates.has(viewKey)) return true;
       if (editConfirmed.has(viewKey)) return true;
-      const ok = window.confirm('この日はすでに送信済みです。編集しますか？\n編集したあとは、提出タブから「訂正送信」をしてください。');
-      if (ok) setEditConfirmed(prev => new Set(prev).add(viewKey));
+      const ok = window.confirm('この日はすでに送信済みです。編集しますか？\n編集すると「未送信」に戻ります。編集後は提出タブから再度送信してください。');
+      if (ok) {
+        setEditConfirmed(prev => new Set(prev).add(viewKey));
+        revertToUnsent(viewKey);
+      }
       return ok;
     };
 
