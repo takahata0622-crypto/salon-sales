@@ -458,6 +458,41 @@
       background: var(--accent);
       color: white;
       border-color: var(--accent);
+      transform: scale(0.96);
+    }
+
+    /* 伝票を追加したときの通知トースト（画面下中央にふわっと表示） */
+    .add-toast {
+      position: fixed;
+      left: 50%;
+      bottom: 28px;
+      transform: translateX(-50%);
+      background: var(--accent);
+      color: #fff;
+      padding: 11px 20px;
+      border-radius: 999px;
+      font-size: 14px;
+      font-weight: 700;
+      max-width: 90vw;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.28);
+      z-index: 1000;
+      pointer-events: none;
+      animation: addToastIn 0.22s ease, addToastOut 0.3s ease 1.3s forwards;
+    }
+
+    .add-toast-check {
+      display: inline-block;
+      margin-right: 6px;
+      font-weight: 900;
+    }
+
+    @keyframes addToastIn {
+      from { opacity: 0; transform: translateX(-50%) translateY(14px); }
+      to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+    }
+
+    @keyframes addToastOut {
+      to { opacity: 0; transform: translateX(-50%) translateY(14px); }
     }
 
     .preset-btn .course-name {
@@ -1839,7 +1874,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 2.34</span>
+              <span className="version">Ver 2.35</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
@@ -1879,7 +1914,17 @@
     const [presets, setPresets] = useState([]);
     const [submittedDates, setSubmittedDates] = useState(new Set());
     const [editConfirmed, setEditConfirmed] = useState(new Set());
+    const [toast, setToast] = useState(null); // 追加完了の通知 {name, id}
+    const toastTimer = useRef(null);
     const today = todayStr();
+
+    // 伝票を追加したことを画面で分かりやすく知らせるトースト
+    const showAddedToast = (name) => {
+      setToast({ name, id: Date.now() });
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+      toastTimer.current = setTimeout(() => setToast(null), 1600);
+    };
+    useEffect(() => () => { if (toastTimer.current) clearTimeout(toastTimer.current); }, []);
 
     const prevDay = () => setViewDate(d => {
       const dt = new Date(d + 'T00:00:00Z');
@@ -1972,6 +2017,7 @@
       await dayRef().set({ date: today }, { merge: true });
       await dayRef().collection('entries')
         .add({ name, price: Number(price), lodging: false, discount: false, extMin: 0, shimei: false, seibetsu: false, ganseihirou: false, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+      showAddedToast(name);
     };
 
     const toggleEntryLodging = (e) => {
@@ -2055,6 +2101,11 @@
 
     return (
       <>
+        {toast && (
+          <div className="add-toast" key={toast.id}>
+            <span className="add-toast-check">✓</span>「{toast.name}」を追加しました
+          </div>
+        )}
         {/* 合計 */}
         <div className="today-total">
           <div className="date-nav">
@@ -2084,7 +2135,7 @@
         {/* コース追加 */}
         <div className="add-section">
           <div className="add-section-header">
-            <h2>{isToday ? 'メニューを追加' : '項目を追加'}</h2>
+            <h2>{isToday ? '伝票を追加' : '項目を追加'}</h2>
           </div>
           <div className="preset-grid">
             {deptItems.map(p => (
