@@ -1659,8 +1659,6 @@
     { id: 'p20', name: 'バリアロマ70分', price: 10000, category: 'タイ・バリ', isDefault: true },
     { id: 'p21', name: 'バリアロマ90分', price: 14000, category: 'タイ・バリ', isDefault: true },
     { id: 'p22', name: 'バリアロマ120分', price: 18000, category: 'タイ・バリ', isDefault: true },
-    { id: 'p23', name: 'バリ初売りチケット', price: 0, category: 'タイ・バリ', isDefault: true },
-    { id: 'p24', name: 'タイ初売りチケット', price: 0, category: 'タイ・バリ', isDefault: true },
   ];
 
   // 提出（スプレッドシート転記）時に既存メニューへ本数換算で折り込むメニュー
@@ -1723,6 +1721,18 @@
       }
       batch.set(col.doc(), { name: dp.name, price: dp.price, category: dp.category, createdAt });
     });
+    await batch.commit();
+    return true;
+  };
+
+  // 運用をやめたメニュー（名前一致）を各ユーザーの presets から削除する移行用
+  const OBSOLETE_PRESET_NAMES = ['バリ初売りチケット', 'タイ初売りチケット'];
+  const removeObsoletePresets = async (uid, storedDocs) => {
+    const targets = storedDocs.filter(d => OBSOLETE_PRESET_NAMES.includes(d.name));
+    if (!targets.length) return false;
+    const col = db.collection('users').doc(uid).collection('presets');
+    const batch = db.batch();
+    targets.forEach(d => batch.delete(col.doc(d.id)));
     await batch.commit();
     return true;
   };
@@ -1885,7 +1895,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 2.38</span>
+              <span className="version">Ver 2.39</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
@@ -1960,12 +1970,14 @@
           return;
         }
         const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        const added = await syncMissingDefaultPresets(uid, docs);
-        if (added) {
+        const removed = await removeObsoletePresets(uid, docs);
+        const cleaned = docs.filter(d => !OBSOLETE_PRESET_NAMES.includes(d.name));
+        const added = await syncMissingDefaultPresets(uid, cleaned);
+        if (added || removed) {
           const snap2 = await ref.orderBy('createdAt').get();
           setPresets(snap2.docs.map(d => ({ id: d.id, ...d.data() })));
         } else {
-          setPresets(docs);
+          setPresets(cleaned);
         }
       });
     }, [uid]);
@@ -2802,12 +2814,14 @@
           return;
         }
         const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        const added = await syncMissingDefaultPresets(uid, docs);
-        if (added) {
+        const removed = await removeObsoletePresets(uid, docs);
+        const cleaned = docs.filter(d => !OBSOLETE_PRESET_NAMES.includes(d.name));
+        const added = await syncMissingDefaultPresets(uid, cleaned);
+        if (added || removed) {
           const snap2 = await ref.orderBy('createdAt').get();
           setPresets(snap2.docs.map(d => ({ id: d.id, ...d.data() })));
         } else {
-          setPresets(docs);
+          setPresets(cleaned);
         }
       });
     }, [uid]);
