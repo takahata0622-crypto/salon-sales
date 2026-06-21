@@ -2008,7 +2008,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 2.50</span>
+              <span className="version">Ver 2.51</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
@@ -2656,11 +2656,19 @@
 
         {days.length === 0
           ? <div className="empty-state" style={{background:'var(--card)',borderRadius:16,padding:32,color:'var(--muted)'}}>この月のデータはありません</div>
-          : days.map(d => (
+          : days.map(d => {
+            const ticketsForDay = d.entries.filter(e => isBodyTicket(e.name)).length * TICKET_SALARY;
+            return (
             <div key={d.date} className="day-card">
               <div className="day-card-header" onClick={() => setExpanded(expanded === d.date ? null : d.date)}>
                 <span className="day-label">{d.date.replace(/-/g, '/')} ({['日','月','火','水','木','金','土'][new Date(d.date + 'T00:00:00+09:00').getDay()]})</span>
-                <span className="day-total">{formatPrice(d.subtotal + d.extraTotal)}</span>
+                <div style={{textAlign:'right'}}>
+                  <div className="day-total">{formatPrice(d.subtotal + d.extraTotal + ticketsForDay)}<span style={{fontSize:10,fontWeight:400,color:'var(--muted)',marginLeft:3}}>チケ込</span></div>
+                  <div style={{fontSize:11,color:'var(--muted)',marginTop:2}}>
+                    <span><span style={{fontWeight:700}}>J</span> {formatPrice(d.total)}</span>
+                    <span style={{marginLeft:8}}><span style={{fontWeight:700}}>P</span> {formatPrice(d.subtotal + d.extraTotal)}</span>
+                  </div>
+                </div>
               </div>
               {expanded === d.date && (
                 <div className="day-card-body">
@@ -2697,7 +2705,7 @@
                 </div>
               )}
             </div>
-          ))
+          );})
         }
       </>
     );
