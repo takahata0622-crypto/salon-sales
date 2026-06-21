@@ -461,6 +461,75 @@
       transform: scale(0.96);
     }
 
+    /* 伝票を追加ボタン（押すとポップアップが開く） */
+    .add-slip-btn {
+      width: 100%;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      padding: 14px;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      transition: transform 0.12s, opacity 0.12s;
+    }
+    .add-slip-btn:active { transform: scale(0.98); opacity: 0.9; }
+
+    /* メニュー選択ポップアップ */
+    .add-modal-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 2000;
+      background: rgba(0,0,0,0.45);
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      animation: addModalFade 0.15s ease;
+    }
+    .add-modal {
+      background: var(--card);
+      width: 100%;
+      max-width: 600px;
+      max-height: 80vh;
+      overflow-y: auto;
+      border-radius: 16px 16px 0 0;
+      padding: 16px;
+      box-shadow: 0 -6px 24px rgba(0,0,0,0.25);
+      animation: addModalUp 0.2s ease;
+    }
+    .add-modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+    .add-modal-header h2 {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .add-modal-close {
+      background: none;
+      border: none;
+      font-size: 20px;
+      line-height: 1;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 4px 8px;
+    }
+    @keyframes addModalFade {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+    @keyframes addModalUp {
+      from { transform: translateY(20px); }
+      to   { transform: translateY(0); }
+    }
+
     /* 伝票を追加したときの通知トースト（画面下中央にふわっと表示） */
     .add-toast {
       position: fixed;
@@ -1895,7 +1964,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 2.42</span>
+              <span className="version">Ver 2.43</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
@@ -1936,6 +2005,7 @@
     const [submittedDates, setSubmittedDates] = useState(new Set());
     const [editConfirmed, setEditConfirmed] = useState(new Set());
     const [toast, setToast] = useState(null); // 追加完了の通知 {name, id}
+    const [showAddModal, setShowAddModal] = useState(false); // 伝票追加のメニュー選択ポップアップ表示
     const toastTimer = useRef(null);
     const today = todayStr();
 
@@ -1988,7 +2058,7 @@
       const ref = db.collection('users').doc(uid)
         .collection('days').doc(viewDate)
         .collection('entries')
-        .orderBy('createdAt', 'asc');
+        .orderBy('createdAt', 'desc');
 
       const unsub = ref.onSnapshot(snap => {
         setEntries(snap.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -2155,20 +2225,32 @@
           <div className="count">{entries.length} 件</div>
         </div>
 
-        {/* コース追加 */}
+        {/* コース追加：ボタンを押すとポップアップでメニューを選択する */}
         <div className="add-section">
-          <div className="add-section-header">
-            <h2>{isToday ? '伝票を追加' : '項目を追加'}</h2>
-          </div>
-          <div className="preset-grid">
-            {deptItems.map(p => (
-              <button key={p.id} className="preset-btn" onClick={() => addEntry(p.name, p.price)}>
-                <span className="course-name">{p.name}</span>
-                <span className="course-price">{formatPrice(p.price)}</span>
-              </button>
-            ))}
-          </div>
+          <button className="add-slip-btn" onClick={() => setShowAddModal(true)}>
+            ＋ {isToday ? '伝票を追加' : '項目を追加'}
+          </button>
         </div>
+
+        {/* メニュー選択ポップアップ（選択したら閉じる） */}
+        {showAddModal && (
+          <div className="add-modal-overlay" onClick={() => setShowAddModal(false)}>
+            <div className="add-modal" onClick={e => e.stopPropagation()}>
+              <div className="add-modal-header">
+                <h2>{isToday ? '伝票を追加' : '項目を追加'}</h2>
+                <button className="add-modal-close" onClick={() => setShowAddModal(false)}>✕</button>
+              </div>
+              <div className="preset-grid">
+                {deptItems.map(p => (
+                  <button key={p.id} className="preset-btn" onClick={() => { addEntry(p.name, p.price); setShowAddModal(false); }}>
+                    <span className="course-name">{p.name}</span>
+                    <span className="course-price">{formatPrice(p.price)}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* 今日のリスト */}
         <div className="entry-list">
@@ -2179,7 +2261,7 @@
               <div key={e.id} className="entry-item">
                 <div className="entry-main">
                   <div className="entry-info">
-                    <div className="entry-name"><span className="entry-slip">{slipLabel(idx)}</span>{e.name}</div>
+                    <div className="entry-name"><span className="entry-slip">{slipLabel(entries.length - 1 - idx)}</span>{e.name}</div>
                   </div>
                   <div className="entry-right">
                     {entryRate(e) > 0 && <span className="entry-orig">{formatPrice(entryGross(e) + calcEntry(e).extra)}</span>}
