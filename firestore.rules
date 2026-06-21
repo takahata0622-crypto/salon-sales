@@ -5,17 +5,19 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == uid;
     }
     // 送信記録（全スタッフが閲覧可能・追加／削除どちらも可・他人の記録の同時改変は不可）
+    // names が無いドキュメント（出勤人数だけ先に登録された日など）も考慮し、
+    // get('names', []) で「名前未設定 = 空配列」として扱う。
     match /submitLog/{date} {
       allow read:   if request.auth != null;
       allow create: if request.auth != null;
       allow update: if request.auth != null
-                    && request.resource.data.names is list
+                    && request.resource.data.get('names', []) is list
                     && (
                          // 追加方向（既存を消さない）：送信で自分を追加・出勤人数のみの更新（names不変）もここを通る
-                         request.resource.data.names.hasAll(resource.data.names)
+                         request.resource.data.get('names', []).hasAll(resource.data.get('names', []))
                          ||
                          // 削除方向（新たに増やさない）：未送信に戻して自分を外す
-                         resource.data.names.hasAll(request.resource.data.names)
+                         resource.data.get('names', []).hasAll(request.resource.data.get('names', []))
                        );
       allow delete: if false;
     }
