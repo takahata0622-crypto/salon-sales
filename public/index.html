@@ -463,7 +463,10 @@
 
     /* 伝票を追加ボタン（押すとポップアップが開く） */
     .add-slip-btn {
-      width: 100%;
+      width: 75%;
+      max-width: 360px;
+      margin: 0 auto;
+      display: block;
       background: var(--accent);
       color: #fff;
       border: none;
@@ -1979,7 +1982,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 2.44</span>
+              <span className="version">Ver 2.45</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
