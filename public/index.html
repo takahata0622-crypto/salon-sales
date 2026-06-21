@@ -461,11 +461,30 @@
       transform: scale(0.96);
     }
 
-    /* 伝票を追加：右下に浮かぶ丸い＋ボタン（FAB）。押すとポップアップが開く */
-    .add-fab {
+    /* 伝票を追加：右下に浮かぶ丸い＋ボタン（FAB）＋上のラベル。押すとポップアップが開く */
+    .add-fab-wrap {
       position: fixed;
       right: 20px;
       bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      z-index: 1500;
+      cursor: pointer;
+    }
+    .add-fab-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--accent);
+      background: var(--card);
+      padding: 3px 9px;
+      border-radius: 999px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+      white-space: nowrap;
+      letter-spacing: 0.04em;
+    }
+    .add-fab {
       width: 60px;
       height: 60px;
       border-radius: 50%;
@@ -480,10 +499,9 @@
       justify-content: center;
       box-shadow: 0 6px 18px rgba(0,0,0,0.28);
       cursor: pointer;
-      z-index: 1500;
       transition: transform 0.12s, box-shadow 0.12s;
     }
-    .add-fab:active {
+    .add-fab-wrap:active .add-fab {
       transform: scale(0.92);
       box-shadow: 0 3px 10px rgba(0,0,0,0.3);
     }
@@ -1990,7 +2008,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 2.46</span>
+              <span className="version">Ver 2.47</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
@@ -2266,8 +2284,11 @@
           <div className="count">{entries.length} 件</div>
         </div>
 
-        {/* 伝票を追加：右下に浮かぶ丸い＋ボタン（FAB）。押すとメニュー選択ポップアップを開く */}
-        <button className="add-fab" onClick={() => setShowAddModal(true)} aria-label={isToday ? '伝票を追加' : '項目を追加'}>＋</button>
+        {/* 伝票を追加：右下に浮かぶ丸い＋ボタン（FAB）。上にラベルを表示。押すとメニュー選択ポップアップを開く */}
+        <div className="add-fab-wrap" onClick={() => setShowAddModal(true)}>
+          <span className="add-fab-label">{isToday ? '伝票を追加' : '項目を追加'}</span>
+          <button className="add-fab" aria-label={isToday ? '伝票を追加' : '項目を追加'}>＋</button>
+        </div>
 
         {/* メニュー選択ポップアップ（選択したら閉じる） */}
         {showAddModal && (
