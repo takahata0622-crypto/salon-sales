@@ -733,6 +733,21 @@
       color: var(--accent);
     }
 
+    .entry-new {
+      display: inline-block;
+      margin-left: 6px;
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--danger);
+      letter-spacing: 0.06em;
+      vertical-align: middle;
+      animation: entryNewPulse 1.2s ease-in-out infinite;
+    }
+    @keyframes entryNewPulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.45; }
+    }
+
     .entry-info .entry-time {
       font-size: 12px;
       color: var(--muted);
@@ -1964,7 +1979,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 2.43</span>
+              <span className="version">Ver 2.44</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
@@ -2006,7 +2021,9 @@
     const [editConfirmed, setEditConfirmed] = useState(new Set());
     const [toast, setToast] = useState(null); // 追加完了の通知 {name, id}
     const [showAddModal, setShowAddModal] = useState(false); // 伝票追加のメニュー選択ポップアップ表示
+    const [newId, setNewId] = useState(null); // 直近に追加した伝票のID（NEW表示用。常に1件だけ）
     const toastTimer = useRef(null);
+    const newIdTimer = useRef(null);
     const today = todayStr();
 
     // 伝票を追加したことを画面で分かりやすく知らせるトースト
@@ -2015,7 +2032,19 @@
       if (toastTimer.current) clearTimeout(toastTimer.current);
       toastTimer.current = setTimeout(() => setToast(null), 1600);
     };
-    useEffect(() => () => { if (toastTimer.current) clearTimeout(toastTimer.current); }, []);
+    useEffect(() => () => {
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+      if (newIdTimer.current) clearTimeout(newIdTimer.current);
+    }, []);
+
+    // 直近に追加した伝票だけに NEW を付ける。
+    // 次の伝票を追加すると古い NEW は消え、一定時間（NEW_DURATION）経過しても自動で消える。
+    const NEW_DURATION = 60000; // ミリ秒（60秒）
+    const markNew = (id) => {
+      setNewId(id);
+      if (newIdTimer.current) clearTimeout(newIdTimer.current);
+      newIdTimer.current = setTimeout(() => setNewId(null), NEW_DURATION);
+    };
 
     const prevDay = () => setViewDate(d => {
       const dt = new Date(d + 'T00:00:00Z');
@@ -2108,8 +2137,9 @@
       if (!confirmEditIfSubmitted()) return;
       // 親ドキュメントを作成（集計で日付が拾えるように）
       await dayRef().set({ date: today }, { merge: true });
-      await dayRef().collection('entries')
+      const ref = await dayRef().collection('entries')
         .add({ name, price: Number(price), lodging: false, discount: false, extMin: 0, shimei: false, seibetsu: false, ganseihirou: false, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+      markNew(ref.id);
       showAddedToast(name);
     };
 
@@ -2261,7 +2291,7 @@
               <div key={e.id} className="entry-item">
                 <div className="entry-main">
                   <div className="entry-info">
-                    <div className="entry-name"><span className="entry-slip">{slipLabel(entries.length - 1 - idx)}</span>{e.name}</div>
+                    <div className="entry-name"><span className="entry-slip">{slipLabel(entries.length - 1 - idx)}</span>{e.name}{e.id === newId && <span className="entry-new">NEW</span>}</div>
                   </div>
                   <div className="entry-right">
                     {entryRate(e) > 0 && <span className="entry-orig">{formatPrice(entryGross(e) + calcEntry(e).extra)}</span>}
