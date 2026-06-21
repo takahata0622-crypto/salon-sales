@@ -1497,21 +1497,21 @@
       line-height: 1.5;
     }
     .end-of-day-btn {
-      display: inline-flex;
+      display: flex;
       align-items: center;
       justify-content: center;
       box-sizing: border-box;
-      height: 48px;
-      padding: 0 32px;
+      width: 100%;
+      height: 52px;
+      padding: 0 24px;
       background: #c0392b;
       color: #fff;
       border: none;
-      border-radius: 8px;
-      font-size: 16px;
+      border-radius: 14px;
+      font-size: 17px;
       font-weight: bold;
       cursor: pointer;
       letter-spacing: 0.05em;
-      flex-shrink: 0;
     }
     .end-of-day-btn:disabled { opacity: 0.6; cursor: default; }
     .end-of-day-btn.sent { background: var(--accent); }
@@ -1526,8 +1526,8 @@
     }
     .day-totals {
       display: flex;
-      gap: 20px;
-      flex-wrap: wrap;
+      gap: 24px;
+      justify-content: center;
       font-size: 15px;
       margin-bottom: 10px;
     }
@@ -1538,9 +1538,9 @@
     }
     .end-of-day-row {
       display: flex;
+      flex-direction: column;
       align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
+      gap: 8px;
     }
     .send-status {
       display: inline-flex;
@@ -1556,9 +1556,10 @@
     .send-status.unsent { background: #fde8e8; color: #c0392b; }
     .send-status.sent   { background: #e8f8ef; color: #27ae60; }
     .send-caution {
-      font-size: 12px;
+      font-size: 11px;
       color: var(--muted);
       line-height: 1.4;
+      text-align: center;
     }
     .send-result {
       text-align: center;
@@ -2008,7 +2009,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 2.52</span>
+              <span className="version">Ver 2.53</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
