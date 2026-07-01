@@ -187,6 +187,29 @@
       border-color: var(--accent);
     }
 
+    /* パスワード欄の表示／非表示ボタン */
+    .password-field {
+      position: relative;
+      margin-bottom: 12px;
+    }
+    .password-field .login-input {
+      margin-bottom: 0;
+      padding-right: 56px;
+    }
+    .password-toggle {
+      position: absolute;
+      right: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: var(--accent);
+      font-size: 13px;
+      font-weight: 600;
+      padding: 4px 6px;
+      cursor: pointer;
+    }
+
     .login-error {
       background: rgba(220,53,69,0.1);
       color: var(--danger);
@@ -1884,6 +1907,7 @@
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [busy, setBusy] = useState(false);
+    const [showPassword, setShowPassword] = useState(false); // パスワードの表示／非表示
 
     const submit = async () => {
       setError('');
@@ -1931,14 +1955,22 @@
             value={name}
             onChange={e => setName(e.target.value)}
           />
-          <input
-            className="login-input"
-            type="password"
-            placeholder="パスワード（6文字以上）"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') submit(); }}
-          />
+          <div className="password-field">
+            <input
+              className="login-input"
+              type={showPassword ? 'text' : 'password'}
+              placeholder="パスワード（6文字以上）"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') submit(); }}
+            />
+            <button
+              type="button"
+              className="password-toggle"
+              onClick={() => setShowPassword(s => !s)}
+              aria-label={showPassword ? 'パスワードを隠す' : 'パスワードを表示'}
+            >{showPassword ? '隠す' : '表示'}</button>
+          </div>
           {error && <div className="login-error">{error}</div>}
           <button className="login-submit" onClick={submit} disabled={busy}>
             {busy ? '処理中...' : (mode === 'signup' ? '登録して始める' : 'ログイン')}
@@ -2009,7 +2041,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 2.55</span>
+              <span className="version">Ver 2.56</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
