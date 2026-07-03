@@ -2041,7 +2041,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 2.56</span>
+              <span className="version">Ver 2.57</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
@@ -2502,8 +2502,15 @@
       ? (goalType === 'takehome' && commission > 0 ? Math.round(goalAmount / (commission / 100)) : goalAmount)
       : 0;
     // 達成率（月選択行の右端でも使うため上位スコープで算出）
-    const todayD = toJST().getUTCDate();
-    const targetToday = salesTarget > 0 ? Math.round(salesTarget / 30 * todayD) : 0;
+    // 当月は「今日まで」の日割り目標、過去月（終了済み）は月間目標の満額、未来月は対象外。
+    // 過去月を見たときに todayD（当日）で日割りすると達成率が跳ね上がるバグを防ぐ。
+    const nowJST = toJST();
+    const isCurrentMonth = year === nowJST.getUTCFullYear() && month === nowJST.getUTCMonth() + 1;
+    const isPastMonth = year < nowJST.getUTCFullYear() || (year === nowJST.getUTCFullYear() && month < nowJST.getUTCMonth() + 1);
+    const todayD = nowJST.getUTCDate();
+    const targetToday = salesTarget > 0
+      ? (isCurrentMonth ? Math.round(salesTarget / 30 * todayD) : (isPastMonth ? salesTarget : 0))
+      : 0;
     const rate = targetToday > 0 ? Math.round((monthTotal / targetToday) * 100) : null;
 
     return (
@@ -2517,7 +2524,7 @@
           </div>
           {rate !== null && (
             <div style={{textAlign:'right', lineHeight:1.2}}>
-              <div className="stat-label" style={{fontSize:11, opacity:0.7}}>今日時点の達成率</div>
+              <div className="stat-label" style={{fontSize:11, opacity:0.7}}>{isCurrentMonth ? '今日時点の達成率' : '達成率'}</div>
               <div style={{fontSize:18, fontWeight:700, color: rate >= 100 ? '#27ae60' : 'inherit'}}>
                 {rate}%{rate >= 100 ? ' 🎉' : ''}
               </div>
@@ -2541,7 +2548,7 @@
                 </div>
                 {salesTarget > 0 && (
                   <div>
-                    <div className="stat-label">{goalType === 'takehome' ? '今日時点の必要売上' : '今日時点の目標売上'}</div>
+                    <div className="stat-label">{(isCurrentMonth ? '今日時点の' : '') + (goalType === 'takehome' ? '必要売上' : '目標売上')}</div>
                     <div className="stat-value">{formatPrice(targetToday)}</div>
                   </div>
                 )}
