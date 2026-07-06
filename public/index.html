@@ -1736,7 +1736,7 @@
   // タイ・バリのメニューかどうか（眼精疲労オプションの対象判定）
   const isTaiBariMenu = (name) => {
     const n = name || '';
-    return n.includes('タイ古式') || n.includes('バリアロマ');
+    return n.includes('タイ古式') || n.includes('バリアロマ') || n.includes('セット');
   };
 
   // 延長10分あたりの単価（メニュー種別ごと）
@@ -1748,9 +1748,37 @@
   };
   const extUnitFor = (name) => extInfoFor(name).unit;
   const extKeyFor = (name) => extInfoFor(name).key;
+
+  // セットメニュー（タイ＋バリ）：延長をタイ・バリ別々に持つ（extTaiMin / extBariMin）
+  const isSetMenu = (name) => (name || '').includes('セット');
+  const unitByExtKey = (k) => (PRICING.extUnits.find(u => u.key === k) || { unit: 0 }).unit;
+  // エントリの延長分数を延長キー別に返す（セットは extTaiMin/extBariMin、他は extMin を自メニューのキーで）
+  const extMinsByKey = (e) => {
+    if (isSetMenu(e.name)) {
+      const r = {};
+      if (e.extTaiMin) r.tai = e.extTaiMin;
+      if (e.extBariMin) r.bari = e.extBariMin;
+      return r;
+    }
+    return (e.extMin || 0) > 0 ? { [extKeyFor(e.name)]: e.extMin } : {};
+  };
+  // 延長の合計分数（表示条件の判定用）
+  const extMinTotal = (e) => isSetMenu(e.name) ? (e.extTaiMin || 0) + (e.extBariMin || 0) : (e.extMin || 0);
+  // 一覧表示用の延長ラベル（セットはタイ・バリ別々に表示）
+  const extLabelFor = (e) => {
+    if (isSetMenu(e.name)) {
+      const parts = [];
+      if (e.extTaiMin) parts.push(`タイ延長${e.extTaiMin}分`);
+      if (e.extBariMin) parts.push(`バリ延長${e.extBariMin}分`);
+      return parts.length ? `（${parts.join('・')}）` : '';
+    }
+    return (e.extMin || 0) > 0 ? `（延長${e.extMin}分）` : '';
+  };
+
   // 1件の金額内訳を計算（今日タブ・集計タブ共通）
   const calcEntry = (e) => {
-    const ext = ((e.extMin || 0) / 10) * extUnitFor(e.name);
+    const extMins = extMinsByKey(e);
+    const ext = Object.keys(extMins).reduce((s, k) => s + (extMins[k] / 10) * unitByExtKey(k), 0);
     const gross = e.price + ext;
     const rate = e.discount ? (e.lodging ? PRICING.discountRate.lodging : PRICING.discountRate.dayuse) : 0;
     const discount = Math.round(gross * rate);
@@ -1796,6 +1824,7 @@
     { id: 'p20', name: 'バリアロマ70分', price: 10000, category: 'タイ・バリ', isDefault: true },
     { id: 'p21', name: 'バリアロマ90分', price: 14000, category: 'タイ・バリ', isDefault: true },
     { id: 'p22', name: 'バリアロマ120分', price: 18000, category: 'タイ・バリ', isDefault: true },
+    { id: 'p23', name: 'セット120分', price: 14800, category: 'タイ・バリ', isDefault: true },
   ];
 
   // 提出（スプレッドシート転記）時に既存メニューへ本数換算で折り込むメニュー
@@ -2041,7 +2070,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 2.60</span>
+              <span className="version">Ver 2.61</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
@@ -2218,6 +2247,15 @@
       if (!confirmEditIfSubmitted()) return;
       dayRef().collection('entries').doc(e.id).update({ extMin: ((e.extMin || 0) + 10) % 40 });
     };
+    // セットメニュー用：タイ延長・バリ延長を別々に 0→10→20→30→0 で循環
+    const cycleEntryExtTai = (e) => {
+      if (!confirmEditIfSubmitted()) return;
+      dayRef().collection('entries').doc(e.id).update({ extTaiMin: ((e.extTaiMin || 0) + 10) % 40 });
+    };
+    const cycleEntryExtBari = (e) => {
+      if (!confirmEditIfSubmitted()) return;
+      dayRef().collection('entries').doc(e.id).update({ extBariMin: ((e.extBariMin || 0) + 10) % 40 });
+    };
     const toggleEntryShimei = (e) => {
       if (!confirmEditIfSubmitted()) return;
       dayRef().collection('entries').doc(e.id).update({ shimei: !e.shimei });
@@ -2266,7 +2304,7 @@
       const extNet = c.rate > 0 ? c.ext - Math.round(c.ext * c.rate) : c.ext;
       const courseNet = (c.gross - c.discount) - extNet;
       const parts = [{ label: 'コース', amount: courseNet, discounted: c.rate > 0 }];
-      if ((e.extMin || 0) > 0) parts.push({ label: '延長', amount: extNet, discounted: c.rate > 0 });
+      if (extMinTotal(e) > 0) parts.push({ label: '延長', amount: extNet, discounted: c.rate > 0 });
       if (e.ganseihirou) parts.push({ label: '眼精疲労', amount: PRICING.fees.ganseihirou, discounted: false });
       if (e.shimei) parts.push({ label: '指名', amount: PRICING.fees.shimei, discounted: false });
       if (e.seibetsu) parts.push({ label: '男女希望', amount: PRICING.fees.seibetsu, discounted: false });
@@ -2365,7 +2403,14 @@
                   </div>
                 </div>
                 <div className="entry-toggle-grid">
-                  <button className={`toggle-btn sm ${(e.extMin || 0) > 0 ? 'active' : ''}`} onClick={() => cycleEntryExt(e)}>延長{e.extMin || 0}分</button>
+                  {isSetMenu(e.name) ? (
+                    <>
+                      <button className={`toggle-btn sm ${(e.extTaiMin || 0) > 0 ? 'active' : ''}`} onClick={() => cycleEntryExtTai(e)}>タイ延長{e.extTaiMin || 0}分</button>
+                      <button className={`toggle-btn sm ${(e.extBariMin || 0) > 0 ? 'active' : ''}`} onClick={() => cycleEntryExtBari(e)}>バリ延長{e.extBariMin || 0}分</button>
+                    </>
+                  ) : (
+                    <button className={`toggle-btn sm ${(e.extMin || 0) > 0 ? 'active' : ''}`} onClick={() => cycleEntryExt(e)}>延長{e.extMin || 0}分</button>
+                  )}
                   {isTaiBariMenu(e.name) && (
                     <button className={`toggle-btn sm ${e.ganseihirou ? 'active' : ''}`} onClick={() => toggleEntryGanseihirou(e)}>眼精疲労</button>
                   )}
@@ -2374,10 +2419,10 @@
                   <button className={`toggle-btn sm ${e.shimei ? 'active' : ''}`} onClick={() => toggleEntryShimei(e)}>指名料</button>
                   <button className={`toggle-btn sm ${e.seibetsu ? 'active' : ''}`} onClick={() => toggleEntrySeibetsu(e)}>男女希望</button>
                 </div>
-                {(entryRate(e) > 0 || (e.extMin || 0) > 0 || e.ganseihirou || e.shimei || e.seibetsu) && (
+                {(entryRate(e) > 0 || extMinTotal(e) > 0 || e.ganseihirou || e.shimei || e.seibetsu) && (
                   <div className="entry-notes">
                     {entryRate(e) > 0 && <span className="entry-disc-note">{Math.round(entryRate(e) * 100)}%オフ</span>}
-                    {((e.extMin || 0) > 0 || entryRate(e) > 0 || e.ganseihirou || e.shimei || e.seibetsu) && (
+                    {(extMinTotal(e) > 0 || entryRate(e) > 0 || e.ganseihirou || e.shimei || e.seibetsu) && (
                       <span className="entry-disc-note" style={{color:'var(--ink)'}}>
                         {entryBreakdown(e).map((p, i) => (
                           <React.Fragment key={i}>
@@ -2734,7 +2779,7 @@
                           <span>
                             {e.name}
                             {c.rate > 0 ? `（${e.lodging ? '宿泊' : ''}割引${Math.round(c.rate * 100)}%）` : ''}
-                            {(e.extMin || 0) > 0 ? `（延長${e.extMin}分）` : ''}
+                            {extLabelFor(e)}
                             {e.shimei ? '（指名）' : ''}
                             {e.seibetsu ? '（男女希望）' : ''}
                           </span>
@@ -3230,9 +3275,9 @@
               entries.forEach(e => {
                 if (e._day !== selectedDay) return;
                 if (!gMenuNames.has(e.name)) return;
-                if ((e.extMin || 0) === 0) return;
-                if (extKeyFor(e.name) !== ex.key) return;
-                if (e.lodging === t.lodging && e.discount === t.discount) cnt += e.extMin / 10;
+                const m = extMinsByKey(e)[ex.key] || 0;
+                if (m === 0) return;
+                if (e.lodging === t.lodging && e.discount === t.discount) cnt += m / 10;
               });
               return { menu: ex.label, tier: tierLabel, count: cnt, amount: 0 };
             })
@@ -3336,11 +3381,11 @@
                       entries.forEach(e => {
                         if (e._day !== selectedDay) return;
                         if (!deptMenuNames.has(e.name)) return;
-                        if ((e.extMin || 0) === 0) return;
-                        if (extKeyFor(e.name) !== ex.key) return;
+                        const m = extMinsByKey(e)[ex.key] || 0;
+                        if (m === 0) return;
                         const tk = e.lodging ? (e.discount ? '宿泊|10%OFF' : '宿泊|定価') : (e.discount ? '日帰り|20%OFF' : '日帰り|定価');
                         if (tk !== tierKey) return;
-                        cnt += e.extMin / 10;
+                        cnt += m / 10;
                       });
                       const tierPrice = t.tier === '20%OFF' ? Math.round(ex.unit * 0.8) : t.tier === '10%OFF' ? Math.round(ex.unit * 0.9) : ex.unit;
                       const amt = cnt * tierPrice;
@@ -3388,11 +3433,11 @@
                       entries.forEach(e => {
                         if (e._day !== selectedDay) return;
                         if (!deptMenuNames.has(e.name)) return;
-                        if ((e.extMin || 0) === 0) return;
-                        if (extKeyFor(e.name) !== ex.key) return;
+                        const m = extMinsByKey(e)[ex.key] || 0;
+                        if (m === 0) return;
                         const tk = e.lodging ? (e.discount ? '宿泊|10%OFF' : '宿泊|定価') : (e.discount ? '日帰り|20%OFF' : '日帰り|定価');
                         if (tk !== tierKey) return;
-                        cnt += e.extMin / 10;
+                        cnt += m / 10;
                       });
                       const tierPrice = t.tier === '20%OFF' ? Math.round(ex.unit * 0.8) : t.tier === '10%OFF' ? Math.round(ex.unit * 0.9) : ex.unit;
                       const amt = cnt * tierPrice;
