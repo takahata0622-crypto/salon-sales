@@ -2072,7 +2072,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 2.63</span>
+              <span className="version">Ver 2.64</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
@@ -3215,6 +3215,7 @@
     const isTicketMenu = (name) => (name || '').includes('初売りチケット');
     const taibariTickets = isTaiBariDept ? deptItems.filter(p => isTicketMenu(p.name)) : [];
     const submitRowList = [];
+    const usedExtKeys = new Set();
     deptItems.forEach((p, idx) => {
       if (isTaiBariDept && isTicketMenu(p.name)) return;
       if (isAliasMenu(p.name)) return; // 専用行は作らず、別メニューの本数へ折り込む
@@ -3222,8 +3223,9 @@
       if (isTaiBariDept) return;
       const curKey = extKeyFor(p.name);
       const nextKey = idx + 1 < deptItems.length ? extKeyFor(deptItems[idx + 1].name) : null;
-      if (nextKey !== curKey && extByKey[curKey]) {
+      if (nextKey !== curKey && extByKey[curKey] && !usedExtKeys.has(curKey)) {
         submitRowList.push({ kind: 'ext', ex: extByKey[curKey] });
+        usedExtKeys.add(curKey);
       }
     });
 
