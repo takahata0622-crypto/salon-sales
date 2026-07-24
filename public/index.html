@@ -1459,7 +1459,7 @@
       line-height: 1;
     }
     .cal-cell.empty { background: transparent; border: none; }
-    .cal-cell.has { cursor: pointer; }
+    .cal-cell:not(.empty) { cursor: pointer; }
     .cal-cell.selected {
       border-color: var(--accent);
       box-shadow: 0 0 0 2px var(--accent);
@@ -2098,7 +2098,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 2.69</span>
+              <span className="version">Ver 2.70</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
@@ -3023,7 +3023,7 @@
                   const holiday = holidaySet.has(d);
                   const submitted = count > 0 || att != null;
                   const has = submitted || holiday;
-                  const clickable = has || admin; // 管理者は空の日も選択して出勤人数・休みを設定できる
+                  const clickable = true; // 記録のない日でも自分の休みを設定できるよう、常に選択可能にする
                   const mine = !!(userName && names && names.includes(userName)); // 自分が送信済みか
                   const wdCls = wd === 0 ? ' sun' : wd === 6 ? ' sat' : '';
                   return (
@@ -3055,20 +3055,25 @@
                       ? <span className="confirm-empty">記録なし</span>
                       : selNames.map((n, i) => <span key={i} className="name-chip">{n}</span>)}
                   </div>
-                  {admin && (
-                    <div style={{display:'flex', alignItems:'center', gap:8, marginTop:10}}>
-                      <label className="goal-label">出勤人数</label>
-                      <input className="goal-input goal-input-sm" type="number" min="0"
-                        value={attInput} onChange={e => setAttInput(e.target.value)} placeholder="" />
-                      <span className="goal-unit">人</span>
-                      <button className={`holiday-btn${selHoliday ? ' active' : ''}`} style={{marginLeft:'auto'}} onClick={toggleHoliday} disabled={savingHoliday}>
-                        {savingHoliday ? '処理中' : (selHoliday ? '休み解除' : '休み')}
-                      </button>
+                  <div style={{display:'flex', alignItems:'center', gap:8, marginTop:10}}>
+                    {admin && (
+                      <>
+                        <label className="goal-label">出勤人数</label>
+                        <input className="goal-input goal-input-sm" type="number" min="0"
+                          value={attInput} onChange={e => setAttInput(e.target.value)} placeholder="" />
+                        <span className="goal-unit">人</span>
+                      </>
+                    )}
+                    {/* 休みは自分専用の設定なので管理者に限らず全員が使える */}
+                    <button className={`holiday-btn${selHoliday ? ' active' : ''}`} style={{marginLeft:'auto'}} onClick={toggleHoliday} disabled={savingHoliday}>
+                      {savingHoliday ? '処理中' : (selHoliday ? '休み解除' : '休み')}
+                    </button>
+                    {admin && (
                       <button className="goal-save-btn" onClick={saveAttendance} disabled={savingAtt}>
                         {savingAtt ? '保存中' : '保存'}
                       </button>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               )}
 
