@@ -2098,7 +2098,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 2.68</span>
+              <span className="version">Ver 2.69</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
@@ -2126,7 +2126,7 @@
           {tab === 'today' && <TodayTab uid={uid} userName={user.displayName || ''} dept={dept} setDept={handleSetDept} viewDate={viewDate} setViewDate={setViewDate} />}
           {tab === 'history' && <HistoryTab uid={uid} />}
           {tab === 'submit' && <SubmitTab uid={uid} userName={user.displayName || ''} dept={dept} setDept={handleSetDept} viewDate={viewDate} setViewDate={setViewDate} />}
-          {tab === 'confirm' && <ConfirmTab userName={user.displayName || ''} />}
+          {tab === 'confirm' && <ConfirmTab uid={uid} userName={user.displayName || ''} />}
         </div>
       </>
     );
@@ -2499,21 +2499,14 @@
 
     const monthKey = `${year}-${String(month).padStart(2,'0')}`;
 
-    // 確認タブで設定した休業日を購読（日割り目標・残り日数の計算に使う）
+    // 確認タブで設定した自分の休業日を購読（日割り目標・残り日数の計算に使う。他人の休みは共有されない）
     useEffect(() => {
-      const pad = (n) => String(n).padStart(2, '0');
-      const start = `${year}${pad(month)}01`;
-      const end = `${year}${pad(month)}31`;
-      const unsub = db.collection('submitLog')
-        .where(firebase.firestore.FieldPath.documentId(), '>=', start)
-        .where(firebase.firestore.FieldPath.documentId(), '<=', end)
-        .onSnapshot(snap => {
-          const hs = [];
-          snap.docs.forEach(d => { if (d.data().holiday) hs.push(parseInt(d.id.slice(6, 8), 10)); });
-          setHolidays(hs);
+      const unsub = db.collection('users').doc(uid).collection('meta').doc('holidays')
+        .onSnapshot(doc => {
+          setHolidays(doc.exists ? (doc.data()[monthKey] || []) : []);
         }, () => setHolidays([]));
       return () => unsub();
-    }, [year, month]);
+    }, [uid, year, month]);
 
     useEffect(() => {
       db.collection('users').doc(uid).collection('meta').doc('goals')
@@ -2884,7 +2877,7 @@
   }
 
   // ========== 確認タブ ==========
-  function ConfirmTab({ userName }) {
+  function ConfirmTab({ uid, userName }) {
     const admin = isAdminName(userName);
     const now = toJST();
     const [year, setYear] = useState(now.getUTCFullYear());
@@ -2895,6 +2888,7 @@
     const [attInput, setAttInput] = useState('');
     const [savingAtt, setSavingAtt] = useState(false);
     const [savingHoliday, setSavingHoliday] = useState(false);
+    const [holidayDays, setHolidayDays] = useState([]); // 休みは他人と共有せず自分専用（users/{uid}配下）に保存
 
     useEffect(() => {
       setLoading(true);
@@ -2902,7 +2896,7 @@
       const pad = (n) => String(n).padStart(2, '0');
       const start = `${year}${pad(month)}01`;
       const end = `${year}${pad(month)}31`;
-      // リアルタイム購読：送信／未送信に戻した変更（✓・人数・休み）を即時反映する
+      // リアルタイム購読：送信／未送信に戻した変更（✓・人数）を即時反映する
       const unsub = db.collection('submitLog')
         .where(firebase.firestore.FieldPath.documentId(), '>=', start)
         .where(firebase.firestore.FieldPath.documentId(), '<=', end)
@@ -2911,7 +2905,6 @@
             id: d.id,
             names: (d.data().names || []),
             attendance: (typeof d.data().attendance === 'number' ? d.data().attendance : null),
-            holiday: !!d.data().holiday,
           }));
           result.sort((a, b) => a.id.localeCompare(b.id));
           setLogs(result);
@@ -2919,6 +2912,16 @@
         }, () => { setLogs([]); setLoading(false); });
       return () => unsub();
     }, [year, month]);
+
+    // 休みは submitLog（全員共有）ではなく、自分の users/{uid}/meta/holidays にだけ保存する
+    useEffect(() => {
+      const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+      const unsub = db.collection('users').doc(uid).collection('meta').doc('holidays')
+        .onSnapshot(doc => {
+          setHolidayDays(doc.exists ? (doc.data()[monthKey] || []) : []);
+        }, () => setHolidayDays([]));
+      return () => unsub();
+    }, [uid, year, month]);
 
     const prevMonth = () => {
       if (month === 1) { setYear(y => y - 1); setMonth(12); }
@@ -2931,16 +2934,16 @@
 
     const WD = ['日','月','火','水','木','金','土'];
 
-    // 日(1〜31) → 送信者名の配列 / 出勤人数 / 休みフラグ
+    // 日(1〜31) → 送信者名の配列 / 出勤人数
     const namesByDay = {};
     const attByDay = {};
-    const holidayByDay = {};
     logs.forEach(l => {
       const d = parseInt(l.id.slice(6, 8), 10);
       namesByDay[d] = l.names;
       attByDay[d] = l.attendance;
-      holidayByDay[d] = !!l.holiday;
     });
+    // 休み（自分専用）
+    const holidaySet = new Set(holidayDays);
 
     // 選択日が変わったら、その日の出勤人数を入力欄へ反映（管理者の入力用）
     useEffect(() => {
@@ -2958,24 +2961,24 @@
         setLogs(prev => {
           const idx = prev.findIndex(l => l.id === id);
           if (idx >= 0) { const next = prev.slice(); next[idx] = { ...next[idx], attendance: n }; return next; }
-          return [...prev, { id, names: [], attendance: n, holiday: false }].sort((a, b) => a.id.localeCompare(b.id));
+          return [...prev, { id, names: [], attendance: n }].sort((a, b) => a.id.localeCompare(b.id));
         });
       } finally { setSavingAtt(false); }
     };
 
-    // 選択日を「休み」に設定／解除する（管理者用）
+    // 選択日を「休み」に設定／解除する（自分専用。他のユーザーには共有されない）
     const toggleHoliday = async () => {
       if (selected == null) return;
-      const id = `${year}${pad2(month)}${pad2(selected)}`;
-      const next = !holidayByDay[selected];
+      const monthKey = `${year}-${pad2(month)}`;
+      const already = holidaySet.has(selected);
       setSavingHoliday(true);
       try {
-        await db.collection('submitLog').doc(id).set({ holiday: next }, { merge: true });
-        setLogs(prev => {
-          const idx = prev.findIndex(l => l.id === id);
-          if (idx >= 0) { const nextLogs = prev.slice(); nextLogs[idx] = { ...nextLogs[idx], holiday: next }; return nextLogs; }
-          return [...prev, { id, names: [], attendance: null, holiday: next }].sort((a, b) => a.id.localeCompare(b.id));
-        });
+        await db.collection('users').doc(uid).collection('meta').doc('holidays')
+          .set({
+            [monthKey]: already
+              ? firebase.firestore.FieldValue.arrayRemove(selected)
+              : firebase.firestore.FieldValue.arrayUnion(selected),
+          }, { merge: true });
       } finally { setSavingHoliday(false); }
     };
 
@@ -2989,7 +2992,7 @@
 
     const selNames = selected != null ? (namesByDay[selected] || []) : null;
     const selAtt = selected != null && attByDay[selected] != null ? attByDay[selected] : null;
-    const selHoliday = selected != null ? !!holidayByDay[selected] : false;
+    const selHoliday = selected != null ? holidaySet.has(selected) : false;
 
     return (
       <>
@@ -3017,7 +3020,7 @@
                   const names = namesByDay[d];
                   const count = names ? names.length : 0;
                   const att = attByDay[d] != null ? attByDay[d] : null;
-                  const holiday = !!holidayByDay[d];
+                  const holiday = holidaySet.has(d);
                   const submitted = count > 0 || att != null;
                   const has = submitted || holiday;
                   const clickable = has || admin; // 管理者は空の日も選択して出勤人数・休みを設定できる
