@@ -2097,7 +2097,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 2.66</span>
+              <span className="version">Ver 2.67</span>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
@@ -2493,7 +2493,6 @@
     const [goalAmount, setGoalAmount] = useState(0);
     const [commission, setCommission] = useState(0);
     const [goalType, setGoalType] = useState('sales'); // 'sales' | 'takehome'
-    const [workDays, setWorkDays] = useState(0);
     const [savingGoal, setSavingGoal] = useState(false);
     const [holidays, setHolidays] = useState([]); // 確認タブで設定した休業日（日番号の配列）
 
@@ -2524,12 +2523,10 @@
             setGoalAmount(data[key]?.goal || 0);
             setCommission(data[key]?.commission || 0);
             setGoalType(data[key]?.goalType || 'sales');
-            setWorkDays(data[key]?.workDays || 0);
           } else {
             setGoalAmount(0);
             setCommission(0);
             setGoalType('sales');
-            setWorkDays(0);
           }
         });
     }, [uid, year, month]);
@@ -2537,7 +2534,7 @@
     const saveGoal = async () => {
       setSavingGoal(true);
       await db.collection('users').doc(uid).collection('meta').doc('goals')
-        .set({ [monthKey]: { goal: goalAmount, commission, goalType, workDays } }, { merge: true });
+        .set({ [monthKey]: { goal: goalAmount, commission, goalType } }, { merge: true });
       setSavingGoal(false);
     };
 
@@ -2654,8 +2651,8 @@
 
         {(() => {
           const dailyAvg = dayCount > 0 ? Math.round(monthTotal / dayCount) : 0;
-          // 出勤日数が入力されていればそれを、なければ休業日を除いた営業日数で割る
-          const goalDailyAvg = salesTarget > 0 ? Math.round(salesTarget / (workDays > 0 ? workDays : bizDaysTotal)) : 0;
+          // 出勤日数（＝休業日を除いた営業日数）で割る
+          const goalDailyAvg = salesTarget > 0 ? Math.round(salesTarget / bizDaysTotal) : 0;
           return (
             <>
               <div className="month-summary">
@@ -2736,8 +2733,9 @@
           </div>
           <div className="goal-row" style={{marginTop:6}}>
             <label className="goal-label">出勤日数</label>
-            <input className="goal-input goal-input-sm" type="number" min="0" max="31"
-              value={workDays || ''} onChange={e => setWorkDays(Number(e.target.value) || 0)} placeholder="" />
+            {/* 確認タブの休みから自動計算（月の日数 − 休業日数）。手入力は不可 */}
+            <input className="goal-input goal-input-sm" type="number"
+              value={daysInMonthCnt - holidays.length} disabled readOnly />
             <span className="goal-unit">日</span>
             <label className="goal-label" style={{marginLeft:8}}>歩合</label>
             <input className="goal-input goal-input-sm" type="number" step="0.5" min="0" max="100"
