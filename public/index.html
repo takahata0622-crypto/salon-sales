@@ -2172,7 +2172,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 2.73</span>
+              <span className="version">Ver 2.74</span>
               <a className="logout-btn" href="https://nouvelle-salon.web.app/" target="_blank" rel="noopener noreferrer">カルテ</a>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
@@ -2339,6 +2339,7 @@
     };
 
     // カルテアプリからクリップボードにコピーされたJSON（[{name, course, option, lodging}, ...]）を取り込む。
+    // 既存の伝票は一旦すべて削除してからカルテの内容で丸ごと置き換える（二重ペースト防止）。
     // コース名は完全一致しない前提なので findBestPresetMatch で一番近いプリセットを選ぶ。
     const pasteFromKarte = async () => {
       if (!confirmEditIfSubmitted()) return;
@@ -2363,10 +2364,16 @@
           window.alert('貼り付けるデータが見つかりませんでした。');
           return;
         }
+        // ペースト前に既存の伝票をすべて削除する（二重ペースト防止・カルテの内容で丸ごと置き換える）
+        if (entries.length > 0) {
+          const ok = window.confirm(`既存の伝票${entries.length}件をすべて削除してから、カルテの内容をペーストします。よろしいですか？`);
+          if (!ok) return;
+        }
 
         await dayRef().set({ date: today }, { merge: true });
         const base = Date.now();
         const batch = db.batch();
+        entries.forEach(e => batch.delete(dayRef().collection('entries').doc(e.id)));
         const addedNames = [];
         const unmatched = [];
         list.forEach((item, i) => {
@@ -2393,7 +2400,7 @@
           addedNames.push(preset.name);
         });
 
-        if (addedNames.length > 0) await batch.commit();
+        if (addedNames.length > 0 || entries.length > 0) await batch.commit();
         if (unmatched.length > 0) {
           window.alert(`${addedNames.length}件追加しました。\nコースが一致しなかったため追加できなかった項目があります。手動で追加してください：\n${unmatched.join('\n')}`);
         } else if (addedNames.length > 0) {
