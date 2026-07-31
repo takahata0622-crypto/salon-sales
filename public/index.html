@@ -2328,7 +2328,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 2.99</span>
+              <span className="version">Ver 3.00</span>
               <a className="logout-btn" href="https://nouvelle-salon.web.app/" target="_blank" rel="noopener noreferrer">カルテ</a>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
@@ -3674,7 +3674,7 @@
     const karteUser = useKarteAuth();
     const [query, setQuery] = useState('');
     const [kanaFilter, setKanaFilter] = useState(''); // '' または KANA_ROW_CHARS のキー
-    const [sortOrder, setSortOrder] = useState('karteNo'); // 'karteNo' | 'kana'
+    const [sortOrder, setSortOrder] = useState('kana'); // 'karteNo' | 'kana'
     const [allCustomers, setAllCustomers] = useState(null); // null=未読込
     const [loadingList, setLoadingList] = useState(false);
     const [selected, setSelected] = useState(null); // { customerId }
@@ -3834,9 +3834,6 @@
 
     return (
       <>
-        <div style={{display:'flex', justifyContent:'flex-end', marginBottom:8}}>
-          <button className="del-link" onClick={() => karteAuth.signOut()}>カルテからログアウト（{karteUser.email}）</button>
-        </div>
         <div className="karte-search-box">
           <input
             className="karte-search-input"
@@ -3852,8 +3849,8 @@
 
         <div className="karte-sort-row">
           <div className="karte-sort-toggle">
-            <button className={sortOrder === 'karteNo' ? 'active' : ''} onClick={() => setSortOrder('karteNo')}>番号順</button>
             <button className={sortOrder === 'kana' ? 'active' : ''} onClick={() => setSortOrder('kana')}>あいうえお順</button>
+            <button className={sortOrder === 'karteNo' ? 'active' : ''} onClick={() => setSortOrder('karteNo')}>番号順</button>
           </div>
           {allCustomers != null && (
             <span className="karte-count">{shown.length} / {allCustomers.length}件</span>
@@ -3887,6 +3884,12 @@
                   ))}
                 </div>
               )
+        )}
+
+        {!selected && (
+          <div style={{display:'flex', justifyContent:'flex-end', marginTop:8}}>
+            <button className="del-link" onClick={() => karteAuth.signOut()}>カルテからログアウト（{karteUser.email}）</button>
+          </div>
         )}
 
         {selected && (
