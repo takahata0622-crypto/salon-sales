@@ -727,6 +727,7 @@
     }
     .karte-result-item:last-child { border-bottom: none; }
     .karte-result-item:active { background: var(--bg); }
+    .karte-result-item.deleting { opacity: 0.4; cursor: default; }
     .karte-result-no { font-size: 11px; color: var(--muted); font-weight: 700; white-space: nowrap; }
     .karte-result-name { font-weight: 700; font-size: 14px; }
     .karte-result-kana { font-size: 12px; color: var(--muted); }
@@ -2319,7 +2320,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.11</span>
+              <span className="version">Ver 3.12</span>
               <a className="logout-btn karte-link-btn" href="https://nouvelle-salon.web.app/" target="_blank" rel="noopener noreferrer" aria-label="記録" title="記録">🌿</a>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
@@ -3699,6 +3700,7 @@
     const [editFeature, setEditFeature] = useState('');
     const [editMemo, setEditMemo] = useState('');
     const [savingNote, setSavingNote] = useState(false);
+    const [deletingIds, setDeletingIds] = useState(new Set()); // 削除処理中のお客様ID（即座にグレー表示するため）
     const [showKanaBulk, setShowKanaBulk] = useState(false); // フリガナ一括入力ポップアップ
     const [kanaBulkValues, setKanaBulkValues] = useState({}); // customerId -> フリガナ入力中の値
     const [savingKanaBulk, setSavingKanaBulk] = useState(false);
@@ -3774,6 +3776,7 @@
     const deleteCustomer = async (c) => {
       if (!window.confirm(`「${c.name}」を削除しますか？\n過去の伝票は削除されず、名前なし伝票に戻ります。`)) return;
       setErrorMsg('');
+      setDeletingIds(prev => new Set(prev).add(c.customerId));
       try {
         const customerRef = karteDb.collection('users').doc(karteUser.uid).collection('customers').doc(c.customerId);
         const recordsSnap = await customerRef.collection('records').get();
@@ -3792,6 +3795,7 @@
         if (selected && selected.customerId === c.customerId) { setSelected(null); setHistory(null); }
       } catch (err) {
         setErrorMsg('削除に失敗しました：' + (err.message || err.code || err));
+        setDeletingIds(prev => { const next = new Set(prev); next.delete(c.customerId); return next; });
       }
     };
 
@@ -3936,15 +3940,17 @@
               ? <div className="empty-state">{allCustomers && allCustomers.length > 0 ? '該当するお客様が見つかりませんでした' : 'お客様がまだ登録されていません'}</div>
               : (
                 <div className="karte-result-list">
-                  {shown.map(c => (
-                    <div key={c.customerId} className="karte-result-item" onClick={() => openHistory(c)}>
+                  {shown.map(c => {
+                    const deleting = deletingIds.has(c.customerId);
+                    return (
+                    <div key={c.customerId} className={`karte-result-item${deleting ? ' deleting' : ''}`} onClick={() => { if (!deleting) openHistory(c); }}>
                       <span className="karte-result-no">{c.karteNo || '----'}</span>
                       <span className="karte-result-name">{c.name}</span>
                       {c.kana && <span className="karte-result-kana">{c.kana}</span>}
                       <span className="karte-result-last">最終来店 {c.lastDate || '—'}（{c.recordCount || 0}回）</span>
-                      <button className="delete-btn" onClick={ev => { ev.stopPropagation(); deleteCustomer(c); }}>✕</button>
+                      {!deleting && <button className="delete-btn" onClick={ev => { ev.stopPropagation(); deleteCustomer(c); }}>✕</button>}
                     </div>
-                  ))}
+                  );})}
                 </div>
               )
         )}
