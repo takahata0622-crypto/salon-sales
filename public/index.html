@@ -1868,16 +1868,17 @@
     });
     return best;
   };
-  // option（例:「延長10」「指名」の文字列、または ["延長10","延長30"] のような配列）から
-  // エントリの各種フラグを読み取る。延長が複数あれば合計し、アプリの延長サイクル上限(30分)に丸める。
+  // option（例:「延長10」「指名」の文字列、または ["延長10","指名"] のような配列）から
+  // エントリの各種フラグを読み取る。
+  // カルテ側の仕様上、延長はひとつしか選べない（延長以外のオプションが一緒に選ばれると
+  // 配列にもう1件コピーされる仕組みのため、配列に複数入っていても合算はせず先頭の値を採用する）。
   const parseKarteOption = (option) => {
     const arr = Array.isArray(option) ? option : [option];
     const s = normalizeForMatch(arr.filter(Boolean).join(','));
     const result = { extMin: 0, shimei: false, seibetsu: false, ganseihirou: false, discount: false };
-    const extMatches = [...s.matchAll(/延長(\d+)/g)];
-    if (extMatches.length > 0) {
-      const sumMin = extMatches.reduce((t, m) => t + Number(m[1]), 0);
-      const raw = Math.max(0, Math.round(sumMin / 10) * 10);
+    const extMatch = s.match(/延長(\d+)/);
+    if (extMatch) {
+      const raw = Math.max(0, Math.round(Number(extMatch[1]) / 10) * 10);
       result.extMin = Math.min(30, raw); // アプリの延長サイクルは0/10/20/30分まで
     }
     if (s.includes('指名')) result.shimei = true;
@@ -2175,7 +2176,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 2.75</span>
+              <span className="version">Ver 2.76</span>
               <a className="logout-btn" href="https://nouvelle-salon.web.app/" target="_blank" rel="noopener noreferrer">カルテ</a>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
