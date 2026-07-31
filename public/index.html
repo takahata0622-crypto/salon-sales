@@ -2245,7 +2245,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 2.84</span>
+              <span className="version">Ver 2.85</span>
               <a className="logout-btn" href="https://nouvelle-salon.web.app/" target="_blank" rel="noopener noreferrer">カルテ</a>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
@@ -3439,7 +3439,10 @@
             nextNote: r.nextNote || '',
           };
         });
-        setHistory({ name: cd.name || c.name, kana: cd.kana || c.kana, feature: cd.feature || '', memo: cd.memo || '', records });
+        // nouvelle-salon本体と同じフォールバック：メモも特徴も空なら、旧フィールド note の内容をメモとして表示する
+        const featureText = (cd.feature || '').trim();
+        const memoText = (cd.memo || '').trim() || (!featureText && cd.note ? (cd.note || '').trim() : '');
+        setHistory({ name: cd.name || c.name, kana: cd.kana || c.kana, feature: featureText, memo: memoText, records });
       } catch (err) {
         setErrorMsg('履歴の取得に失敗しました：' + (err.message || err.code || err));
       } finally {
