@@ -713,6 +713,7 @@
       letter-spacing: normal;
     }
     .karte-paste-btn:disabled { opacity: 0.6; cursor: default; }
+    .karte-login-hint { font-size: 11px; color: var(--muted); white-space: nowrap; }
 
     /* カルテタブ（お客様検索・来店履歴） */
     .karte-search-box { display: flex; gap: 8px; margin-bottom: 12px; }
@@ -1935,16 +1936,30 @@
   };
 
   // ========== カルテアプリ（nouvelle-salon）連携 ==========
-  // 今日のカルテ一覧を返す読み取り専用のCloud Function。氏名・コース・オプション・
-  // 宿泊/割引/指名/男女希望のフラグのみを返す（体調・施術メモ等は含まない）。
-  // APIキーはクライアントJSにも含まれるため強固な秘密ではないが、取得できる内容が
-  // 当日分の最小限の予約情報のみなので、この用途では許容している。
-  const KARTE_API_URL = 'https://asia-northeast1-nouvelle-salon.cloudfunctions.net/getTodayEntries';
-  const KARTE_API_KEY = 'R_SQ9WrPTPEl95gPI9aZoH3rM8q27Czu';
-  // お客様検索・来店履歴。こちらは体調・施術内容などカルテ本体の情報を含むため、
-  // 上記より踏み込んだ個人情報を扱う（同じAPIキーで保護）。
-  const KARTE_SEARCH_URL = 'https://asia-northeast1-nouvelle-salon.cloudfunctions.net/searchCustomers';
-  const KARTE_HISTORY_URL = 'https://asia-northeast1-nouvelle-salon.cloudfunctions.net/getCustomerHistory';
+  // カルテ本人がnouvelle-salonの自分のアカウントでログインし、そのFirestore権限で
+  // 直接読み取る方式（Cloud Function + 決め打ちAPIキーは廃止）。
+  // ログインした本人のuid配下しか読めないよう、Firestoreのセキュリティルールで保証されている。
+  const KARTE_FIREBASE_CONFIG = {
+    apiKey: 'AIzaSyCO_NfvNxnCdogqASxhImU06SfpvVp-0pA',
+    authDomain: 'nouvelle-salon.firebaseapp.com',
+    projectId: 'nouvelle-salon',
+    storageBucket: 'nouvelle-salon.firebasestorage.app',
+    messagingSenderId: '439265056123',
+    appId: '1:439265056123:web:b0d42747c32506218519de',
+  };
+  const karteApp = firebase.initializeApp(KARTE_FIREBASE_CONFIG, 'karte');
+  const karteAuth = karteApp.auth();
+  const karteDb = karteApp.firestore();
+
+  // カルテのログイン状態を管理する共通フック（今日タブ・カルテタブの両方から使う）
+  const useKarteAuth = () => {
+    const [karteUser, setKarteUser] = useState(undefined); // undefined=判定中, null=未ログイン
+    useEffect(() => {
+      const unsub = karteAuth.onAuthStateChanged(u => setKarteUser(u));
+      return () => unsub();
+    }, []);
+    return karteUser;
+  };
   // カルテタブのあいうえお順（行）フィルタ用。nouvelle-salon側と同じ行分けに揃えている。
   const KANA_ROW_CHARS = {
     'ア': 'アイウエオあいうえおァィゥェォぁぃぅぇぉ',
@@ -2295,7 +2310,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 2.81</span>
+              <span className="version">Ver 2.82</span>
               <a className="logout-btn" href="https://nouvelle-salon.web.app/" target="_blank" rel="noopener noreferrer">カルテ</a>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
@@ -2317,9 +2332,7 @@
             <button className={`tab ${tab === 'history' ? 'active' : ''}`} onClick={() => setTab('history')}>集計</button>
             <button className={`tab ${tab === 'submit' ? 'active' : ''}`} onClick={() => setTab('submit')}>提出</button>
             <button className={`tab ${tab === 'confirm' ? 'active' : ''}`} onClick={() => setTab('confirm')}>確認</button>
-            {isAdminName(user.displayName || '') && (
-              <button className={`tab ${tab === 'karte' ? 'active' : ''}`} onClick={() => setTab('karte')}>カルテ</button>
-            )}
+            <button className={`tab ${tab === 'karte' ? 'active' : ''}`} onClick={() => setTab('karte')}>カルテ</button>
           </div>
         </div>
 
@@ -2328,7 +2341,7 @@
           {tab === 'history' && <HistoryTab uid={uid} />}
           {tab === 'submit' && <SubmitTab uid={uid} userName={user.displayName || ''} dept={dept} setDept={handleSetDept} viewDate={viewDate} setViewDate={setViewDate} />}
           {tab === 'confirm' && <ConfirmTab uid={uid} userName={user.displayName || ''} />}
-          {tab === 'karte' && isAdminName(user.displayName || '') && <KarteTab />}
+          {tab === 'karte' && <KarteTab />}
         </div>
       </>
     );
@@ -2336,7 +2349,7 @@
 
   // ========== 今日タブ ==========
   function TodayTab({ uid, userName, dept, setDept, viewDate, setViewDate }) {
-    const admin = isAdminName(userName); // カルテ連携機能は個人管理のため高畠さんのみ
+    const karteUser = useKarteAuth(); // カルテ連携（ログインした本人のデータのみ扱える）
     const [entries, setEntries] = useState([]);
     const [presets, setPresets] = useState([]);
     const [submittedDates, setSubmittedDates] = useState(new Set());
@@ -2522,7 +2535,6 @@
     };
 
     const pasteFromKarte = async () => {
-      if (!admin) return; // カルテ連携は個人管理のため高畠さん以外は使えない
       if (!confirmEditIfSubmitted()) return;
       setPastingKarte(true);
       try {
@@ -2546,26 +2558,32 @@
       }
     };
 
-    // カルテアプリ（nouvelle-salon）のCloud Functionから直接「今日のカルテ」を取得して取り込む。
-    // コピー操作なしで自動取得できる（KARTE_API_URL/KARTE_API_KEY はグローバル定数）。
+    // カルテアプリ（nouvelle-salon）に自分のアカウントでログイン済みなら、
+    // そのFirestore権限で直接「今日のカルテ」を取得して取り込む（本人のデータしか読めない）。
     const fetchKarteFromServer = async () => {
-      if (!admin) return; // カルテ連携は個人管理のため高畠さん以外は使えない
+      if (!karteUser) { window.alert('先に「カルテ」タブでカルテアプリにログインしてください。'); return; }
       if (!confirmEditIfSubmitted()) return;
       setFetchingKarte(true);
       try {
-        let res;
-        try {
-          res = await fetch(KARTE_API_URL, { headers: { 'X-Api-Key': KARTE_API_KEY } });
-        } catch (err) {
-          window.alert('カルテサーバーへの接続に失敗しました。通信環境を確認してください。');
-          return;
-        }
-        if (!res.ok) {
-          window.alert(`カルテの読み込みに失敗しました（エラー${res.status}）。`);
-          return;
-        }
-        const list = await res.json();
-        await applyKarteList(list);
+        const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' }); // "YYYY-MM-DD"
+        const snap = await karteDb.collectionGroup('records').where('date', '==', today).get();
+        const list = await Promise.all(snap.docs.map(async recordSnap => {
+          const r = recordSnap.data();
+          const customerSnap = await recordSnap.ref.parent.parent.get();
+          const name = customerSnap.exists ? (customerSnap.data().name || '') : '';
+          return {
+            name,
+            course: r.menu || '',
+            option: Array.isArray(r.option) ? r.option : (r.option ? [r.option] : []),
+            lodging: !!r.lodging,
+            discount: !!r.discount,
+            designation: !!r.designation,
+            preference: !!r.preference,
+          };
+        }));
+        await applyKarteList(list.filter(e => e.name));
+      } catch (err) {
+        window.alert('カルテの読み込みに失敗しました：' + (err.message || err.code || err));
       } finally {
         setFetchingKarte(false);
       }
@@ -2722,16 +2740,15 @@
         <div className="entry-list">
           <div className="entry-list-headrow">
             <h2>内訳 <span style={{fontSize:'11px', color:'var(--muted)', fontWeight:'normal'}}>※実際の伝票の金額と照らし合わせてください</span></h2>
-            {admin && (
-              <div style={{display:'flex', gap:6, flexShrink:0}}>
-                <button className="karte-paste-btn" onClick={fetchKarteFromServer} disabled={fetchingKarte || presets.length === 0}>
-                  {fetchingKarte ? '取得中…' : 'カルテを読み込む'}
-                </button>
-                <button className="karte-paste-btn" onClick={pasteFromKarte} disabled={pastingKarte || presets.length === 0}>
-                  {pastingKarte ? '取込中…' : 'カルテからペースト'}
-                </button>
-              </div>
-            )}
+            <div style={{display:'flex', alignItems:'center', gap:6, flexShrink:0}}>
+              {karteUser === null && <span className="karte-login-hint">カルテ連携：カルテタブでログインしてください</span>}
+              <button className="karte-paste-btn" onClick={fetchKarteFromServer} disabled={fetchingKarte || presets.length === 0 || !karteUser}>
+                {fetchingKarte ? '取得中…' : 'カルテを読み込む'}
+              </button>
+              <button className="karte-paste-btn" onClick={pasteFromKarte} disabled={pastingKarte || presets.length === 0}>
+                {pastingKarte ? '取込中…' : 'カルテからペースト'}
+              </button>
+            </div>
           </div>
           {entries.length === 0
             ? <div className="empty-state">{isToday ? 'まだ入力がありません' : 'この日のデータはありません'}</div>
@@ -3408,33 +3425,81 @@
   }
 
   // ========== カルテタブ（nouvelle-salon連携：お客様検索・来店履歴） ==========
+  // カルテアプリ（nouvelle-salon）へのログインフォーム。カルテタブ・今日タブ共通。
+  function KarteLoginBox() {
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState('');
+
+    const submit = async () => {
+      setError('');
+      setBusy(true);
+      try {
+        await karteAuth.signInWithEmailAndPassword(email.trim(), password);
+      } catch (err) {
+        const map = {
+          'auth/user-not-found': 'このメールアドレスは登録されていません。',
+          'auth/wrong-password': 'パスワードが違います。',
+          'auth/invalid-credential': 'メールアドレスまたはパスワードが違います。',
+          'auth/invalid-email': 'メールアドレスの形式が正しくありません。',
+        };
+        setError(map[err.code] || ('ログインに失敗しました：' + (err.message || err.code)));
+      } finally {
+        setBusy(false);
+      }
+    };
+
+    return (
+      <div className="karte-history-box">
+        <div className="confirm-head"><span className="confirm-date">カルテアプリにログイン</span></div>
+        <div className="karte-customer-note">nouvelle-salonにログインしているご自身のアカウントでログインしてください。ご自身のカルテデータのみ閲覧できます。</div>
+        <input className="karte-search-input" style={{width:'100%', marginBottom:8}} type="email" placeholder="メールアドレス" value={email} onChange={e => setEmail(e.target.value)} />
+        <input className="karte-search-input" style={{width:'100%', marginBottom:8}} type="password" placeholder="パスワード" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') submit(); }} />
+        <button className="goal-save-btn" onClick={submit} disabled={busy || !email.trim() || !password}>{busy ? 'ログイン中…' : 'ログイン'}</button>
+        {error && <div className="confirm-note" style={{color:'var(--danger)', marginTop:8}}>{error}</div>}
+      </div>
+    );
+  }
+
   function KarteTab() {
+    const karteUser = useKarteAuth();
     const [query, setQuery] = useState('');
     const [kanaFilter, setKanaFilter] = useState(''); // '' または KANA_ROW_CHARS のキー
     const [sortOrder, setSortOrder] = useState('karteNo'); // 'karteNo' | 'kana'
     const [allCustomers, setAllCustomers] = useState(null); // null=未読込
     const [loadingList, setLoadingList] = useState(false);
-    const [selected, setSelected] = useState(null); // { uid, customerId }
+    const [selected, setSelected] = useState(null); // { customerId }
     const [loadingHistory, setLoadingHistory] = useState(false);
     const [history, setHistory] = useState(null);
     const [errorMsg, setErrorMsg] = useState('');
 
-    // お客様一覧を取得（カルテタブを開いたとき・更新ボタン押下時）
+    // お客様一覧を取得（ログイン中の本人のアカウント配下だけを取得。他アカウントは見えない）
     const loadAll = async () => {
+      if (!karteUser) return;
       setLoadingList(true);
       setErrorMsg('');
       try {
-        const res = await fetch(`${KARTE_SEARCH_URL}?q=`, { headers: { 'X-Api-Key': KARTE_API_KEY } });
-        if (!res.ok) { setErrorMsg(`お客様一覧の取得に失敗しました（エラー${res.status}）`); setAllCustomers([]); return; }
-        setAllCustomers(await res.json());
+        const snap = await karteDb.collection('users').doc(karteUser.uid).collection('customers').get();
+        setAllCustomers(snap.docs.map(d => {
+          const c = d.data();
+          return {
+            customerId: d.id,
+            name: c.name || '',
+            kana: c.kana || '',
+            karteNo: c.karteNo || '',
+            lastDate: c.lastDate || '',
+            recordCount: typeof c.recordCount === 'number' ? c.recordCount : 0,
+          };
+        }));
       } catch (err) {
-        setErrorMsg('カルテサーバーへの接続に失敗しました。通信環境を確認してください。');
+        setErrorMsg('お客様一覧の取得に失敗しました：' + (err.message || err.code || err));
         setAllCustomers([]);
       } finally {
         setLoadingList(false);
       }
     };
-    useEffect(() => { loadAll(); }, []);
+    useEffect(() => { if (karteUser) loadAll(); }, [karteUser]);
 
     const openHistory = async (c) => {
       setSelected(c);
@@ -3442,11 +3507,30 @@
       setErrorMsg('');
       setHistory(null);
       try {
-        const res = await fetch(`${KARTE_HISTORY_URL}?customerId=${encodeURIComponent(c.customerId)}`, { headers: { 'X-Api-Key': KARTE_API_KEY } });
-        if (!res.ok) { setErrorMsg(`履歴の取得に失敗しました（エラー${res.status}）`); return; }
-        setHistory(await res.json());
+        const customerRef = karteDb.collection('users').doc(karteUser.uid).collection('customers').doc(c.customerId);
+        const [customerSnap, recordsSnap] = await Promise.all([
+          customerRef.get(),
+          customerRef.collection('records').orderBy('date', 'desc').get(),
+        ]);
+        const cd = customerSnap.exists ? customerSnap.data() : {};
+        const records = recordsSnap.docs.map(d => {
+          const r = d.data();
+          return {
+            date: r.date || '',
+            menu: r.menu || '',
+            option: Array.isArray(r.option) ? r.option : (r.option ? [r.option] : []),
+            lodging: !!r.lodging,
+            discount: !!r.discount,
+            designation: !!r.designation,
+            preference: !!r.preference,
+            condition: r.condition || '',
+            treatment: r.treatment || '',
+            nextNote: r.nextNote || '',
+          };
+        });
+        setHistory({ name: cd.name || c.name, kana: cd.kana || c.kana, feature: cd.feature || '', memo: cd.memo || '', records });
       } catch (err) {
-        setErrorMsg('カルテサーバーへの接続に失敗しました。通信環境を確認してください。');
+        setErrorMsg('履歴の取得に失敗しました：' + (err.message || err.code || err));
       } finally {
         setLoadingHistory(false);
       }
@@ -3475,8 +3559,20 @@
         : (a.kana || '').localeCompare(b.kana || '')
     );
 
+    if (karteUser === undefined) return <div className="loading">読み込み中...</div>;
+    if (karteUser === null) {
+      return (
+        <>
+          <KarteLoginBox />
+        </>
+      );
+    }
+
     return (
       <>
+        <div style={{display:'flex', justifyContent:'flex-end', marginBottom:8}}>
+          <button className="del-link" onClick={() => karteAuth.signOut()}>カルテからログアウト（{karteUser.email}）</button>
+        </div>
         <div className="karte-search-box">
           <input
             className="karte-search-input"
