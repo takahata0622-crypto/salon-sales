@@ -894,13 +894,6 @@
     }
     .data-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
     .data-btn:disabled { opacity: 0.5; cursor: default; }
-    .entry-data-panel {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 10px;
-      margin-top: 8px;
-    }
     .entry-data-panel .entry-memo-row:not(:last-child) { margin-bottom: 8px; }
 
     .entry-main {
@@ -964,7 +957,6 @@
 
     .entry-name-text {
       cursor: pointer;
-      border-bottom: 1px dotted var(--muted);
     }
 
     .entry-slip {
@@ -2336,7 +2328,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 2.95</span>
+              <span className="version">Ver 2.96</span>
               <a className="logout-btn" href="https://nouvelle-salon.web.app/" target="_blank" rel="noopener noreferrer">カルテ</a>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
@@ -2411,8 +2403,8 @@
     );
   }
 
-  // データボタンを押すと開く、特徴・既往歴・主訴・今回の施術の入力パネル
-  function EntryDataPanel({ entry, karteUser, ensureKarteCustomer, saveEntryMemo, saveEntryTodayCondition }) {
+  // データボタンを押すと開く、特徴・既往歴・主訴・今回の施術の入力ポップアップ
+  function EntryDataPanel({ entry, karteUser, ensureKarteCustomer, saveEntryMemo, saveEntryTodayCondition, onClose }) {
     const [loading, setLoading] = useState(true);
     const [feature, setFeature] = useState('');
     const [memo, setMemo] = useState('');
@@ -2458,34 +2450,40 @@
     };
 
     return (
-      <div className="entry-data-panel">
-        {loading ? <div className="loading">読み込み中...</div> : (
-          <>
-            <div className="entry-memo-row">
-              <span className="entry-field-label">特徴</span>
-              <input className="entry-memo" value={feature} onChange={ev => setFeature(ev.target.value)} onBlur={() => saveFeatureMemo(feature, memo)} />
-            </div>
-            <div className="entry-memo-row">
-              <span className="entry-field-label">既往歴</span>
-              <input className="entry-memo" value={memo} onChange={ev => setMemo(ev.target.value)} onBlur={() => saveFeatureMemo(feature, memo)} />
-            </div>
-            {entry.condition && (
-              <div className="entry-memo-row">
-                <span className="entry-field-label">過去の主訴</span>
-                <span className="entry-condition-view">{entry.condition}</span>
-              </div>
+      <div className="add-modal-overlay" onClick={onClose}>
+        <div className="add-modal" onClick={ev => ev.stopPropagation()}>
+          <div className="add-modal-header">
+            <h2>{entry.customerName || ''}</h2>
+            <button className="add-modal-close" onClick={onClose}>✕</button>
+          </div>
+          <div className="entry-data-panel">
+            {loading ? <div className="loading">読み込み中...</div> : (
+              <>
+                <div className="entry-memo-row">
+                  <span className="entry-field-label">特徴</span>
+                  <input className="entry-memo" value={feature} onChange={ev => setFeature(ev.target.value)} onBlur={() => saveFeatureMemo(feature, memo)} />
+                </div>
+                <div className="entry-memo-row">
+                  <span className="entry-field-label">既往歴</span>
+                  <input className="entry-memo" value={memo} onChange={ev => setMemo(ev.target.value)} onBlur={() => saveFeatureMemo(feature, memo)} />
+                </div>
+                <div className="entry-memo-row">
+                  <span className="entry-field-label">過去の主訴</span>
+                  <span className="entry-condition-view">{entry.condition || '未入力'}</span>
+                </div>
+                <div className="entry-memo-row">
+                  <span className="entry-field-label">今日の主訴</span>
+                  <input className="entry-memo" defaultValue={entry.todayCondition || ''} onBlur={ev => saveEntryTodayCondition(entry, ev.target.value.trim())} />
+                </div>
+                <div className="entry-memo-row">
+                  <span className="entry-field-label">今回の施術</span>
+                  <input className="entry-memo" defaultValue={entry.memo || ''} onBlur={ev => saveEntryMemo(entry, ev.target.value.trim())} />
+                </div>
+                {errorMsg && <div className="confirm-note" style={{ color: 'var(--danger)' }}>{errorMsg}</div>}
+              </>
             )}
-            <div className="entry-memo-row">
-              <span className="entry-field-label">今日の主訴</span>
-              <input className="entry-memo" defaultValue={entry.todayCondition || ''} onBlur={ev => saveEntryTodayCondition(entry, ev.target.value.trim())} />
-            </div>
-            <div className="entry-memo-row">
-              <span className="entry-field-label">今回の施術</span>
-              <input className="entry-memo" defaultValue={entry.memo || ''} onBlur={ev => saveEntryMemo(entry, ev.target.value.trim())} />
-            </div>
-            {errorMsg && <div className="confirm-note" style={{ color: 'var(--danger)' }}>{errorMsg}</div>}
-          </>
-        )}
+          </div>
+        </div>
       </div>
     );
   }
@@ -2992,6 +2990,7 @@
                     ensureKarteCustomer={ensureKarteCustomer}
                     saveEntryMemo={saveEntryMemo}
                     saveEntryTodayCondition={saveEntryTodayCondition}
+                    onClose={() => toggleDataPanel(e.id)}
                   />
                 )}
               </div>
