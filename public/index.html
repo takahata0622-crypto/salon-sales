@@ -691,10 +691,12 @@
     .entry-list-headrow {
       display: flex;
       flex-direction: column;
+      gap: 2px;
+      padding: 8px 16px;
       border-bottom: 1px solid var(--border);
     }
-    .entry-list-headrow h2 { border-bottom: none; padding: 8px 16px; text-transform: none; letter-spacing: normal; }
-    .karte-login-hint { font-size: 11px; color: var(--muted); padding: 8px 16px; display: block; }
+    .entry-list-headrow h2 { border-bottom: none; padding: 0; text-transform: none; letter-spacing: normal; }
+    .karte-login-hint { font-size: 11px; color: var(--muted); padding: 0; display: block; }
 
     /* カルテタブ（お客様検索・来店履歴） */
     .karte-search-box { display: flex; gap: 8px; margin-bottom: 12px; }
@@ -2316,7 +2318,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.07</span>
+              <span className="version">Ver 3.08</span>
               <a className="logout-btn" href="https://nouvelle-salon.web.app/" target="_blank" rel="noopener noreferrer">記録</a>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
