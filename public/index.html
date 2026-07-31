@@ -2336,7 +2336,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 2.94</span>
+              <span className="version">Ver 2.95</span>
               <a className="logout-btn" href="https://nouvelle-salon.web.app/" target="_blank" rel="noopener noreferrer">カルテ</a>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
@@ -2682,9 +2682,9 @@
         if (e.ganseihirou) option.push('眼精疲労');
 
         const recordsCol = customersCol.doc(customerId).collection('records');
-        const todaySnap = await recordsCol.where('date', '==', today).limit(1).get();
+        const todaySnap = await recordsCol.where('date', '==', viewDate).limit(1).get();
         const recordData = {
-          date: today,
+          date: viewDate,
           menu: e.name,
           option,
           lodging: !!e.lodging,
