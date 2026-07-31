@@ -693,8 +693,8 @@
       flex-direction: column;
       border-bottom: 1px solid var(--border);
     }
-    .entry-list-headrow h2 { border-bottom: none; }
-    .karte-login-hint { font-size: 11px; color: var(--muted); padding: 8px 16px 0; }
+    .entry-list-headrow h2 { border-bottom: none; padding: 8px 16px; text-transform: none; letter-spacing: normal; }
+    .karte-login-hint { font-size: 11px; color: var(--muted); padding: 8px 16px; display: block; }
 
     /* カルテタブ（お客様検索・来店履歴） */
     .karte-search-box { display: flex; gap: 8px; margin-bottom: 12px; }
@@ -2316,8 +2316,8 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.06</span>
-              <a className="logout-btn" href="https://nouvelle-salon.web.app/" target="_blank" rel="noopener noreferrer">カルテ</a>
+              <span className="version">Ver 3.07</span>
+              <a className="logout-btn" href="https://nouvelle-salon.web.app/" target="_blank" rel="noopener noreferrer">記録</a>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
           </header>
@@ -2338,7 +2338,7 @@
             <button className={`tab ${tab === 'history' ? 'active' : ''}`} onClick={() => setTab('history')}>集計</button>
             <button className={`tab ${tab === 'submit' ? 'active' : ''}`} onClick={() => setTab('submit')}>提出</button>
             <button className={`tab ${tab === 'confirm' ? 'active' : ''}`} onClick={() => setTab('confirm')}>確認</button>
-            <button className={`tab ${tab === 'karte' ? 'active' : ''}`} onClick={() => setTab('karte')}>カルテ</button>
+            <button className={`tab ${tab === 'karte' ? 'active' : ''}`} onClick={() => setTab('karte')}>記録</button>
           </div>
         </div>
 
@@ -2939,7 +2939,7 @@
         {/* 今日のリスト */}
         <div className="entry-list">
           <div className="entry-list-headrow">
-            {karteUser && <span className="karte-login-hint">お客様の名前を入力するとカルテに自動反映されます</span>}
+            {karteUser && <span className="karte-login-hint">お客様の名前を入力すると記録に自動反映されます</span>}
             <h2>内訳 <span style={{fontSize:'11px', color:'var(--muted)', fontWeight:'normal'}}>※実際の伝票の金額と照らし合わせてください</span></h2>
           </div>
           {entries.length === 0
@@ -3655,8 +3655,8 @@
 
     return (
       <div className="karte-history-box">
-        <div className="confirm-head"><span className="confirm-date">カルテアプリにログイン</span></div>
-        <div className="karte-customer-note">nouvelle-salonにログインしているご自身のアカウントでログインしてください。ご自身のカルテデータのみ閲覧できます。</div>
+        <div className="confirm-head"><span className="confirm-date">記録アプリにログイン</span></div>
+        <div className="karte-customer-note">nouvelle-salonにログインしているご自身のアカウントでログインしてください。ご自身の記録データのみ閲覧できます。</div>
         <input className="karte-search-input" style={{width:'100%', marginBottom:8}} type="email" placeholder="メールアドレス" value={email} onChange={e => setEmail(e.target.value)} />
         <input className="karte-search-input" style={{width:'100%', marginBottom:8}} type="password" placeholder="パスワード" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') submit(); }} />
         <button className="goal-save-btn" onClick={submit} disabled={busy || !email.trim() || !password}>{busy ? 'ログイン中…' : 'ログイン'}</button>
@@ -3881,7 +3881,7 @@
           <input
             className="karte-search-input"
             type="text"
-            placeholder="名前・フリガナ・カルテNoで検索"
+            placeholder="名前・フリガナ・記録Noで検索"
             value={query}
             onChange={e => setQuery(e.target.value)}
           />
@@ -3932,7 +3932,7 @@
 
         {!selected && (
           <div style={{display:'flex', justifyContent:'flex-end', marginTop:8}}>
-            <button className="del-link" onClick={() => karteAuth.signOut()}>カルテからログアウト（{karteUser.email}）</button>
+            <button className="del-link" onClick={() => karteAuth.signOut()}>記録からログアウト（{karteUser.email}）</button>
           </div>
         )}
 
