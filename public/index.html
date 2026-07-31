@@ -692,8 +692,9 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 8px;
-      padding-right: 12px;
+      flex-wrap: wrap;
+      gap: 6px 8px;
+      padding: 6px 12px 6px 0;
       border-bottom: 1px solid var(--border);
     }
     .entry-list-headrow h2 { border-bottom: none; flex: 1; min-width: 0; }
@@ -1841,6 +1842,14 @@
     return { ext, gross, rate, discount, extra, net };
   };
 
+  // ========== カルテアプリ（nouvelle-salon）連携 ==========
+  // 今日のカルテ一覧を返す読み取り専用のCloud Function。氏名・コース・オプション・
+  // 宿泊/割引/指名/男女希望のフラグのみを返す（体調・施術メモ等は含まない）。
+  // APIキーはクライアントJSにも含まれるため強固な秘密ではないが、取得できる内容が
+  // 当日分の最小限の予約情報のみなので、この用途では許容している。
+  const KARTE_API_URL = 'https://asia-northeast1-nouvelle-salon.cloudfunctions.net/getTodayEntries';
+  const KARTE_API_KEY = 'R_SQ9WrPTPEl95gPI9aZoH3rM8q27Czu';
+
   // ========== カルテからのペースト取込（コース名は完全一致しないので類似度で判定） ==========
   const normalizeForMatch = (s) => (s || '').normalize('NFKC').replace(/[\s　]/g, '');
   // コース名の類似度スコア：分数（数字）の一致を強めに、キーワード（数字を除いた文字列）の一致を加点
@@ -2176,7 +2185,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 2.76</span>
+              <span className="version">Ver 2.77</span>
               <a className="logout-btn" href="https://nouvelle-salon.web.app/" target="_blank" rel="noopener noreferrer">カルテ</a>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
@@ -2221,6 +2230,7 @@
     const [showAddModal, setShowAddModal] = useState(false); // 伝票追加のメニュー選択ポップアップ表示
     const [newId, setNewId] = useState(null); // 直近に追加した伝票のID（NEW表示用。常に1件だけ）
     const [pastingKarte, setPastingKarte] = useState(false); // カルテからのペースト取込中
+    const [fetchingKarte, setFetchingKarte] = useState(false); // カルテ連携APIからの取得中
     const toastTimer = useRef(null);
     const newIdTimer = useRef(null);
     const today = todayStr();
@@ -2342,9 +2352,60 @@
       showAddedToast(name);
     };
 
-    // カルテアプリからクリップボードにコピーされたJSON（[{name, course, option, lodging}, ...]）を取り込む。
-    // 既存の伝票は一旦すべて削除してからカルテの内容で丸ごと置き換える（二重ペースト防止）。
+    // カルテの内容（[{name, course, option, lodging, discount, designation, preference}, ...]）を
+    // 今日の伝票として取り込む共通処理（クリップボード貼り付け／カルテ連携APIどちらからも使う）。
+    // 既存の伝票は一旦すべて削除してからカルテの内容で丸ごと置き換える（二重取り込み防止）。
     // コース名は完全一致しない前提なので findBestPresetMatch で一番近いプリセットを選ぶ。
+    const applyKarteList = async (rawList) => {
+      let list = rawList;
+      if (list && !Array.isArray(list)) list = [list];
+      if (!Array.isArray(list) || list.length === 0) {
+        window.alert('取り込むデータが見つかりませんでした。');
+        return;
+      }
+      if (entries.length > 0) {
+        const ok = window.confirm(`既存の伝票${entries.length}件をすべて削除してから、カルテの内容を取り込みます。よろしいですか？`);
+        if (!ok) return;
+      }
+
+      await dayRef().set({ date: today }, { merge: true });
+      const base = Date.now();
+      const batch = db.batch();
+      entries.forEach(e => batch.delete(dayRef().collection('entries').doc(e.id)));
+      const addedNames = [];
+      const unmatched = [];
+      list.forEach((item, i) => {
+        const courseQuery = (item && item.course) || '';
+        const preset = findBestPresetMatch(courseQuery, presets);
+        if (!preset) {
+          unmatched.push((item && item.name) ? `${item.name}（${courseQuery || '不明'}）` : (courseQuery || '不明'));
+          return;
+        }
+        const opt = parseKarteOption(item && item.option);
+        const ref = dayRef().collection('entries').doc();
+        batch.set(ref, {
+          name: preset.name,
+          price: preset.price,
+          lodging: !!(item && item.lodging),
+          discount: pickBool(item && item.discount, opt.discount),
+          extMin: isSetMenu(preset.name) ? 0 : opt.extMin,
+          shimei: pickBool(item && item.designation, opt.shimei),
+          seibetsu: pickBool(item && item.preference, opt.seibetsu),
+          ganseihirou: opt.ganseihirou,
+          memo: (item && item.name) || '',
+          createdAt: new Date(base + i),
+        });
+        addedNames.push(preset.name);
+      });
+
+      if (addedNames.length > 0 || entries.length > 0) await batch.commit();
+      if (unmatched.length > 0) {
+        window.alert(`${addedNames.length}件追加しました。\nコースが一致しなかったため追加できなかった項目があります。手動で追加してください：\n${unmatched.join('\n')}`);
+      } else if (addedNames.length > 0) {
+        showAddedToast(`カルテから${addedNames.length}件`);
+      }
+    };
+
     const pasteFromKarte = async () => {
       if (!confirmEditIfSubmitted()) return;
       setPastingKarte(true);
@@ -2363,55 +2424,33 @@
           window.alert('クリップボードの内容がカルテ形式（JSON）として読み取れませんでした。');
           return;
         }
-        if (list && !Array.isArray(list)) list = [list];
-        if (!Array.isArray(list) || list.length === 0) {
-          window.alert('貼り付けるデータが見つかりませんでした。');
-          return;
-        }
-        // ペースト前に既存の伝票をすべて削除する（二重ペースト防止・カルテの内容で丸ごと置き換える）
-        if (entries.length > 0) {
-          const ok = window.confirm(`既存の伝票${entries.length}件をすべて削除してから、カルテの内容をペーストします。よろしいですか？`);
-          if (!ok) return;
-        }
-
-        await dayRef().set({ date: today }, { merge: true });
-        const base = Date.now();
-        const batch = db.batch();
-        entries.forEach(e => batch.delete(dayRef().collection('entries').doc(e.id)));
-        const addedNames = [];
-        const unmatched = [];
-        list.forEach((item, i) => {
-          const courseQuery = (item && item.course) || '';
-          const preset = findBestPresetMatch(courseQuery, presets);
-          if (!preset) {
-            unmatched.push((item && item.name) ? `${item.name}（${courseQuery || '不明'}）` : (courseQuery || '不明'));
-            return;
-          }
-          const opt = parseKarteOption(item && item.option);
-          const ref = dayRef().collection('entries').doc();
-          batch.set(ref, {
-            name: preset.name,
-            price: preset.price,
-            lodging: !!(item && item.lodging),
-            discount: pickBool(item && item.discount, opt.discount),
-            extMin: isSetMenu(preset.name) ? 0 : opt.extMin,
-            shimei: pickBool(item && item.designation, opt.shimei),
-            seibetsu: pickBool(item && item.preference, opt.seibetsu),
-            ganseihirou: opt.ganseihirou,
-            memo: (item && item.name) || '',
-            createdAt: new Date(base + i),
-          });
-          addedNames.push(preset.name);
-        });
-
-        if (addedNames.length > 0 || entries.length > 0) await batch.commit();
-        if (unmatched.length > 0) {
-          window.alert(`${addedNames.length}件追加しました。\nコースが一致しなかったため追加できなかった項目があります。手動で追加してください：\n${unmatched.join('\n')}`);
-        } else if (addedNames.length > 0) {
-          showAddedToast(`カルテから${addedNames.length}件`);
-        }
+        await applyKarteList(list);
       } finally {
         setPastingKarte(false);
+      }
+    };
+
+    // カルテアプリ（nouvelle-salon）のCloud Functionから直接「今日のカルテ」を取得して取り込む。
+    // コピー操作なしで自動取得できる（KARTE_API_URL/KARTE_API_KEY はグローバル定数）。
+    const fetchKarteFromServer = async () => {
+      if (!confirmEditIfSubmitted()) return;
+      setFetchingKarte(true);
+      try {
+        let res;
+        try {
+          res = await fetch(KARTE_API_URL, { headers: { 'X-Api-Key': KARTE_API_KEY } });
+        } catch (err) {
+          window.alert('カルテサーバーへの接続に失敗しました。通信環境を確認してください。');
+          return;
+        }
+        if (!res.ok) {
+          window.alert(`カルテの読み込みに失敗しました（エラー${res.status}）。`);
+          return;
+        }
+        const list = await res.json();
+        await applyKarteList(list);
+      } finally {
+        setFetchingKarte(false);
       }
     };
 
@@ -2566,9 +2605,14 @@
         <div className="entry-list">
           <div className="entry-list-headrow">
             <h2>内訳 <span style={{fontSize:'11px', color:'var(--muted)', fontWeight:'normal'}}>※実際の伝票の金額と照らし合わせてください</span></h2>
-            <button className="karte-paste-btn" onClick={pasteFromKarte} disabled={pastingKarte || presets.length === 0}>
-              {pastingKarte ? '取込中…' : 'カルテからペースト'}
-            </button>
+            <div style={{display:'flex', gap:6, flexShrink:0}}>
+              <button className="karte-paste-btn" onClick={fetchKarteFromServer} disabled={fetchingKarte || presets.length === 0}>
+                {fetchingKarte ? '取得中…' : 'カルテを読み込む'}
+              </button>
+              <button className="karte-paste-btn" onClick={pasteFromKarte} disabled={pastingKarte || presets.length === 0}>
+                {pastingKarte ? '取込中…' : 'カルテからペースト'}
+              </button>
+            </div>
           </div>
           {entries.length === 0
             ? <div className="empty-state">{isToday ? 'まだ入力がありません' : 'この日のデータはありません'}</div>
