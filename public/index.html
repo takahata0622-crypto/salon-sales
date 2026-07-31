@@ -2295,7 +2295,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 2.80</span>
+              <span className="version">Ver 2.81</span>
               <a className="logout-btn" href="https://nouvelle-salon.web.app/" target="_blank" rel="noopener noreferrer">カルテ</a>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
@@ -3442,7 +3442,7 @@
       setErrorMsg('');
       setHistory(null);
       try {
-        const res = await fetch(`${KARTE_HISTORY_URL}?uid=${encodeURIComponent(c.uid)}&customerId=${encodeURIComponent(c.customerId)}`, { headers: { 'X-Api-Key': KARTE_API_KEY } });
+        const res = await fetch(`${KARTE_HISTORY_URL}?customerId=${encodeURIComponent(c.customerId)}`, { headers: { 'X-Api-Key': KARTE_API_KEY } });
         if (!res.ok) { setErrorMsg(`履歴の取得に失敗しました（エラー${res.status}）`); return; }
         setHistory(await res.json());
       } catch (err) {
@@ -3517,7 +3517,7 @@
               : (
                 <div className="karte-result-list">
                   {shown.map(c => (
-                    <div key={`${c.uid}_${c.customerId}`} className="karte-result-item" onClick={() => openHistory(c)}>
+                    <div key={c.customerId} className="karte-result-item" onClick={() => openHistory(c)}>
                       <span className="karte-result-no">{c.karteNo || '----'}</span>
                       <span className="karte-result-name">{c.name}</span>
                       {c.kana && <span className="karte-result-kana">{c.kana}</span>}
