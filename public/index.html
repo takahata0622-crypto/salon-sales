@@ -714,6 +714,60 @@
     }
     .karte-paste-btn:disabled { opacity: 0.6; cursor: default; }
 
+    /* カルテタブ（お客様検索・来店履歴） */
+    .karte-search-box { display: flex; gap: 8px; margin-bottom: 12px; }
+    .karte-search-input {
+      flex: 1;
+      min-width: 0;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 14px;
+      background: var(--card);
+      color: var(--ink);
+    }
+    .karte-result-list {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .karte-result-item {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+    }
+    .karte-result-item:last-child { border-bottom: none; }
+    .karte-result-item:active { background: var(--bg); }
+    .karte-result-name { font-weight: 700; font-size: 14px; }
+    .karte-result-kana { font-size: 12px; color: var(--muted); }
+    .karte-result-last { margin-left: auto; font-size: 12px; color: var(--muted); white-space: nowrap; }
+    .karte-history-box {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 14px;
+    }
+    .karte-customer-note {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 10px;
+      line-height: 1.5;
+    }
+    .karte-record-card {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin-bottom: 8px;
+    }
+    .karte-record-head { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 4px; flex-wrap: wrap; }
+    .karte-record-date { font-size: 12px; color: var(--muted); font-weight: 700; }
+    .karte-record-menu { font-size: 14px; font-weight: 700; }
+    .karte-record-line { font-size: 13px; color: var(--ink); margin-top: 3px; line-height: 1.5; }
+
     .entry-item {
       padding: 12px 16px;
       border-bottom: 1px solid var(--border);
@@ -1849,6 +1903,10 @@
   // 当日分の最小限の予約情報のみなので、この用途では許容している。
   const KARTE_API_URL = 'https://asia-northeast1-nouvelle-salon.cloudfunctions.net/getTodayEntries';
   const KARTE_API_KEY = 'R_SQ9WrPTPEl95gPI9aZoH3rM8q27Czu';
+  // お客様検索・来店履歴。こちらは体調・施術内容などカルテ本体の情報を含むため、
+  // 上記より踏み込んだ個人情報を扱う（同じAPIキーで保護）。
+  const KARTE_SEARCH_URL = 'https://asia-northeast1-nouvelle-salon.cloudfunctions.net/searchCustomers';
+  const KARTE_HISTORY_URL = 'https://asia-northeast1-nouvelle-salon.cloudfunctions.net/getCustomerHistory';
 
   // ========== カルテからのペースト取込（コース名は完全一致しないので類似度で判定） ==========
   const normalizeForMatch = (s) => (s || '').normalize('NFKC').replace(/[\s　]/g, '');
@@ -2185,7 +2243,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 2.77</span>
+              <span className="version">Ver 2.78</span>
               <a className="logout-btn" href="https://nouvelle-salon.web.app/" target="_blank" rel="noopener noreferrer">カルテ</a>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
@@ -2207,6 +2265,7 @@
             <button className={`tab ${tab === 'history' ? 'active' : ''}`} onClick={() => setTab('history')}>集計</button>
             <button className={`tab ${tab === 'submit' ? 'active' : ''}`} onClick={() => setTab('submit')}>提出</button>
             <button className={`tab ${tab === 'confirm' ? 'active' : ''}`} onClick={() => setTab('confirm')}>確認</button>
+            <button className={`tab ${tab === 'karte' ? 'active' : ''}`} onClick={() => setTab('karte')}>カルテ</button>
           </div>
         </div>
 
@@ -2215,6 +2274,7 @@
           {tab === 'history' && <HistoryTab uid={uid} />}
           {tab === 'submit' && <SubmitTab uid={uid} userName={user.displayName || ''} dept={dept} setDept={handleSetDept} viewDate={viewDate} setViewDate={setViewDate} />}
           {tab === 'confirm' && <ConfirmTab uid={uid} userName={user.displayName || ''} />}
+          {tab === 'karte' && <KarteTab />}
         </div>
       </>
     );
@@ -3284,6 +3344,131 @@
               )}
             </>
         }
+      </>
+    );
+  }
+
+  // ========== カルテタブ（nouvelle-salon連携：お客様検索・来店履歴） ==========
+  function KarteTab() {
+    const [query, setQuery] = useState('');
+    const [searching, setSearching] = useState(false);
+    const [results, setResults] = useState(null); // null=未検索, []=該当なし
+    const [selected, setSelected] = useState(null); // { uid, customerId }
+    const [loadingHistory, setLoadingHistory] = useState(false);
+    const [history, setHistory] = useState(null);
+    const [errorMsg, setErrorMsg] = useState('');
+
+    const search = async () => {
+      const q = query.trim();
+      if (!q) return;
+      setSearching(true);
+      setErrorMsg('');
+      setSelected(null);
+      setHistory(null);
+      try {
+        const res = await fetch(`${KARTE_SEARCH_URL}?q=${encodeURIComponent(q)}`, { headers: { 'X-Api-Key': KARTE_API_KEY } });
+        if (!res.ok) { setErrorMsg(`検索に失敗しました（エラー${res.status}）`); setResults([]); return; }
+        setResults(await res.json());
+      } catch (err) {
+        setErrorMsg('カルテサーバーへの接続に失敗しました。通信環境を確認してください。');
+        setResults([]);
+      } finally {
+        setSearching(false);
+      }
+    };
+
+    const openHistory = async (c) => {
+      setSelected(c);
+      setLoadingHistory(true);
+      setErrorMsg('');
+      setHistory(null);
+      try {
+        const res = await fetch(`${KARTE_HISTORY_URL}?uid=${encodeURIComponent(c.uid)}&customerId=${encodeURIComponent(c.customerId)}`, { headers: { 'X-Api-Key': KARTE_API_KEY } });
+        if (!res.ok) { setErrorMsg(`履歴の取得に失敗しました（エラー${res.status}）`); return; }
+        setHistory(await res.json());
+      } catch (err) {
+        setErrorMsg('カルテサーバーへの接続に失敗しました。通信環境を確認してください。');
+      } finally {
+        setLoadingHistory(false);
+      }
+    };
+
+    return (
+      <>
+        <div className="karte-search-box">
+          <input
+            className="karte-search-input"
+            type="text"
+            placeholder="お客様の名前で検索"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') search(); }}
+          />
+          <button className="goal-save-btn" onClick={search} disabled={searching || !query.trim()}>
+            {searching ? '検索中…' : '検索'}
+          </button>
+        </div>
+
+        {errorMsg && <div className="confirm-note" style={{color:'var(--danger)'}}>{errorMsg}</div>}
+
+        {results != null && !selected && (
+          results.length === 0
+            ? <div className="empty-state">該当するお客様が見つかりませんでした</div>
+            : (
+              <div className="karte-result-list">
+                {results.map(c => (
+                  <div key={`${c.uid}_${c.customerId}`} className="karte-result-item" onClick={() => openHistory(c)}>
+                    <span className="karte-result-name">{c.name}</span>
+                    {c.kana && <span className="karte-result-kana">{c.kana}</span>}
+                    <span className="karte-result-last">最終来店 {c.lastDate || '—'}</span>
+                  </div>
+                ))}
+              </div>
+            )
+        )}
+
+        {selected && (
+          <div className="karte-history-box">
+            <button className="del-link" style={{marginBottom:10}} onClick={() => { setSelected(null); setHistory(null); }}>‹ 検索結果に戻る</button>
+            {loadingHistory
+              ? <div className="loading">読み込み中...</div>
+              : history && (
+                <>
+                  <div className="confirm-head">
+                    <span className="confirm-date">{history.name}{history.kana && <span style={{marginLeft:6, fontSize:12, color:'var(--muted)', fontWeight:'normal'}}>（{history.kana}）</span>}</span>
+                  </div>
+                  {(history.feature || history.memo) && (
+                    <div className="karte-customer-note">
+                      {history.feature && <div>特徴：{history.feature}</div>}
+                      {history.memo && <div>メモ：{history.memo}</div>}
+                    </div>
+                  )}
+                  {history.records.length === 0
+                    ? <div className="empty-state">来店履歴はありません</div>
+                    : history.records.map((r, i) => (
+                      <div key={i} className="karte-record-card">
+                        <div className="karte-record-head">
+                          <span className="karte-record-date">{r.date}</span>
+                          <span className="karte-record-menu">
+                            {r.menu}
+                            {r.lodging ? '（宿泊）' : ''}
+                            {r.discount ? '（割引）' : ''}
+                            {r.designation ? '（指名）' : ''}
+                            {r.preference ? '（男女希望）' : ''}
+                          </span>
+                        </div>
+                        {r.option.length > 0 && <div className="karte-record-line">オプション：{r.option.join('・')}</div>}
+                        {r.condition && <div className="karte-record-line">体調：{r.condition}</div>}
+                        {r.treatment && <div className="karte-record-line">施術内容：{r.treatment}</div>}
+                        {r.nextNote && <div className="karte-record-line">次回への申し送り：{r.nextNote}</div>}
+                      </div>
+                    ))
+                  }
+                </>
+              )
+            }
+          </div>
+        )}
       </>
     );
   }
