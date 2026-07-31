@@ -2329,7 +2329,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.01</span>
+              <span className="version">Ver 3.02</span>
               <a className="logout-btn" href="https://nouvelle-salon.web.app/" target="_blank" rel="noopener noreferrer">カルテ</a>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
@@ -3693,6 +3693,9 @@
     const [editFeature, setEditFeature] = useState('');
     const [editMemo, setEditMemo] = useState('');
     const [savingNote, setSavingNote] = useState(false);
+    const [showKanaBulk, setShowKanaBulk] = useState(false); // フリガナ一括入力ポップアップ
+    const [kanaBulkValues, setKanaBulkValues] = useState({}); // customerId -> フリガナ入力中の値
+    const [savingKanaBulk, setSavingKanaBulk] = useState(false);
 
     // お客様一覧を取得（ログイン中の本人のアカウント配下だけを取得。他アカウントは見えない）
     const loadAll = async () => {
@@ -3785,6 +3788,29 @@
       }
     };
 
+    // フリガナ一括入力：入力中の内容をまとめて保存する
+    const saveKanaBulk = async () => {
+      setSavingKanaBulk(true);
+      setErrorMsg('');
+      try {
+        const toSave = Object.entries(kanaBulkValues).filter(([, kana]) => (kana || '').trim());
+        await Promise.all(toSave.map(([customerId, kana]) =>
+          karteDb.collection('users').doc(karteUser.uid).collection('customers').doc(customerId)
+            .update({ kana: kana.trim() })
+        ));
+        setAllCustomers(prev => (prev || []).map(c => {
+          const v = kanaBulkValues[c.customerId];
+          return v && v.trim() ? { ...c, kana: v.trim() } : c;
+        }));
+        setShowKanaBulk(false);
+        setKanaBulkValues({});
+      } catch (err) {
+        setErrorMsg('フリガナの保存に失敗しました：' + (err.message || err.code || err));
+      } finally {
+        setSavingKanaBulk(false);
+      }
+    };
+
     const startEditNote = () => {
       setEditFeature(history.feature || '');
       setEditMemo(history.memo || '');
@@ -3807,6 +3833,9 @@
         setSavingNote(false);
       }
     };
+
+    // フリガナ未入力のお客様一覧（一括入力ポップアップ用）
+    const missingKana = (allCustomers || []).filter(c => !(c.kana || '').trim());
 
     // 検索キーワード・カナ行フィルタ・並び順は取得済みの一覧に対してその場で適用する
     const kw = query.trim().toLowerCase();
@@ -3858,6 +3887,7 @@
         <div className="karte-sort-row">
           <div className="karte-sort-toggle">
             <button className={sortOrder === 'kana' ? 'active' : ''} onClick={() => setSortOrder('kana')}>あいうえお順</button>
+            <button onClick={() => { setKanaBulkValues({}); setShowKanaBulk(true); }}>フリガナ一括入力</button>
             <button className={sortOrder === 'karteNo' ? 'active' : ''} onClick={() => setSortOrder('karteNo')}>番号順</button>
           </div>
           {allCustomers != null && (
@@ -3954,6 +3984,37 @@
                 </>
               )
             }
+          </div>
+        )}
+
+        {showKanaBulk && (
+          <div className="add-modal-overlay" onClick={() => setShowKanaBulk(false)}>
+            <div className="add-modal" onClick={ev => ev.stopPropagation()}>
+              <div className="add-modal-header">
+                <h2>フリガナ一括入力</h2>
+                <button className="add-modal-close" onClick={() => setShowKanaBulk(false)}>✕</button>
+              </div>
+              {missingKana.length === 0 ? (
+                <div className="empty-state">フリガナ未入力のお客様はいません</div>
+              ) : (
+                <>
+                  {missingKana.map(c => (
+                    <div key={c.customerId} className="entry-memo-row">
+                      <span className="entry-field-label">{c.name}</span>
+                      <input
+                        className="entry-memo"
+                        placeholder="フリガナ"
+                        value={kanaBulkValues[c.customerId] || ''}
+                        onChange={ev => setKanaBulkValues(prev => ({ ...prev, [c.customerId]: ev.target.value }))}
+                      />
+                    </div>
+                  ))}
+                  <button className="goal-save-btn" style={{marginTop:12}} onClick={saveKanaBulk} disabled={savingKanaBulk}>
+                    {savingKanaBulk ? '保存中…' : '保存'}
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         )}
       </>
