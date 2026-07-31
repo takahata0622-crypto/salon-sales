@@ -859,6 +859,7 @@
     .entry-name-suggest-item:last-child { border-bottom: none; }
     .entry-name-suggest-item:active { background: var(--bg); }
     .entry-name-suggest-kana { font-size: 12px; color: var(--muted); }
+    .entry-name-suggest-info { font-size: 11px; color: var(--muted); margin-top: 2px; }
 
     .gender-btn {
       flex-shrink: 0;
@@ -2328,7 +2329,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.00</span>
+              <span className="version">Ver 3.01</span>
               <a className="logout-btn" href="https://nouvelle-salon.web.app/" target="_blank" rel="noopener noreferrer">カルテ</a>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
@@ -2394,7 +2395,8 @@
                 className="entry-name-suggest-item"
                 onMouseDown={ev => { ev.preventDefault(); setValue(c.name); onSave(c.name); setShowList(false); }}
               >
-                {c.name}{c.kana && <span className="entry-name-suggest-kana"> {c.kana}</span>}
+                <div>{c.name}{c.kana && <span className="entry-name-suggest-kana"> {c.kana}</span>}</div>
+                <div className="entry-name-suggest-info">最終来店 {c.lastDate || '—'}（{c.recordCount || 0}回）</div>
               </div>
             ))}
           </div>
@@ -2566,7 +2568,13 @@
       if (!karteUser) { setKarteCustomers([]); return; }
       karteDb.collection('users').doc(karteUser.uid).collection('customers').get()
         .then(snap => setKarteCustomers(snap.docs
-          .map(d => ({ customerId: d.id, name: d.data().name || '', kana: d.data().kana || '' }))
+          .map(d => ({
+            customerId: d.id,
+            name: d.data().name || '',
+            kana: d.data().kana || '',
+            lastDate: d.data().lastDate || '',
+            recordCount: typeof d.data().recordCount === 'number' ? d.data().recordCount : 0,
+          }))
           .filter(c => c.name)))
         .catch(() => setKarteCustomers([]));
     }, [karteUser]);
