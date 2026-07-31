@@ -698,21 +698,6 @@
       border-bottom: 1px solid var(--border);
     }
     .entry-list-headrow h2 { border-bottom: none; flex: 1; min-width: 0; }
-    .karte-paste-btn {
-      flex-shrink: 0;
-      padding: 5px 10px;
-      background: var(--accent-light);
-      color: var(--accent);
-      border: 1px solid var(--accent);
-      border-radius: 8px;
-      font-size: 12px;
-      font-weight: 700;
-      cursor: pointer;
-      white-space: nowrap;
-      text-transform: none;
-      letter-spacing: normal;
-    }
-    .karte-paste-btn:disabled { opacity: 0.6; cursor: default; }
     .karte-login-hint { font-size: 11px; color: var(--muted); white-space: nowrap; }
 
     /* カルテタブ（お客様検索・来店履歴） */
@@ -1975,56 +1960,6 @@
   };
   const firstKanaChar = (s) => { const t = (s || '').trim(); return t ? t.charAt(0) : ''; };
 
-  // ========== カルテからのペースト取込（コース名は完全一致しないので類似度で判定） ==========
-  const normalizeForMatch = (s) => (s || '').normalize('NFKC').replace(/[\s　]/g, '');
-  // コース名の類似度スコア：分数（数字）の一致を強めに、キーワード（数字を除いた文字列）の一致を加点
-  const scorePresetMatch = (query, presetName) => {
-    const q = normalizeForMatch(query);
-    const n = normalizeForMatch(presetName);
-    if (!q || !n) return 0;
-    let score = 0;
-    const qNum = (q.match(/\d+/) || [])[0];
-    const qText = q.replace(/\d+/g, '');
-    if (qNum) {
-      if (n.includes(qNum + '分') || n.includes(qNum + '×')) score += 3;
-      else if (n.includes(qNum)) score += 1;
-    }
-    if (qText && n.includes(qText)) score += 2;
-    if (n.includes(q)) score += 1;
-    return score;
-  };
-  // 現在のプリセット一覧から一番近いものを選ぶ（スコア0＝該当なしはマッチさせない）
-  const findBestPresetMatch = (query, presets) => {
-    let best = null, bestScore = 0;
-    (presets || []).forEach(p => {
-      const s = scorePresetMatch(query, p.name);
-      if (s > bestScore) { bestScore = s; best = p; }
-    });
-    return best;
-  };
-  // option（例:「延長10」「指名」の文字列、または ["延長10","指名"] のような配列）から
-  // エントリの各種フラグを読み取る。
-  // カルテ側の仕様上、延長はひとつしか選べない（延長以外のオプションが一緒に選ばれると
-  // 配列にもう1件コピーされる仕組みのため、配列に複数入っていても合算はせず先頭の値を採用する）。
-  const parseKarteOption = (option) => {
-    const arr = Array.isArray(option) ? option : [option];
-    const s = normalizeForMatch(arr.filter(Boolean).join(','));
-    const result = { extMin: 0, shimei: false, seibetsu: false, ganseihirou: false, discount: false };
-    const extMatch = s.match(/延長(\d+)/);
-    if (extMatch) {
-      const raw = Math.max(0, Math.round(Number(extMatch[1]) / 10) * 10);
-      result.extMin = Math.min(30, raw); // アプリの延長サイクルは0/10/20/30分まで
-    }
-    if (s.includes('指名')) result.shimei = true;
-    if (s.includes('男女')) result.seibetsu = true;
-    if (s.includes('眼精疲労')) result.ganseihirou = true;
-    if (s.includes('割引')) result.discount = true;
-    return result;
-  };
-  // カルテ側で discount/designation/preference のようなbool専用フィールドが来ていればそちらを優先し、
-  // 無ければ（旧形式など）option文字列から読み取った値にフォールバックする
-  const pickBool = (v, fallback) => (typeof v === 'boolean' ? v : fallback);
-
   // ボディケア初売りチケット：給料計算でのみ1枚あたり加算する金額（歩合対象）
   const TICKET_SALARY = 5000;
   // ボディケア初売りチケット判定（タイ・バリの初売りチケットは対象外なので完全一致）
@@ -2310,7 +2245,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 2.82</span>
+              <span className="version">Ver 2.83</span>
               <a className="logout-btn" href="https://nouvelle-salon.web.app/" target="_blank" rel="noopener noreferrer">カルテ</a>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
@@ -2357,8 +2292,6 @@
     const [toast, setToast] = useState(null); // 追加完了の通知 {name, id}
     const [showAddModal, setShowAddModal] = useState(false); // 伝票追加のメニュー選択ポップアップ表示
     const [newId, setNewId] = useState(null); // 直近に追加した伝票のID（NEW表示用。常に1件だけ）
-    const [pastingKarte, setPastingKarte] = useState(false); // カルテからのペースト取込中
-    const [fetchingKarte, setFetchingKarte] = useState(false); // カルテ連携APIからの取得中
     const toastTimer = useRef(null);
     const newIdTimer = useRef(null);
     const today = todayStr();
@@ -2475,158 +2408,135 @@
       // 親ドキュメントを作成（集計で日付が拾えるように）
       await dayRef().set({ date: today }, { merge: true });
       const ref = await dayRef().collection('entries')
-        .add({ name, price: Number(price), lodging: false, discount: false, extMin: 0, shimei: false, seibetsu: false, ganseihirou: false, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+        .add({ name, price: Number(price), lodging: false, discount: false, extMin: 0, shimei: false, seibetsu: false, ganseihirou: false, customerName: '', createdAt: firebase.firestore.FieldValue.serverTimestamp() });
       markNew(ref.id);
       showAddedToast(name);
     };
 
-    // カルテの内容（[{name, course, option, lodging, discount, designation, preference}, ...]）を
-    // 今日の伝票として取り込む共通処理（クリップボード貼り付け／カルテ連携APIどちらからも使う）。
-    // 既存の伝票は一旦すべて削除してからカルテの内容で丸ごと置き換える（二重取り込み防止）。
-    // コース名は完全一致しない前提なので findBestPresetMatch で一番近いプリセットを選ぶ。
-    const applyKarteList = async (rawList) => {
-      let list = rawList;
-      if (list && !Array.isArray(list)) list = [list];
-      if (!Array.isArray(list) || list.length === 0) {
-        window.alert('取り込むデータが見つかりませんでした。');
-        return;
-      }
-      if (entries.length > 0) {
-        const ok = window.confirm(`既存の伝票${entries.length}件をすべて削除してから、カルテの内容を取り込みます。よろしいですか？`);
-        if (!ok) return;
-      }
-
-      await dayRef().set({ date: today }, { merge: true });
-      const base = Date.now();
-      const batch = db.batch();
-      entries.forEach(e => batch.delete(dayRef().collection('entries').doc(e.id)));
-      const addedNames = [];
-      const unmatched = [];
-      list.forEach((item, i) => {
-        const courseQuery = (item && item.course) || '';
-        const preset = findBestPresetMatch(courseQuery, presets);
-        if (!preset) {
-          unmatched.push((item && item.name) ? `${item.name}（${courseQuery || '不明'}）` : (courseQuery || '不明'));
-          return;
+    // 伝票にお客様名が入っていて、カルテアプリにログイン済みなら、その内容を
+    // カルテ側（本人のnouvelle-salonアカウント）へ自動で反映する（今日の記録として作成／更新）。
+    // お客様は名前で検索し、いなければ新規作成する。
+    const syncEntryToKarte = async (e) => {
+      if (!karteUser) return;
+      const customerName = (e.customerName || '').trim();
+      if (!customerName) return;
+      try {
+        const customersCol = karteDb.collection('users').doc(karteUser.uid).collection('customers');
+        let customerId;
+        const existing = await customersCol.where('name', '==', customerName).limit(1).get();
+        if (!existing.empty) {
+          customerId = existing.docs[0].id;
+        } else {
+          // カルテNo.を採番（既存お客様の最大値+1。nouvelle-salon本体と同じ方式）
+          const allSnap = await customersCol.get();
+          let maxNo = 0;
+          allSnap.forEach(d => { const n = parseInt(d.data().karteNo || '0', 10); if (n > maxNo) maxNo = n; });
+          const karteNo = String(maxNo + 1).padStart(4, '0');
+          const newDoc = await customersCol.add({
+            name: customerName, kana: '', tel: '', email: '', birthday: '', gender: '',
+            feature: '', memo: '', note: '', karteNo,
+            recordCount: 0, lastDate: '', createdAt: new Date(),
+          });
+          customerId = newDoc.id;
         }
-        const opt = parseKarteOption(item && item.option);
-        const ref = dayRef().collection('entries').doc();
-        batch.set(ref, {
-          name: preset.name,
-          price: preset.price,
-          lodging: !!(item && item.lodging),
-          discount: pickBool(item && item.discount, opt.discount),
-          extMin: isSetMenu(preset.name) ? 0 : opt.extMin,
-          shimei: pickBool(item && item.designation, opt.shimei),
-          seibetsu: pickBool(item && item.preference, opt.seibetsu),
-          ganseihirou: opt.ganseihirou,
-          memo: (item && item.name) || '',
-          createdAt: new Date(base + i),
+
+        const option = [];
+        if (isSetMenu(e.name)) {
+          if (e.extTaiMin) option.push(`タイ延長${e.extTaiMin}`);
+          if (e.extBariMin) option.push(`バリ延長${e.extBariMin}`);
+        } else if (e.extMin) {
+          option.push(`延長${e.extMin}`);
+        }
+        if (e.ganseihirou) option.push('眼精疲労');
+
+        const recordsCol = customersCol.doc(customerId).collection('records');
+        const todaySnap = await recordsCol.where('date', '==', today).limit(1).get();
+        const recordData = {
+          date: today,
+          menu: e.name,
+          option,
+          lodging: !!e.lodging,
+          discount: !!e.discount,
+          designation: !!e.shimei,
+          preference: !!e.seibetsu,
+        };
+        if (!todaySnap.empty) {
+          await recordsCol.doc(todaySnap.docs[0].id).update(recordData);
+        } else {
+          await recordsCol.add({ ...recordData, condition: '', treatment: '', nextNote: '', createdAt: new Date() });
+        }
+
+        // 来店統計（recordCount・lastDate）を更新
+        const rSnap = await recordsCol.orderBy('date', 'desc').get();
+        await customersCol.doc(customerId).update({
+          recordCount: rSnap.size,
+          lastDate: rSnap.size > 0 ? rSnap.docs[0].data().date : '',
         });
-        addedNames.push(preset.name);
-      });
-
-      if (addedNames.length > 0 || entries.length > 0) await batch.commit();
-      if (unmatched.length > 0) {
-        window.alert(`${addedNames.length}件追加しました。\nコースが一致しなかったため追加できなかった項目があります。手動で追加してください：\n${unmatched.join('\n')}`);
-      } else if (addedNames.length > 0) {
-        showAddedToast(`カルテから${addedNames.length}件`);
-      }
-    };
-
-    const pasteFromKarte = async () => {
-      if (!confirmEditIfSubmitted()) return;
-      setPastingKarte(true);
-      try {
-        let text;
-        try {
-          text = await navigator.clipboard.readText();
-        } catch (err) {
-          window.alert('クリップボードを読み取れませんでした。ブラウザの権限設定を確認してください。');
-          return;
-        }
-        let list;
-        try {
-          list = JSON.parse(text);
-        } catch (err) {
-          window.alert('クリップボードの内容がカルテ形式（JSON）として読み取れませんでした。');
-          return;
-        }
-        await applyKarteList(list);
-      } finally {
-        setPastingKarte(false);
-      }
-    };
-
-    // カルテアプリ（nouvelle-salon）に自分のアカウントでログイン済みなら、
-    // そのFirestore権限で直接「今日のカルテ」を取得して取り込む（本人のデータしか読めない）。
-    const fetchKarteFromServer = async () => {
-      if (!karteUser) { window.alert('先に「カルテ」タブでカルテアプリにログインしてください。'); return; }
-      if (!confirmEditIfSubmitted()) return;
-      setFetchingKarte(true);
-      try {
-        const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' }); // "YYYY-MM-DD"
-        const snap = await karteDb.collectionGroup('records').where('date', '==', today).get();
-        const list = await Promise.all(snap.docs.map(async recordSnap => {
-          const r = recordSnap.data();
-          const customerSnap = await recordSnap.ref.parent.parent.get();
-          const name = customerSnap.exists ? (customerSnap.data().name || '') : '';
-          return {
-            name,
-            course: r.menu || '',
-            option: Array.isArray(r.option) ? r.option : (r.option ? [r.option] : []),
-            lodging: !!r.lodging,
-            discount: !!r.discount,
-            designation: !!r.designation,
-            preference: !!r.preference,
-          };
-        }));
-        await applyKarteList(list.filter(e => e.name));
       } catch (err) {
-        window.alert('カルテの読み込みに失敗しました：' + (err.message || err.code || err));
-      } finally {
-        setFetchingKarte(false);
+        console.error('カルテへの同期に失敗しました', err);
       }
     };
 
     const toggleEntryLodging = (e) => {
       if (!confirmEditIfSubmitted()) return;
-      dayRef().collection('entries').doc(e.id).update({ lodging: !e.lodging });
+      const patch = { lodging: !e.lodging };
+      dayRef().collection('entries').doc(e.id).update(patch);
+      syncEntryToKarte({ ...e, ...patch });
     };
     const toggleEntryDiscount = (e) => {
       if (!confirmEditIfSubmitted()) return;
-      dayRef().collection('entries').doc(e.id).update({ discount: !e.discount });
+      const patch = { discount: !e.discount };
+      dayRef().collection('entries').doc(e.id).update(patch);
+      syncEntryToKarte({ ...e, ...patch });
     };
     // 延長を 0→10→20→30→0 で循環
     const cycleEntryExt = (e) => {
       if (!confirmEditIfSubmitted()) return;
-      dayRef().collection('entries').doc(e.id).update({ extMin: ((e.extMin || 0) + 10) % 40 });
+      const patch = { extMin: ((e.extMin || 0) + 10) % 40 };
+      dayRef().collection('entries').doc(e.id).update(patch);
+      syncEntryToKarte({ ...e, ...patch });
     };
     // セットメニュー用：タイ延長・バリ延長を別々に 0→10→20→30→0 で循環
     const cycleEntryExtTai = (e) => {
       if (!confirmEditIfSubmitted()) return;
-      dayRef().collection('entries').doc(e.id).update({ extTaiMin: ((e.extTaiMin || 0) + 10) % 40 });
+      const patch = { extTaiMin: ((e.extTaiMin || 0) + 10) % 40 };
+      dayRef().collection('entries').doc(e.id).update(patch);
+      syncEntryToKarte({ ...e, ...patch });
     };
     const cycleEntryExtBari = (e) => {
       if (!confirmEditIfSubmitted()) return;
-      dayRef().collection('entries').doc(e.id).update({ extBariMin: ((e.extBariMin || 0) + 10) % 40 });
+      const patch = { extBariMin: ((e.extBariMin || 0) + 10) % 40 };
+      dayRef().collection('entries').doc(e.id).update(patch);
+      syncEntryToKarte({ ...e, ...patch });
     };
     const toggleEntryShimei = (e) => {
       if (!confirmEditIfSubmitted()) return;
-      dayRef().collection('entries').doc(e.id).update({ shimei: !e.shimei });
+      const patch = { shimei: !e.shimei };
+      dayRef().collection('entries').doc(e.id).update(patch);
+      syncEntryToKarte({ ...e, ...patch });
     };
     const toggleEntrySeibetsu = (e) => {
       if (!confirmEditIfSubmitted()) return;
-      dayRef().collection('entries').doc(e.id).update({ seibetsu: !e.seibetsu });
+      const patch = { seibetsu: !e.seibetsu };
+      dayRef().collection('entries').doc(e.id).update(patch);
+      syncEntryToKarte({ ...e, ...patch });
     };
     const toggleEntryGanseihirou = (e) => {
       if (!confirmEditIfSubmitted()) return;
-      dayRef().collection('entries').doc(e.id).update({ ganseihirou: !e.ganseihirou });
+      const patch = { ganseihirou: !e.ganseihirou };
+      dayRef().collection('entries').doc(e.id).update(patch);
+      syncEntryToKarte({ ...e, ...patch });
     };
     const saveEntryMemo = (e, memo) => {
       if ((e.memo || '') === memo) return;
       if (!confirmEditIfSubmitted()) return;
       dayRef().collection('entries').doc(e.id).update({ memo });
+    };
+    const saveEntryCustomerName = (e, customerName) => {
+      if ((e.customerName || '') === customerName) return;
+      if (!confirmEditIfSubmitted()) return;
+      dayRef().collection('entries').doc(e.id).update({ customerName });
+      syncEntryToKarte({ ...e, customerName });
     };
 
     const deleteEntry = async (id) => {
@@ -2740,15 +2650,7 @@
         <div className="entry-list">
           <div className="entry-list-headrow">
             <h2>内訳 <span style={{fontSize:'11px', color:'var(--muted)', fontWeight:'normal'}}>※実際の伝票の金額と照らし合わせてください</span></h2>
-            <div style={{display:'flex', alignItems:'center', gap:6, flexShrink:0}}>
-              {karteUser === null && <span className="karte-login-hint">カルテ連携：カルテタブでログインしてください</span>}
-              <button className="karte-paste-btn" onClick={fetchKarteFromServer} disabled={fetchingKarte || presets.length === 0 || !karteUser}>
-                {fetchingKarte ? '取得中…' : 'カルテを読み込む'}
-              </button>
-              <button className="karte-paste-btn" onClick={pasteFromKarte} disabled={pastingKarte || presets.length === 0}>
-                {pastingKarte ? '取込中…' : 'カルテからペースト'}
-              </button>
-            </div>
+            {karteUser && <span className="karte-login-hint">カルテ連携：お客様名を入力すると自動反映されます</span>}
           </div>
           {entries.length === 0
             ? <div className="empty-state">{isToday ? 'まだ入力がありません' : 'この日のデータはありません'}</div>
@@ -2801,6 +2703,15 @@
                     )}
                   </div>
                 )}
+                <div className="entry-memo-row">
+                  <input
+                    key={`name_${e.customerName || ''}`}
+                    className="entry-memo"
+                    placeholder="お客様名（任意・カルテに自動反映）"
+                    defaultValue={e.customerName || ''}
+                    onBlur={ev => saveEntryCustomerName(e, ev.target.value.trim())}
+                  />
+                </div>
                 <div className="entry-memo-row">
                   <input
                     key={e.memo || ''}
