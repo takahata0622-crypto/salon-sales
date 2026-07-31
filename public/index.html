@@ -2318,7 +2318,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.08</span>
+              <span className="version">Ver 3.09</span>
               <a className="logout-btn" href="https://nouvelle-salon.web.app/" target="_blank" rel="noopener noreferrer">記録</a>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
@@ -2397,6 +2397,7 @@
   // データボタンを押すと開く、特徴・既往歴・主訴・今回の施術の入力ポップアップ
   function EntryDataPanel({ entry, karteUser, ensureKarteCustomer, saveEntryMemo, saveEntryTodayCondition, onClose }) {
     const [loading, setLoading] = useState(true);
+    const [kana, setKana] = useState('');
     const [feature, setFeature] = useState('');
     const [memo, setMemo] = useState('');
     const [errorMsg, setErrorMsg] = useState('');
@@ -2413,9 +2414,11 @@
           if (cancelled) return;
           if (!snap.empty) {
             const cd = snap.docs[0].data();
+            setKana(cd.kana || '');
             setFeature(cd.feature || '');
             setMemo((cd.memo || '').trim() || (!cd.feature && cd.note ? (cd.note || '').trim() : ''));
           } else {
+            setKana('');
             setFeature('');
             setMemo('');
           }
@@ -2428,13 +2431,13 @@
       return () => { cancelled = true; };
     }, [entry.customerName]);
 
-    const saveFeatureMemo = async (nextFeature, nextMemo) => {
+    const saveFeatureMemo = async (nextKana, nextFeature, nextMemo) => {
       setErrorMsg('');
       try {
         const customerName = (entry.customerName || '').trim();
         const customerId = await ensureKarteCustomer(customerName);
         await karteDb.collection('users').doc(karteUser.uid).collection('customers').doc(customerId)
-          .update({ feature: nextFeature.trim(), memo: nextMemo.trim() });
+          .update({ kana: nextKana.trim(), feature: nextFeature.trim(), memo: nextMemo.trim() });
       } catch (err) {
         setErrorMsg('保存に失敗しました：' + (err.message || err.code || err));
       }
@@ -2451,12 +2454,16 @@
             {loading ? <div className="loading">読み込み中...</div> : (
               <>
                 <div className="entry-memo-row">
+                  <span className="entry-field-label">フリガナ</span>
+                  <input className="entry-memo" value={kana} onChange={ev => setKana(ev.target.value)} onBlur={() => saveFeatureMemo(kana, feature, memo)} />
+                </div>
+                <div className="entry-memo-row">
                   <span className="entry-field-label">特徴</span>
-                  <input className="entry-memo" value={feature} onChange={ev => setFeature(ev.target.value)} onBlur={() => saveFeatureMemo(feature, memo)} />
+                  <input className="entry-memo" value={feature} onChange={ev => setFeature(ev.target.value)} onBlur={() => saveFeatureMemo(kana, feature, memo)} />
                 </div>
                 <div className="entry-memo-row">
                   <span className="entry-field-label">既往歴</span>
-                  <input className="entry-memo" value={memo} onChange={ev => setMemo(ev.target.value)} onBlur={() => saveFeatureMemo(feature, memo)} />
+                  <input className="entry-memo" value={memo} onChange={ev => setMemo(ev.target.value)} onBlur={() => saveFeatureMemo(kana, feature, memo)} />
                 </div>
                 <div className="entry-memo-row">
                   <span className="entry-field-label">過去の主訴</span>
