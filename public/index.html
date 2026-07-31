@@ -690,15 +690,11 @@
 
     .entry-list-headrow {
       display: flex;
-      align-items: center;
-      justify-content: space-between;
-      flex-wrap: wrap;
-      gap: 6px 8px;
-      padding: 6px 12px 6px 0;
+      flex-direction: column;
       border-bottom: 1px solid var(--border);
     }
-    .entry-list-headrow h2 { border-bottom: none; flex: 1; min-width: 0; }
-    .karte-login-hint { font-size: 11px; color: var(--muted); white-space: nowrap; }
+    .entry-list-headrow h2 { border-bottom: none; }
+    .karte-login-hint { font-size: 11px; color: var(--muted); padding: 8px 16px 0; }
 
     /* カルテタブ（お客様検索・来店履歴） */
     .karte-search-box { display: flex; gap: 8px; margin-bottom: 12px; }
@@ -867,14 +863,18 @@
     .gender-btn {
       flex-shrink: 0;
       width: 34px;
-      padding: 7px 0;
+      height: 34px;
+      padding: 0;
       border: 1px solid var(--border);
-      border-radius: 8px;
+      border-radius: 50%;
       background: var(--bg);
       color: var(--muted);
       font-size: 13px;
       font-weight: 700;
       cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
     .gender-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
     .gender-btn:disabled { opacity: 0.5; cursor: default; }
@@ -2328,7 +2328,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 2.97</span>
+              <span className="version">Ver 2.98</span>
               <a className="logout-btn" href="https://nouvelle-salon.web.app/" target="_blank" rel="noopener noreferrer">カルテ</a>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
@@ -2944,8 +2944,8 @@
         {/* 今日のリスト */}
         <div className="entry-list">
           <div className="entry-list-headrow">
+            {karteUser && <span className="karte-login-hint">お客様の名前を入力するとカルテに自動反映されます</span>}
             <h2>内訳 <span style={{fontSize:'11px', color:'var(--muted)', fontWeight:'normal'}}>※実際の伝票の金額と照らし合わせてください</span></h2>
-            {karteUser && <span className="karte-login-hint">カルテ連携：お客様名を入力すると自動反映されます</span>}
           </div>
           {entries.length === 0
             ? <div className="empty-state">{isToday ? 'まだ入力がありません' : 'この日のデータはありません'}</div>
