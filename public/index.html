@@ -742,9 +742,47 @@
     }
     .karte-result-item:last-child { border-bottom: none; }
     .karte-result-item:active { background: var(--bg); }
+    .karte-result-no { font-size: 11px; color: var(--muted); font-weight: 700; white-space: nowrap; }
     .karte-result-name { font-weight: 700; font-size: 14px; }
     .karte-result-kana { font-size: 12px; color: var(--muted); }
     .karte-result-last { margin-left: auto; font-size: 12px; color: var(--muted); white-space: nowrap; }
+
+    .karte-sort-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+    }
+    .karte-sort-toggle { display: flex; gap: 6px; }
+    .karte-sort-toggle button {
+      padding: 5px 10px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 12px;
+      color: var(--muted);
+      cursor: pointer;
+    }
+    .karte-sort-toggle button.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+    .karte-count { font-size: 12px; color: var(--muted); white-space: nowrap; }
+    .karte-kana-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-bottom: 12px;
+    }
+    .karte-kana-row button {
+      padding: 4px 9px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 12px;
+      color: var(--ink);
+      cursor: pointer;
+    }
+    .karte-kana-row button.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
     .karte-history-box {
       background: var(--card);
       border: 1px solid var(--border);
@@ -1907,6 +1945,20 @@
   // 上記より踏み込んだ個人情報を扱う（同じAPIキーで保護）。
   const KARTE_SEARCH_URL = 'https://asia-northeast1-nouvelle-salon.cloudfunctions.net/searchCustomers';
   const KARTE_HISTORY_URL = 'https://asia-northeast1-nouvelle-salon.cloudfunctions.net/getCustomerHistory';
+  // カルテタブのあいうえお順（行）フィルタ用。nouvelle-salon側と同じ行分けに揃えている。
+  const KANA_ROW_CHARS = {
+    'ア': 'アイウエオあいうえおァィゥェォぁぃぅぇぉ',
+    'カ': 'カキクケコガギグゲゴかきくけこがぎぐげごヵヶゕゖ',
+    'サ': 'サシスセソザジズゼゾさしすせそざじずぜぞ',
+    'タ': 'タチツテトダヂヅデドたちつてとだぢづでどッっ',
+    'ナ': 'ナニヌネノなにぬねの',
+    'ハ': 'ハヒフヘホバビブベボパピプペポはひふへほばびぶべぼぱぴぷぺぽ',
+    'マ': 'マミムメモまみむめも',
+    'ヤ': 'ヤユヨやゆよャュョゃゅょ',
+    'ラ': 'ラリルレロらりるれろ',
+    'ワ': 'ワヲンわをんヮゎ',
+  };
+  const firstKanaChar = (s) => { const t = (s || '').trim(); return t ? t.charAt(0) : ''; };
 
   // ========== カルテからのペースト取込（コース名は完全一致しないので類似度で判定） ==========
   const normalizeForMatch = (s) => (s || '').normalize('NFKC').replace(/[\s　]/g, '');
@@ -2243,7 +2295,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 2.78</span>
+              <span className="version">Ver 2.79</span>
               <a className="logout-btn" href="https://nouvelle-salon.web.app/" target="_blank" rel="noopener noreferrer">カルテ</a>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
@@ -3351,31 +3403,31 @@
   // ========== カルテタブ（nouvelle-salon連携：お客様検索・来店履歴） ==========
   function KarteTab() {
     const [query, setQuery] = useState('');
-    const [searching, setSearching] = useState(false);
-    const [results, setResults] = useState(null); // null=未検索, []=該当なし
+    const [kanaFilter, setKanaFilter] = useState(''); // '' または KANA_ROW_CHARS のキー
+    const [sortOrder, setSortOrder] = useState('karteNo'); // 'karteNo' | 'kana'
+    const [allCustomers, setAllCustomers] = useState(null); // null=未読込
+    const [loadingList, setLoadingList] = useState(false);
     const [selected, setSelected] = useState(null); // { uid, customerId }
     const [loadingHistory, setLoadingHistory] = useState(false);
     const [history, setHistory] = useState(null);
     const [errorMsg, setErrorMsg] = useState('');
 
-    const search = async () => {
-      const q = query.trim();
-      if (!q) return;
-      setSearching(true);
+    // お客様一覧を取得（カルテタブを開いたとき・更新ボタン押下時）
+    const loadAll = async () => {
+      setLoadingList(true);
       setErrorMsg('');
-      setSelected(null);
-      setHistory(null);
       try {
-        const res = await fetch(`${KARTE_SEARCH_URL}?q=${encodeURIComponent(q)}`, { headers: { 'X-Api-Key': KARTE_API_KEY } });
-        if (!res.ok) { setErrorMsg(`検索に失敗しました（エラー${res.status}）`); setResults([]); return; }
-        setResults(await res.json());
+        const res = await fetch(`${KARTE_SEARCH_URL}?q=`, { headers: { 'X-Api-Key': KARTE_API_KEY } });
+        if (!res.ok) { setErrorMsg(`お客様一覧の取得に失敗しました（エラー${res.status}）`); setAllCustomers([]); return; }
+        setAllCustomers(await res.json());
       } catch (err) {
         setErrorMsg('カルテサーバーへの接続に失敗しました。通信環境を確認してください。');
-        setResults([]);
+        setAllCustomers([]);
       } finally {
-        setSearching(false);
+        setLoadingList(false);
       }
     };
+    useEffect(() => { loadAll(); }, []);
 
     const openHistory = async (c) => {
       setSelected(c);
@@ -3393,38 +3445,80 @@
       }
     };
 
+    // 検索キーワード・カナ行フィルタ・並び順は取得済みの一覧に対してその場で適用する
+    const kw = query.trim().toLowerCase();
+    let shown = allCustomers || [];
+    if (kw) {
+      shown = shown.filter(c =>
+        (c.name || '').toLowerCase().includes(kw) ||
+        (c.kana || '').toLowerCase().includes(kw) ||
+        (c.karteNo || '').toLowerCase().includes(kw)
+      );
+    }
+    if (kanaFilter && KANA_ROW_CHARS[kanaFilter]) {
+      const chars = KANA_ROW_CHARS[kanaFilter];
+      shown = shown.filter(c => {
+        const head = firstKanaChar(c.kana);
+        return !head || chars.includes(head); // フリガナ未登録は常に表示
+      });
+    }
+    shown = shown.slice().sort((a, b) =>
+      sortOrder === 'karteNo'
+        ? (a.karteNo || '99999').localeCompare(b.karteNo || '99999')
+        : (a.kana || '').localeCompare(b.kana || '')
+    );
+
     return (
       <>
         <div className="karte-search-box">
           <input
             className="karte-search-input"
             type="text"
-            placeholder="お客様の名前で検索"
+            placeholder="名前・フリガナ・カルテNoで検索"
             value={query}
             onChange={e => setQuery(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') search(); }}
           />
-          <button className="goal-save-btn" onClick={search} disabled={searching || !query.trim()}>
-            {searching ? '検索中…' : '検索'}
+          <button className="goal-save-btn" onClick={loadAll} disabled={loadingList}>
+            {loadingList ? '更新中…' : '更新'}
           </button>
+        </div>
+
+        <div className="karte-sort-row">
+          <div className="karte-sort-toggle">
+            <button className={sortOrder === 'karteNo' ? 'active' : ''} onClick={() => setSortOrder('karteNo')}>番号順</button>
+            <button className={sortOrder === 'kana' ? 'active' : ''} onClick={() => setSortOrder('kana')}>あいうえお順</button>
+          </div>
+          {allCustomers != null && (
+            <span className="karte-count">{shown.length} / {allCustomers.length}件</span>
+          )}
+        </div>
+
+        <div className="karte-kana-row">
+          <button className={kanaFilter === '' ? 'active' : ''} onClick={() => setKanaFilter('')}>すべて</button>
+          {Object.keys(KANA_ROW_CHARS).map(k => (
+            <button key={k} className={kanaFilter === k ? 'active' : ''} onClick={() => setKanaFilter(k === kanaFilter ? '' : k)}>{k}</button>
+          ))}
         </div>
 
         {errorMsg && <div className="confirm-note" style={{color:'var(--danger)'}}>{errorMsg}</div>}
 
-        {results != null && !selected && (
-          results.length === 0
-            ? <div className="empty-state">該当するお客様が見つかりませんでした</div>
-            : (
-              <div className="karte-result-list">
-                {results.map(c => (
-                  <div key={`${c.uid}_${c.customerId}`} className="karte-result-item" onClick={() => openHistory(c)}>
-                    <span className="karte-result-name">{c.name}</span>
-                    {c.kana && <span className="karte-result-kana">{c.kana}</span>}
-                    <span className="karte-result-last">最終来店 {c.lastDate || '—'}</span>
-                  </div>
-                ))}
-              </div>
-            )
+        {!selected && (
+          loadingList && allCustomers == null
+            ? <div className="loading">読み込み中...</div>
+            : shown.length === 0
+              ? <div className="empty-state">{allCustomers && allCustomers.length > 0 ? '該当するお客様が見つかりませんでした' : 'お客様がまだ登録されていません'}</div>
+              : (
+                <div className="karte-result-list">
+                  {shown.map(c => (
+                    <div key={`${c.uid}_${c.customerId}`} className="karte-result-item" onClick={() => openHistory(c)}>
+                      <span className="karte-result-no">{c.karteNo || '----'}</span>
+                      <span className="karte-result-name">{c.name}</span>
+                      {c.kana && <span className="karte-result-kana">{c.kana}</span>}
+                      <span className="karte-result-last">最終来店 {c.lastDate || '—'}（{c.recordCount || 0}回）</span>
+                    </div>
+                  ))}
+                </div>
+              )
         )}
 
         {selected && (
