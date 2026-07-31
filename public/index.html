@@ -2329,7 +2329,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.02</span>
+              <span className="version">Ver 3.03</span>
               <a className="logout-btn" href="https://nouvelle-salon.web.app/" target="_blank" rel="noopener noreferrer">カルテ</a>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
@@ -3740,6 +3740,7 @@
         const records = recordsSnap.docs.map(d => {
           const r = d.data();
           return {
+            id: d.id,
             date: r.date || '',
             menu: r.menu || '',
             option: Array.isArray(r.option) ? r.option : (r.option ? [r.option] : []),
@@ -3785,6 +3786,24 @@
         if (selected && selected.customerId === c.customerId) { setSelected(null); setHistory(null); }
       } catch (err) {
         setErrorMsg('削除に失敗しました：' + (err.message || err.code || err));
+      }
+    };
+
+    // 来店記録を1件削除する
+    const deleteRecord = async (r) => {
+      if (!window.confirm(`${r.date} の記録を削除しますか？`)) return;
+      setErrorMsg('');
+      try {
+        const customerRef = karteDb.collection('users').doc(karteUser.uid).collection('customers').doc(selected.customerId);
+        await customerRef.collection('records').doc(r.id).delete();
+        const rSnap = await customerRef.collection('records').orderBy('date', 'desc').get();
+        const recordCount = rSnap.size;
+        const lastDate = rSnap.size > 0 ? rSnap.docs[0].data().date : '';
+        await customerRef.update({ recordCount, lastDate });
+        setHistory(h => ({ ...h, records: h.records.filter(x => x.id !== r.id) }));
+        setAllCustomers(prev => (prev || []).map(c => c.customerId === selected.customerId ? { ...c, recordCount, lastDate } : c));
+      } catch (err) {
+        setErrorMsg('記録の削除に失敗しました：' + (err.message || err.code || err));
       }
     };
 
@@ -3966,13 +3985,16 @@
                       <div key={i} className="karte-record-card">
                         <div className="karte-record-head">
                           <span className="karte-record-date">{r.date}</span>
-                          <span className="karte-record-menu">
-                            {r.menu}
-                            {r.lodging ? '（宿泊）' : ''}
-                            {r.discount ? '（割引）' : ''}
-                            {r.designation ? '（指名）' : ''}
-                            {r.preference ? '（男女希望）' : ''}
-                          </span>
+                          <div style={{display:'flex', alignItems:'center', gap:8}}>
+                            <span className="karte-record-menu">
+                              {r.menu}
+                              {r.lodging ? '（宿泊）' : ''}
+                              {r.discount ? '（割引）' : ''}
+                              {r.designation ? '（指名）' : ''}
+                              {r.preference ? '（男女希望）' : ''}
+                            </span>
+                            <button className="delete-btn" onClick={() => deleteRecord(r)}>✕</button>
+                          </div>
                         </div>
                         {r.option.length > 0 && <div className="karte-record-line">オプション：{r.option.join('・')}</div>}
                         {r.condition && <div className="karte-record-line">主訴：{r.condition}</div>}
