@@ -880,6 +880,28 @@
     .gender-btn:disabled { opacity: 0.5; cursor: default; }
     .entry-field-label { flex-shrink: 0; font-size: 12px; color: var(--muted); font-weight: 600; white-space: nowrap; }
     .entry-condition-view { flex: 1; font-size: 14px; color: var(--ink); }
+    .data-btn {
+      flex-shrink: 0;
+      padding: 7px 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+    .data-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .data-btn:disabled { opacity: 0.5; cursor: default; }
+    .entry-data-panel {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+      margin-top: 8px;
+    }
+    .entry-data-panel .entry-memo-row:not(:last-child) { margin-bottom: 8px; }
 
     .entry-main {
       display: flex;
@@ -2299,7 +2321,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 2.91</span>
+              <span className="version">Ver 2.92</span>
               <a className="logout-btn" href="https://nouvelle-salon.web.app/" target="_blank" rel="noopener noreferrer">カルテ</a>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
@@ -2374,10 +2396,90 @@
     );
   }
 
+  // データボタンを押すと開く、特徴・既往歴・主訴・今回の施術の入力パネル
+  function EntryDataPanel({ entry, karteUser, ensureKarteCustomer, saveEntryMemo, saveEntryTodayCondition }) {
+    const [loading, setLoading] = useState(true);
+    const [feature, setFeature] = useState('');
+    const [memo, setMemo] = useState('');
+    const [errorMsg, setErrorMsg] = useState('');
+
+    useEffect(() => {
+      let cancelled = false;
+      (async () => {
+        setLoading(true);
+        setErrorMsg('');
+        try {
+          const customerName = (entry.customerName || '').trim();
+          const snap = await karteDb.collection('users').doc(karteUser.uid).collection('customers')
+            .where('name', '==', customerName).limit(1).get();
+          if (cancelled) return;
+          if (!snap.empty) {
+            const cd = snap.docs[0].data();
+            setFeature(cd.feature || '');
+            setMemo((cd.memo || '').trim() || (!cd.feature && cd.note ? (cd.note || '').trim() : ''));
+          } else {
+            setFeature('');
+            setMemo('');
+          }
+        } catch (err) {
+          if (!cancelled) setErrorMsg('取得に失敗しました：' + (err.message || err.code || err));
+        } finally {
+          if (!cancelled) setLoading(false);
+        }
+      })();
+      return () => { cancelled = true; };
+    }, [entry.customerName]);
+
+    const saveFeatureMemo = async (nextFeature, nextMemo) => {
+      setErrorMsg('');
+      try {
+        const customerName = (entry.customerName || '').trim();
+        const customerId = await ensureKarteCustomer(customerName);
+        await karteDb.collection('users').doc(karteUser.uid).collection('customers').doc(customerId)
+          .update({ feature: nextFeature.trim(), memo: nextMemo.trim() });
+      } catch (err) {
+        setErrorMsg('保存に失敗しました：' + (err.message || err.code || err));
+      }
+    };
+
+    return (
+      <div className="entry-data-panel">
+        {loading ? <div className="loading">読み込み中...</div> : (
+          <>
+            <div className="entry-memo-row">
+              <span className="entry-field-label">特徴</span>
+              <input className="entry-memo" value={feature} onChange={ev => setFeature(ev.target.value)} onBlur={() => saveFeatureMemo(feature, memo)} />
+            </div>
+            <div className="entry-memo-row">
+              <span className="entry-field-label">既往歴</span>
+              <input className="entry-memo" value={memo} onChange={ev => setMemo(ev.target.value)} onBlur={() => saveFeatureMemo(feature, memo)} />
+            </div>
+            {entry.condition && (
+              <div className="entry-memo-row">
+                <span className="entry-field-label">過去の主訴</span>
+                <span className="entry-condition-view">{entry.condition}</span>
+              </div>
+            )}
+            <div className="entry-memo-row">
+              <span className="entry-field-label">今日の主訴</span>
+              <input className="entry-memo" defaultValue={entry.todayCondition || ''} onBlur={ev => saveEntryTodayCondition(entry, ev.target.value.trim())} />
+            </div>
+            <div className="entry-memo-row">
+              <span className="entry-field-label">今回の施術</span>
+              <input className="entry-memo" defaultValue={entry.memo || ''} onBlur={ev => saveEntryMemo(entry, ev.target.value.trim())} />
+            </div>
+            {errorMsg && <div className="confirm-note" style={{ color: 'var(--danger)' }}>{errorMsg}</div>}
+          </>
+        )}
+      </div>
+    );
+  }
+
   // ========== 今日タブ ==========
   function TodayTab({ uid, userName, dept, setDept, viewDate, setViewDate }) {
     const karteUser = useKarteAuth(); // カルテ連携（ログインした本人のデータのみ扱える）
     const [karteCustomers, setKarteCustomers] = useState([]); // お客様名の入力候補用（ログイン中のみ取得）
+    const [openDataPanels, setOpenDataPanels] = useState(new Set()); // データボタンで開いている伝票ID
     const [entries, setEntries] = useState([]);
     const [presets, setPresets] = useState([]);
     const [submittedDates, setSubmittedDates] = useState(new Set());
@@ -2511,14 +2613,31 @@
       // 親ドキュメントを作成（集計で日付が拾えるように）
       await dayRef().set({ date: today }, { merge: true });
       const ref = await dayRef().collection('entries')
-        .add({ name, price: Number(price), lodging: false, discount: false, extMin: 0, shimei: false, seibetsu: false, ganseihirou: false, customerName: '', gender: '', condition: '', createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+        .add({ name, price: Number(price), lodging: false, discount: false, extMin: 0, shimei: false, seibetsu: false, ganseihirou: false, customerName: '', gender: '', condition: '', todayCondition: '', createdAt: firebase.firestore.FieldValue.serverTimestamp() });
       markNew(ref.id);
       showAddedToast(name);
     };
 
+    // 名前でお客様を検索し、いなければ新規作成してcustomerIdを返す（nouvelle-salon本体と同じ
+    // カルテNo.採番方式）。genderJaを渡すと新規作成時のみ性別を入れる。
+    const ensureKarteCustomer = async (customerName, genderJa) => {
+      const customersCol = karteDb.collection('users').doc(karteUser.uid).collection('customers');
+      const existing = await customersCol.where('name', '==', customerName).limit(1).get();
+      if (!existing.empty) return existing.docs[0].id;
+      const allSnap = await customersCol.get();
+      let maxNo = 0;
+      allSnap.forEach(d => { const n = parseInt(d.data().karteNo || '0', 10); if (n > maxNo) maxNo = n; });
+      const karteNo = String(maxNo + 1).padStart(4, '0');
+      const newDoc = await customersCol.add({
+        name: customerName, kana: '', tel: '', email: '', birthday: '', gender: genderJa || '',
+        feature: '', memo: '', note: '', karteNo,
+        recordCount: 0, lastDate: '', createdAt: new Date(),
+      });
+      return newDoc.id;
+    };
+
     // 伝票にお客様名が入っていて、カルテアプリにログイン済みなら、その内容を
     // カルテ側（本人のnouvelle-salonアカウント）へ自動で反映する（今日の記録として作成／更新）。
-    // お客様は名前で検索し、いなければ新規作成する。
     const syncEntryToKarte = async (e) => {
       if (!karteUser) return;
       const customerName = (e.customerName || '').trim();
@@ -2526,23 +2645,7 @@
       const genderJa = e.gender === 'male' ? '男性' : e.gender === 'female' ? '女性' : '';
       try {
         const customersCol = karteDb.collection('users').doc(karteUser.uid).collection('customers');
-        let customerId;
-        const existing = await customersCol.where('name', '==', customerName).limit(1).get();
-        if (!existing.empty) {
-          customerId = existing.docs[0].id;
-        } else {
-          // カルテNo.を採番（既存お客様の最大値+1。nouvelle-salon本体と同じ方式）
-          const allSnap = await customersCol.get();
-          let maxNo = 0;
-          allSnap.forEach(d => { const n = parseInt(d.data().karteNo || '0', 10); if (n > maxNo) maxNo = n; });
-          const karteNo = String(maxNo + 1).padStart(4, '0');
-          const newDoc = await customersCol.add({
-            name: customerName, kana: '', tel: '', email: '', birthday: '', gender: genderJa,
-            feature: '', memo: '', note: '', karteNo,
-            recordCount: 0, lastDate: '', createdAt: new Date(),
-          });
-          customerId = newDoc.id;
-        }
+        const customerId = await ensureKarteCustomer(customerName, genderJa);
 
         const option = [];
         if (isSetMenu(e.name)) {
@@ -2564,12 +2667,12 @@
           designation: !!e.shimei,
           preference: !!e.seibetsu,
           treatment: e.memo || '', // 今日タブの「今回の施術」欄をそのままカルテの施術内容に反映
+          condition: e.todayCondition || '', // 今日タブの「今日の主訴」欄をそのままカルテの主訴に反映
         };
-        // 主訴はこの画面からは編集できない参照表示のみのため、書き戻さない（カルテ側の値を上書きしない）
         if (!todaySnap.empty) {
           await recordsCol.doc(todaySnap.docs[0].id).update(recordData);
         } else {
-          await recordsCol.add({ ...recordData, condition: '', nextNote: '', createdAt: new Date() });
+          await recordsCol.add({ ...recordData, nextNote: '', createdAt: new Date() });
         }
 
         // 来店統計（recordCount・lastDate）を更新。性別は入力があるときだけ上書きする
@@ -2666,6 +2769,20 @@
       const patch = { gender: e.gender === g ? '' : g };
       dayRef().collection('entries').doc(e.id).update(patch);
       syncEntryToKarte({ ...e, ...patch });
+    };
+    const saveEntryTodayCondition = (e, todayCondition) => {
+      if ((e.todayCondition || '') === todayCondition) return;
+      if (!confirmEditIfSubmitted()) return;
+      dayRef().collection('entries').doc(e.id).update({ todayCondition });
+      syncEntryToKarte({ ...e, todayCondition });
+    };
+    // データボタン：特徴・既往歴・主訴・今回の施術をまとめた入力欄の開閉
+    const toggleDataPanel = (id) => {
+      setOpenDataPanels(prev => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id); else next.add(id);
+        return next;
+      });
     };
 
     const deleteEntry = async (id) => {
@@ -2839,25 +2956,20 @@
                     karteCustomers={karteCustomers}
                     onSave={name => saveEntryCustomerName(e, name)}
                   />
+                  <button className={`data-btn ${openDataPanels.has(e.id) ? 'active' : ''}`} disabled={!(e.customerName || '').trim()} onClick={() => toggleDataPanel(e.id)}>データ</button>
                   <button className={`gender-btn ${e.gender === 'male' ? 'active' : ''}`} disabled={!(e.customerName || '').trim()} onClick={() => toggleEntryGender(e, 'male')}>男</button>
                   <button className={`gender-btn ${e.gender === 'female' ? 'active' : ''}`} disabled={!(e.customerName || '').trim()} onClick={() => toggleEntryGender(e, 'female')}>女</button>
                 </div>
-                {e.condition && (
-                  <div className="entry-memo-row">
-                    <span className="entry-field-label">主訴</span>
-                    <span className="entry-condition-view">{e.condition}</span>
-                  </div>
-                )}
-                <div className="entry-memo-row">
-                  <span className="entry-field-label">今回の施術</span>
-                  <input
-                    key={e.memo || ''}
-                    className="entry-memo"
-                    defaultValue={e.memo || ''}
-                    onBlur={ev => saveEntryMemo(e, ev.target.value.trim())}
+                {openDataPanels.has(e.id) && (
+                  <EntryDataPanel
+                    entry={e}
+                    karteUser={karteUser}
+                    ensureKarteCustomer={ensureKarteCustomer}
+                    saveEntryMemo={saveEntryMemo}
+                    saveEntryTodayCondition={saveEntryTodayCondition}
                   />
-                  <span className="entry-time">{formatTime(e.createdAt)}</span>
-                </div>
+                )}
+                <span className="entry-time" style={{display:'block', textAlign:'right', marginTop:6}}>{formatTime(e.createdAt)}</span>
               </div>
             ))
           }
