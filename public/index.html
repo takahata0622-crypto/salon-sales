@@ -827,6 +827,30 @@
       border-color: var(--accent);
     }
 
+    .entry-name-autocomplete { position: relative; flex: 1; width: 100%; }
+    .entry-name-suggest-list {
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0;
+      right: 0;
+      z-index: 30;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+      max-height: 220px;
+      overflow-y: auto;
+    }
+    .entry-name-suggest-item {
+      padding: 8px 10px;
+      font-size: 14px;
+      cursor: pointer;
+      border-bottom: 1px solid var(--border);
+    }
+    .entry-name-suggest-item:last-child { border-bottom: none; }
+    .entry-name-suggest-item:active { background: var(--bg); }
+    .entry-name-suggest-kana { font-size: 12px; color: var(--muted); }
+
     .entry-main {
       display: flex;
       align-items: center;
@@ -2245,7 +2269,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 2.85</span>
+              <span className="version">Ver 2.86</span>
               <a className="logout-btn" href="https://nouvelle-salon.web.app/" target="_blank" rel="noopener noreferrer">カルテ</a>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
@@ -2282,9 +2306,49 @@
     );
   }
 
+  // お客様名の入力欄。途中まで入力すると、カルテ（karteCustomers）から名前・フリガナが
+  // 部分一致する候補を出し、選ぶとその名前で確定できる（新しいお客様ならそのまま自由入力）。
+  function CustomerNameField({ entry, karteCustomers, onSave }) {
+    const [value, setValue] = useState(entry.customerName || '');
+    const [showList, setShowList] = useState(false);
+    useEffect(() => { setValue(entry.customerName || ''); }, [entry.customerName]);
+
+    const kw = value.trim().toLowerCase();
+    const suggestions = kw && karteCustomers.length > 0
+      ? karteCustomers.filter(c => c.name.toLowerCase().includes(kw) || (c.kana && c.kana.toLowerCase().includes(kw))).slice(0, 8)
+      : [];
+
+    return (
+      <div className="entry-name-autocomplete">
+        <input
+          className="entry-memo"
+          placeholder="お客様名（任意・カルテに自動反映）"
+          value={value}
+          onChange={ev => { setValue(ev.target.value); setShowList(true); }}
+          onFocus={() => setShowList(true)}
+          onBlur={() => { setShowList(false); onSave(value.trim()); }}
+        />
+        {showList && suggestions.length > 0 && (
+          <div className="entry-name-suggest-list">
+            {suggestions.map((c, i) => (
+              <div
+                key={i}
+                className="entry-name-suggest-item"
+                onMouseDown={ev => { ev.preventDefault(); setValue(c.name); onSave(c.name); setShowList(false); }}
+              >
+                {c.name}{c.kana && <span className="entry-name-suggest-kana"> {c.kana}</span>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   // ========== 今日タブ ==========
   function TodayTab({ uid, userName, dept, setDept, viewDate, setViewDate }) {
     const karteUser = useKarteAuth(); // カルテ連携（ログインした本人のデータのみ扱える）
+    const [karteCustomers, setKarteCustomers] = useState([]); // お客様名の入力候補用（ログイン中のみ取得）
     const [entries, setEntries] = useState([]);
     const [presets, setPresets] = useState([]);
     const [submittedDates, setSubmittedDates] = useState(new Set());
@@ -2350,6 +2414,16 @@
         }
       });
     }, [uid]);
+
+    // お客様名の入力候補用に、カルテの顧客一覧をログイン時に一度だけ取得（キーストロークごとの通信は避ける）
+    useEffect(() => {
+      if (!karteUser) { setKarteCustomers([]); return; }
+      karteDb.collection('users').doc(karteUser.uid).collection('customers').get()
+        .then(snap => setKarteCustomers(snap.docs
+          .map(d => ({ name: d.data().name || '', kana: d.data().kana || '' }))
+          .filter(c => c.name)))
+        .catch(() => setKarteCustomers([]));
+    }, [karteUser]);
 
     // 選択日のエントリ購読
     useEffect(() => {
@@ -2704,12 +2778,10 @@
                   </div>
                 )}
                 <div className="entry-memo-row">
-                  <input
-                    key={`name_${e.customerName || ''}`}
-                    className="entry-memo"
-                    placeholder="お客様名（任意・カルテに自動反映）"
-                    defaultValue={e.customerName || ''}
-                    onBlur={ev => saveEntryCustomerName(e, ev.target.value.trim())}
+                  <CustomerNameField
+                    entry={e}
+                    karteCustomers={karteCustomers}
+                    onSave={name => saveEntryCustomerName(e, name)}
                   />
                 </div>
                 <div className="entry-memo-row">
