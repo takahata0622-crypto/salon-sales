@@ -2318,7 +2318,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.09</span>
+              <span className="version">Ver 3.10</span>
               <a className="logout-btn" href="https://nouvelle-salon.web.app/" target="_blank" rel="noopener noreferrer">記録</a>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
@@ -2787,16 +2787,25 @@
             const oldCustomersCol = karteDb.collection('users').doc(karteUser.uid).collection('customers');
             const oldCustSnap = await oldCustomersCol.where('name', '==', oldName).limit(1).get();
             if (!oldCustSnap.empty) {
-              const oldCustomerId = oldCustSnap.docs[0].id;
+              const oldCustomerDoc = oldCustSnap.docs[0];
+              const oldCustomerId = oldCustomerDoc.id;
               const oldRecordsCol = oldCustomersCol.doc(oldCustomerId).collection('records');
               const oldRecSnap = await oldRecordsCol.where('date', '==', viewDate).limit(1).get();
               if (!oldRecSnap.empty) {
                 await oldRecordsCol.doc(oldRecSnap.docs[0].id).delete();
                 const rSnap = await oldRecordsCol.orderBy('date', 'desc').get();
-                await oldCustomersCol.doc(oldCustomerId).update({
-                  recordCount: rSnap.size,
-                  lastDate: rSnap.size > 0 ? rSnap.docs[0].data().date : '',
-                });
+                const cd = oldCustomerDoc.data();
+                const isEmptyProfile = !(cd.feature || '').trim() && !(cd.memo || '').trim() && !(cd.kana || '').trim()
+                  && !(cd.tel || '').trim() && !(cd.email || '').trim();
+                if (rSnap.size === 0 && isEmptyProfile) {
+                  // 来店記録も無く、他の情報も未入力なら、名前変更で残った空のお客様データごと削除する
+                  await oldCustomersCol.doc(oldCustomerId).delete();
+                } else {
+                  await oldCustomersCol.doc(oldCustomerId).update({
+                    recordCount: rSnap.size,
+                    lastDate: rSnap.size > 0 ? rSnap.docs[0].data().date : '',
+                  });
+                }
               }
             }
           } catch (err) { /* 削除できなくても名前変更自体は継続する */ }
