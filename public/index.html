@@ -1010,9 +1010,9 @@
     }
 
     .delete-btn {
-      background: #fde8e8;
-      border: 1px solid var(--danger);
-      color: var(--danger);
+      background: var(--accent-light);
+      border: 1px solid var(--accent);
+      color: var(--accent);
       cursor: pointer;
       font-size: 14px;
       font-weight: 700;
@@ -1729,7 +1729,7 @@
       width: 100%;
       height: 52px;
       padding: 0 24px;
-      background: #c0392b;
+      background: var(--accent);
       color: #fff;
       border: none;
       border-radius: 14px;
@@ -2329,7 +2329,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.03</span>
+              <span className="version">Ver 3.04</span>
               <a className="logout-btn" href="https://nouvelle-salon.web.app/" target="_blank" rel="noopener noreferrer">カルテ</a>
               <button className="logout-btn" onClick={() => auth.signOut()}>ログアウト</button>
             </div>
@@ -3906,8 +3906,8 @@
         <div className="karte-sort-row">
           <div className="karte-sort-toggle">
             <button className={sortOrder === 'kana' ? 'active' : ''} onClick={() => setSortOrder('kana')}>あいうえお順</button>
-            <button onClick={() => { setKanaBulkValues({}); setShowKanaBulk(true); }}>フリガナ一括入力</button>
             <button className={sortOrder === 'karteNo' ? 'active' : ''} onClick={() => setSortOrder('karteNo')}>番号順</button>
+            <button onClick={() => { setKanaBulkValues({}); setShowKanaBulk(true); }}>フリガナ一括入力</button>
           </div>
           {allCustomers != null && (
             <span className="karte-count">{shown.length} / {allCustomers.length}件</span>
