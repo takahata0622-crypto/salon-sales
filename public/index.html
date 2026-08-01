@@ -2424,7 +2424,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.28</span>
+              <span className="version">Ver 3.29</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -2955,15 +2955,18 @@
         const resolvedId = customerDoc.id;
         const recordsCol = customersCol.doc(resolvedId).collection('records');
         const recSnap = await recordsCol.where('date', '==', viewDate).limit(1).get();
-        if (recSnap.empty) return;
-        await recordsCol.doc(recSnap.docs[0].id).delete();
+        // 記録の同期がまだ完了していないタイミングで削除された場合、その日の記録自体が
+        // まだ無いこともある。その場合も「記録も何も無い空のお客様」なら片付ける。
+        if (!recSnap.empty) {
+          await recordsCol.doc(recSnap.docs[0].id).delete();
+        }
         const rSnap = await recordsCol.orderBy('date', 'desc').get();
         const cd = customerDoc.data();
         const isEmptyProfile = !(cd.feature || '').trim() && !(cd.memo || '').trim() && !(cd.kana || '').trim()
-          && !(cd.tel || '').trim() && !(cd.email || '').trim();
+          && !(cd.tel || '').trim() && !(cd.email || '').trim() && !(cd.gender || '').trim();
         if (rSnap.size === 0 && isEmptyProfile) {
           await customersCol.doc(resolvedId).delete();
-        } else {
+        } else if (!recSnap.empty) {
           await customersCol.doc(resolvedId).update({
             recordCount: rSnap.size,
             lastDate: rSnap.size > 0 ? rSnap.docs[0].data().date : '',
