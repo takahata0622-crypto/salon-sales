@@ -2463,7 +2463,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.31</span>
+              <span className="version">Ver 3.32</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -2579,17 +2579,48 @@
 
   // データボタンを押すと画面中央に開く、名前・特徴・既往歴・主訴・今回の施術の入力ポップアップ。
   // 各欄は入力中はローカルに保持するだけで、「保存」ボタンを押した時にまとめて保存する。
-  function EntryDataPanel({ entry, karteUser, karteCustomers, ensureKarteCustomer, saveEntryCustomerName, saveEntryMemo, saveEntryTodayCondition, onClose }) {
+  function EntryDataPanel({ entry, karteUser, karteCustomers, ensureKarteCustomer, saveEntryCustomerName, saveEntryMemo, saveEntryTodayCondition, setEntryGender, onClose }) {
     const [loading, setLoading] = useState(true);
     const [name, setName] = useState(entry.customerName || '');
     const [selectedCustomerId, setSelectedCustomerId] = useState(entry.customerId || '');
+    const [gender, setGender] = useState(entry.gender || '');
     const [kana, setKana] = useState('');
     const [feature, setFeature] = useState('');
     const [memo, setMemo] = useState('');
+    const [pastCondition, setPastCondition] = useState('');
     const [todayCondition, setTodayCondition] = useState(entry.todayCondition || '');
     const [treatment, setTreatment] = useState(entry.memo || '');
     const [errorMsg, setErrorMsg] = useState('');
     const [saving, setSaving] = useState(false);
+
+    // customerId・名前から、フリガナ・特徴・既往歴・過去の主訴・性別をまとめて取得する
+    // （名前欄で過去のお客様を選んだときに、この結果でポップアップの各欄を上書きする）
+    const fetchCustomerProfile = async (customerId, customerName) => {
+      const customersCol = karteDb.collection('users').doc(karteUser.uid).collection('customers');
+      let cd = null, cid = customerId || '';
+      if (cid) {
+        const idSnap = await customersCol.doc(cid).get();
+        if (idSnap.exists) cd = idSnap.data();
+      }
+      if (!cd && customerName) {
+        const snap = await customersCol.where('name', '==', customerName).limit(1).get();
+        if (!snap.empty) { cd = snap.docs[0].data(); cid = snap.docs[0].id; }
+      }
+      if (!cd) return null;
+      let condition = '';
+      if (cid) {
+        const recSnap = await customersCol.doc(cid).collection('records').orderBy('date', 'desc').limit(1).get();
+        if (!recSnap.empty) condition = recSnap.docs[0].data().condition || '';
+      }
+      return {
+        customerId: cid,
+        kana: cd.kana || '',
+        feature: cd.feature || '',
+        memo: (cd.memo || '').trim() || (!cd.feature && cd.note ? (cd.note || '').trim() : ''),
+        condition,
+        gender: cd.gender === '男性' ? 'male' : cd.gender === '女性' ? 'female' : '',
+      };
+    };
 
     useEffect(() => {
       let cancelled = false;
@@ -2597,28 +2628,12 @@
         setLoading(true);
         setErrorMsg('');
         try {
-          const customerName = (entry.customerName || '').trim();
-          const customersCol = karteDb.collection('users').doc(karteUser.uid).collection('customers');
-          // customerIdが分かっていればそれで直接特定する（同姓同名の別人と混同しないため）
-          let cd = null;
-          if (entry.customerId) {
-            const idSnap = await customersCol.doc(entry.customerId).get();
-            if (idSnap.exists) cd = idSnap.data();
-          }
-          if (!cd && customerName) {
-            const snap = await customersCol.where('name', '==', customerName).limit(1).get();
-            if (!snap.empty) cd = snap.docs[0].data();
-          }
+          const profile = await fetchCustomerProfile(entry.customerId, (entry.customerName || '').trim());
           if (cancelled) return;
-          if (cd) {
-            setKana(cd.kana || '');
-            setFeature(cd.feature || '');
-            setMemo((cd.memo || '').trim() || (!cd.feature && cd.note ? (cd.note || '').trim() : ''));
-          } else {
-            setKana('');
-            setFeature('');
-            setMemo('');
-          }
+          setKana(profile ? profile.kana : '');
+          setFeature(profile ? profile.feature : '');
+          setMemo(profile ? profile.memo : '');
+          setPastCondition(profile ? profile.condition : '');
         } catch (err) {
           if (!cancelled) setErrorMsg('取得に失敗しました：' + (err.message || err.code || err));
         } finally {
@@ -2627,6 +2642,32 @@
       })();
       return () => { cancelled = true; };
     }, [entry.customerName, entry.customerId]);
+
+    // 名前欄で過去のお客様を選んだ（または一致する名前が確定した）ときに、
+    // フリガナ・特徴・既往歴・過去の主訴・性別を過去データから反映する
+    const handleNameSave = async (nm, cid) => {
+      setName(nm);
+      setSelectedCustomerId(cid || '');
+      try {
+        const profile = await fetchCustomerProfile(cid, nm.trim());
+        if (profile) {
+          setKana(profile.kana);
+          setFeature(profile.feature);
+          setMemo(profile.memo);
+          setPastCondition(profile.condition);
+          setGender(profile.gender);
+          if (!cid && profile.customerId) setSelectedCustomerId(profile.customerId);
+        } else {
+          setKana('');
+          setFeature('');
+          setMemo('');
+          setPastCondition('');
+          setGender('');
+        }
+      } catch (err) {
+        setErrorMsg('取得に失敗しました：' + (err.message || err.code || err));
+      }
+    };
 
     const handleSave = async () => {
       setSaving(true);
@@ -2641,6 +2682,7 @@
           await karteDb.collection('users').doc(karteUser.uid).collection('customers').doc(customerId)
             .update({ kana: kana.trim(), feature: feature.trim(), memo: memo.trim() });
         }
+        setEntryGender(entry, gender);
         saveEntryTodayCondition(entry, todayCondition.trim());
         saveEntryMemo(entry, treatment.trim());
         onClose();
@@ -2665,8 +2707,10 @@
                   <CustomerNameField
                     entry={entry}
                     karteCustomers={karteCustomers}
-                    onSave={(nm, cid) => { setName(nm); setSelectedCustomerId(cid || ''); }}
+                    onSave={handleNameSave}
                   />
+                  <button className={`gender-btn ${gender === 'male' ? 'active' : ''}`} onClick={() => setGender(g => g === 'male' ? '' : 'male')}>男</button>
+                  <button className={`gender-btn ${gender === 'female' ? 'active' : ''}`} onClick={() => setGender(g => g === 'female' ? '' : 'female')}>女</button>
                 </div>
                 <div className="entry-memo-row">
                   <span className="entry-field-label">フリガナ</span>
@@ -2682,7 +2726,7 @@
                 </div>
                 <div className="entry-memo-row">
                   <span className="entry-field-label">過去の主訴</span>
-                  <span className="entry-condition-view">{entry.condition || '未入力'}</span>
+                  <span className="entry-condition-view">{pastCondition || '未入力'}</span>
                 </div>
                 <div className="entry-memo-row">
                   <span className="entry-field-label">今日の主訴</span>
@@ -3099,6 +3143,14 @@
       dayRef().collection('entries').doc(e.id).update(patch);
       syncEntryToKarte({ ...e, ...patch });
     };
+    // データポップアップの性別ボタン用（トグルではなく指定した値をそのままセットする）
+    const setEntryGender = (e, g) => {
+      if ((e.gender || '') === g) return;
+      if (!confirmEditIfSubmitted()) return;
+      const patch = { gender: g };
+      dayRef().collection('entries').doc(e.id).update(patch);
+      syncEntryToKarte({ ...e, ...patch });
+    };
     const saveEntryTodayCondition = (e, todayCondition) => {
       if ((e.todayCondition || '') === todayCondition) return;
       if (!confirmEditIfSubmitted()) return;
@@ -3321,6 +3373,7 @@
                     saveEntryCustomerName={saveEntryCustomerName}
                     saveEntryMemo={saveEntryMemo}
                     saveEntryTodayCondition={saveEntryTodayCondition}
+                    setEntryGender={setEntryGender}
                     onClose={() => toggleDataPanel(e.id)}
                   />
                 )}
