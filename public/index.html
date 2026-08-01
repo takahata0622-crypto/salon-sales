@@ -2424,7 +2424,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.29</span>
+              <span className="version">Ver 3.30</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -3932,6 +3932,7 @@
     const karteUser = useKarteAuth();
     const [query, setQuery] = useState('');
     const [kanaFilter, setKanaFilter] = useState(''); // '' または KANA_ROW_CHARS のキー
+    const [showTodayOnly, setShowTodayOnly] = useState(false); // 「すべて」を選択中に再度押すと「今日」に切り替わる
     const [sortOrder, setSortOrder] = useState('kana'); // 'karteNo' | 'kana'
     const [allCustomers, setAllCustomers] = useState(null); // null=未読込
     const [loadingList, setLoadingList] = useState(false);
@@ -4126,6 +4127,10 @@
         return !head || chars.includes(head); // フリガナ未登録は常に表示
       });
     }
+    if (showTodayOnly) {
+      const today = todayStr();
+      shown = shown.filter(c => c.lastDate === today); // 今日新規追加・今日施術を追加した人のみ
+    }
     shown = shown.slice().sort((a, b) =>
       sortOrder === 'karteNo'
         ? (a.karteNo || '99999').localeCompare(b.karteNo || '99999')
@@ -4168,9 +4173,15 @@
         </div>
 
         <div className="karte-kana-row">
-          <button className={kanaFilter === '' ? 'active' : ''} onClick={() => setKanaFilter('')}>すべて</button>
+          <button
+            className={kanaFilter === '' ? 'active' : ''}
+            onClick={() => {
+              if (kanaFilter === '') { setShowTodayOnly(v => !v); }
+              else { setKanaFilter(''); setShowTodayOnly(false); }
+            }}
+          >{showTodayOnly ? '今日' : 'すべて'}</button>
           {Object.keys(KANA_ROW_CHARS).map(k => (
-            <button key={k} className={kanaFilter === k ? 'active' : ''} onClick={() => setKanaFilter(k === kanaFilter ? '' : k)}>{k}</button>
+            <button key={k} className={kanaFilter === k ? 'active' : ''} onClick={() => { setKanaFilter(k === kanaFilter ? '' : k); setShowTodayOnly(false); }}>{k}</button>
           ))}
         </div>
 
