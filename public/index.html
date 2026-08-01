@@ -2413,7 +2413,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.18</span>
+              <span className="version">Ver 3.19</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -2456,8 +2456,8 @@
               <div className="menu-list">
                 <button className="menu-item" onClick={() => { setShowMenu(false); auth.signOut(); }}>B-oneログアウト</button>
                 {karteUser
-                  ? <button className="menu-item" onClick={() => { setShowMenu(false); karteAuth.signOut(); }}>ノーベルサロンログアウト</button>
-                  : <button className="menu-item" onClick={() => { setShowMenu(false); setTab('karte'); }}>ノーベルサロンログイン</button>
+                  ? <button className="menu-item" onClick={() => { setShowMenu(false); karteAuth.signOut(); }}>nouvelle-salonログアウト</button>
+                  : <button className="menu-item" onClick={() => { setShowMenu(false); setTab('karte'); }}>nouvelle-salonログイン</button>
                 }
                 <div className="menu-item menu-color-item">
                   <span>カラー変更</span>
