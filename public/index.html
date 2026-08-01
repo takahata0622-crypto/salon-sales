@@ -2413,7 +2413,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.19</span>
+              <span className="version">Ver 3.20</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -3821,6 +3821,7 @@
   // ========== カルテタブ（nouvelle-salon連携：お客様検索・来店履歴） ==========
   // カルテアプリ（nouvelle-salon）へのログインフォーム。カルテタブ・今日タブ共通。
   function KarteLoginBox() {
+    const [mode, setMode] = useState('login'); // 'login' | 'signup'
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [busy, setBusy] = useState(false);
@@ -3828,17 +3829,27 @@
 
     const submit = async () => {
       setError('');
+      if (mode === 'signup' && password.length < 6) {
+        setError('パスワードは6文字以上で入力してください。');
+        return;
+      }
       setBusy(true);
       try {
-        await karteAuth.signInWithEmailAndPassword(email.trim(), password);
+        if (mode === 'signup') {
+          await karteAuth.createUserWithEmailAndPassword(email.trim(), password);
+        } else {
+          await karteAuth.signInWithEmailAndPassword(email.trim(), password);
+        }
       } catch (err) {
         const map = {
           'auth/user-not-found': 'このメールアドレスは登録されていません。',
           'auth/wrong-password': 'パスワードが違います。',
           'auth/invalid-credential': 'メールアドレスまたはパスワードが違います。',
           'auth/invalid-email': 'メールアドレスの形式が正しくありません。',
+          'auth/email-already-in-use': 'このメールアドレスは既に登録されています。「ログイン」を選んでください。',
+          'auth/weak-password': 'パスワードは6文字以上で入力してください。',
         };
-        setError(map[err.code] || ('ログインに失敗しました：' + (err.message || err.code)));
+        setError(map[err.code] || ((mode === 'signup' ? '登録' : 'ログイン') + 'に失敗しました：' + (err.message || err.code)));
       } finally {
         setBusy(false);
       }
@@ -3848,9 +3859,15 @@
       <div className="karte-history-box">
         <div className="confirm-head"><span className="confirm-date">記録アプリにログイン</span></div>
         <div className="karte-customer-note">nouvelle-salonにログインしているご自身のアカウントでログインしてください。ご自身の記録データのみ閲覧できます。</div>
-        <input className="karte-search-input" style={{width:'100%', marginBottom:8}} type="email" placeholder="メールアドレス" value={email} onChange={e => setEmail(e.target.value)} />
-        <input className="karte-search-input" style={{width:'100%', marginBottom:8}} type="password" placeholder="パスワード" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') submit(); }} />
-        <button className="goal-save-btn" onClick={submit} disabled={busy || !email.trim() || !password}>{busy ? 'ログイン中…' : 'ログイン'}</button>
+        <div className="login-mode" style={{marginTop:12, marginBottom:0}}>
+          <button className={mode === 'login' ? 'active' : ''} onClick={() => { setMode('login'); setError(''); }}>ログイン</button>
+          <button className={mode === 'signup' ? 'active' : ''} onClick={() => { setMode('signup'); setError(''); }}>新規登録</button>
+        </div>
+        <input className="karte-search-input" style={{width:'100%', marginTop:12, marginBottom:8}} type="email" placeholder="メールアドレス" value={email} onChange={e => setEmail(e.target.value)} />
+        <input className="karte-search-input" style={{width:'100%', marginBottom:8}} type="password" placeholder={mode === 'signup' ? 'パスワード（6文字以上）' : 'パスワード'} value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') submit(); }} />
+        <button className="goal-save-btn" onClick={submit} disabled={busy || !email.trim() || !password}>
+          {busy ? '処理中…' : (mode === 'signup' ? '登録する' : 'ログイン')}
+        </button>
         {error && <div className="confirm-note" style={{color:'var(--danger)', marginTop:8}}>{error}</div>}
       </div>
     );
