@@ -2421,7 +2421,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.22</span>
+              <span className="version">Ver 3.23</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -3032,14 +3032,17 @@
       });
     };
 
-    // 名前欄に入っているお客様が、記録アプリに既に登録済みか新規かを判定する（表示用）
+    // 名前欄に入っているお客様が、表示中の日より前から来店履歴がある「既存」か、
+    // 今日（表示中の日）が初来店の「新規」かを判定する（表示用）。
+    // 今日新規登録した人は、その日のうちに保存済みになっても「新」のまま。
     const customerExistence = (e) => {
       const name = (e.customerName || '').trim();
       if (!name) return null;
-      const known = e.customerId
-        ? karteCustomers.some(c => c.customerId === e.customerId)
-        : karteCustomers.some(c => c.name === name);
-      return known ? '既' : '新';
+      const matched = e.customerId
+        ? karteCustomers.find(c => c.customerId === e.customerId)
+        : karteCustomers.find(c => c.name === name);
+      if (!matched || !matched.lastDate) return '新';
+      return matched.lastDate < viewDate ? '既' : '新';
     };
 
     const deleteEntry = async (id) => {
