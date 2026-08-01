@@ -122,6 +122,29 @@
       padding: 0;
     }
     .color-swatch.active { box-shadow: 0 0 0 2px var(--ink); }
+    .dark-mode-toggle {
+      width: 44px;
+      height: 24px;
+      border-radius: 12px;
+      background: var(--border);
+      border: none;
+      position: relative;
+      cursor: pointer;
+      padding: 0;
+      transition: background 0.15s ease;
+    }
+    .dark-mode-toggle.active { background: var(--accent); }
+    .dark-mode-toggle-knob {
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #fff;
+      transition: transform 0.15s ease;
+    }
+    .dark-mode-toggle.active .dark-mode-toggle-knob { transform: translateX(20px); }
 
     .user-row {
       display: flex;
@@ -2064,14 +2087,19 @@
   const firstKanaChar = (s) => { const t = (s || '').trim(); return t ? t.charAt(0) : ''; };
 
   // カラー変更：ブランドカラー（--accent / --accent-light）の切り替え候補
+  // darkLight はダークモード時に使う --accent-light（明るいパステルだと眩しいため暗めの色調にしてある）
   const ACCENT_THEMES = [
-    { id: 'brown', name: 'ブラウン', accent: '#9B6A4A', light: '#F3EAE0' },
-    { id: 'rose',  name: 'ローズ',   accent: '#B4708A', light: '#F6E9ED' },
-    { id: 'green', name: 'グリーン', accent: '#6B8F71', light: '#E8F0E9' },
-    { id: 'navy',  name: 'ネイビー', accent: '#4A6B8A', light: '#E8EDF3' },
-    { id: 'gray',  name: 'グレー',   accent: '#6B6B6B', light: '#ECECEC' },
+    { id: 'brown', name: 'ブラウン', accent: '#9B6A4A', light: '#F3EAE0', darkLight: '#3A2E26' },
+    { id: 'rose',  name: 'ローズ',   accent: '#B4708A', light: '#F6E9ED', darkLight: '#3A2530' },
+    { id: 'green', name: 'グリーン', accent: '#6B8F71', light: '#E8F0E9', darkLight: '#253328' },
+    { id: 'navy',  name: 'ネイビー', accent: '#4A6B8A', light: '#E8EDF3', darkLight: '#212F3D' },
+    { id: 'gray',  name: 'グレー',   accent: '#6B6B6B', light: '#ECECEC', darkLight: '#2E2E2E' },
   ];
   const ACCENT_THEME_STORAGE_KEY = 'boneAccentTheme';
+  const DARK_MODE_STORAGE_KEY = 'boneDarkMode';
+  // ダークモード用の基本配色（ライト時のデフォルトは:root側のCSSで定義済み）
+  const DARK_COLORS = { bg: '#1C1916', card: '#262220', ink: '#EDE7E0', muted: '#A79C90', border: '#3A342F' };
+  const LIGHT_COLORS = { bg: '#F7F3EE', card: '#FFFFFF', ink: '#1A1714', muted: '#8A7F76', border: '#E5DDD5' };
 
   // ボディケア初売りチケット：給料計算でのみ1枚あたり加算する金額（歩合対象）
   const TICKET_SALARY = 5000;
@@ -2313,16 +2341,30 @@
     const [viewDate, setViewDate] = useState(todayStr());
     const [showMenu, setShowMenu] = useState(false); // ハンバーガーメニューの開閉
     const [accentThemeId, setAccentThemeId] = useState(() => localStorage.getItem(ACCENT_THEME_STORAGE_KEY) || 'brown');
+    const [darkMode, setDarkMode] = useState(() => localStorage.getItem(DARK_MODE_STORAGE_KEY) === '1');
     const karteUser = useKarteAuth(); // メニューの「ノーベルサロンログイン／ログアウト」表示切り替え用
 
     useEffect(() => {
       const theme = ACCENT_THEMES.find(t => t.id === accentThemeId) || ACCENT_THEMES[0];
       document.documentElement.style.setProperty('--accent', theme.accent);
-      document.documentElement.style.setProperty('--accent-light', theme.light);
-    }, [accentThemeId]);
+      document.documentElement.style.setProperty('--accent-light', darkMode ? theme.darkLight : theme.light);
+      const base = darkMode ? DARK_COLORS : LIGHT_COLORS;
+      document.documentElement.style.setProperty('--bg', base.bg);
+      document.documentElement.style.setProperty('--card', base.card);
+      document.documentElement.style.setProperty('--ink', base.ink);
+      document.documentElement.style.setProperty('--muted', base.muted);
+      document.documentElement.style.setProperty('--border', base.border);
+    }, [accentThemeId, darkMode]);
     const chooseAccentTheme = (id) => {
       setAccentThemeId(id);
       localStorage.setItem(ACCENT_THEME_STORAGE_KEY, id);
+    };
+    const toggleDarkMode = () => {
+      setDarkMode(prev => {
+        const next = !prev;
+        localStorage.setItem(DARK_MODE_STORAGE_KEY, next ? '1' : '0');
+        return next;
+      });
     };
 
     useEffect(() => {
@@ -2371,7 +2413,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.17</span>
+              <span className="version">Ver 3.18</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -2431,6 +2473,12 @@
                       />
                     ))}
                   </div>
+                </div>
+                <div className="menu-item menu-color-item">
+                  <span>ダークモード</span>
+                  <button className={`dark-mode-toggle ${darkMode ? 'active' : ''}`} onClick={toggleDarkMode} aria-pressed={darkMode}>
+                    <span className="dark-mode-toggle-knob" />
+                  </button>
                 </div>
               </div>
             </div>
