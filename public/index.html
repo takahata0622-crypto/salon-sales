@@ -2371,7 +2371,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.16</span>
+              <span className="version">Ver 3.17</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -2467,7 +2467,7 @@
               <div
                 key={i}
                 className="entry-name-suggest-item"
-                onMouseDown={ev => { ev.preventDefault(); setValue(c.name); onSave(c.name); setShowList(false); }}
+                onMouseDown={ev => { ev.preventDefault(); setValue(c.name); onSave(c.name, c.customerId); setShowList(false); }}
               >
                 <div>{c.name}{c.kana && <span className="entry-name-suggest-kana"> {c.kana}</span>}</div>
                 <div className="entry-name-suggest-info">最終来店 {c.lastDate || '—'}（{c.recordCount || 0}回）</div>
@@ -2494,11 +2494,19 @@
         setErrorMsg('');
         try {
           const customerName = (entry.customerName || '').trim();
-          const snap = await karteDb.collection('users').doc(karteUser.uid).collection('customers')
-            .where('name', '==', customerName).limit(1).get();
+          const customersCol = karteDb.collection('users').doc(karteUser.uid).collection('customers');
+          // customerIdが分かっていればそれで直接特定する（同姓同名の別人と混同しないため）
+          let cd = null;
+          if (entry.customerId) {
+            const idSnap = await customersCol.doc(entry.customerId).get();
+            if (idSnap.exists) cd = idSnap.data();
+          }
+          if (!cd) {
+            const snap = await customersCol.where('name', '==', customerName).limit(1).get();
+            if (!snap.empty) cd = snap.docs[0].data();
+          }
           if (cancelled) return;
-          if (!snap.empty) {
-            const cd = snap.docs[0].data();
+          if (cd) {
             setKana(cd.kana || '');
             setFeature(cd.feature || '');
             setMemo((cd.memo || '').trim() || (!cd.feature && cd.note ? (cd.note || '').trim() : ''));
@@ -2514,13 +2522,13 @@
         }
       })();
       return () => { cancelled = true; };
-    }, [entry.customerName]);
+    }, [entry.customerName, entry.customerId]);
 
     const saveFeatureMemo = async (nextKana, nextFeature, nextMemo) => {
       setErrorMsg('');
       try {
         const customerName = (entry.customerName || '').trim();
-        const customerId = await ensureKarteCustomer(customerName);
+        const customerId = entry.customerId || await ensureKarteCustomer(customerName);
         await karteDb.collection('users').doc(karteUser.uid).collection('customers').doc(customerId)
           .update({ kana: nextKana.trim(), feature: nextFeature.trim(), memo: nextMemo.trim() });
       } catch (err) {
@@ -2717,7 +2725,7 @@
       // 親ドキュメントを作成（集計で日付が拾えるように）
       await dayRef().set({ date: today }, { merge: true });
       const ref = await dayRef().collection('entries')
-        .add({ name, price: Number(price), lodging: false, discount: false, extMin: 0, shimei: false, seibetsu: false, ganseihirou: false, customerName: '', gender: '', condition: '', todayCondition: '', createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+        .add({ name, price: Number(price), lodging: false, discount: false, extMin: 0, shimei: false, seibetsu: false, ganseihirou: false, customerName: '', customerId: '', gender: '', condition: '', todayCondition: '', createdAt: firebase.firestore.FieldValue.serverTimestamp() });
       markNew(ref.id);
       showAddedToast(name);
     };
@@ -2757,7 +2765,19 @@
       const genderJa = e.gender === 'male' ? '男性' : e.gender === 'female' ? '女性' : '';
       try {
         const customersCol = karteDb.collection('users').doc(karteUser.uid).collection('customers');
-        const customerId = await ensureKarteCustomer(customerName, genderJa);
+        // 伝票に既にcustomerIdが紐づいていればそれを優先して使う（同姓同名の別人と混同しないため）。
+        // 無ければ名前で検索／新規作成し、解決したIDを伝票側にも保存して次回以降はIDで直接特定できるようにする。
+        let customerId = e.customerId || null;
+        if (customerId) {
+          const idSnap = await customersCol.doc(customerId).get();
+          if (!idSnap.exists) customerId = null;
+        }
+        if (!customerId) {
+          customerId = await ensureKarteCustomer(customerName, genderJa);
+        }
+        if (customerId !== e.customerId) {
+          dayRef().collection('entries').doc(e.id).update({ customerId });
+        }
 
         const option = [];
         if (isSetMenu(e.name)) {
@@ -2856,21 +2876,30 @@
       dayRef().collection('entries').doc(e.id).update({ memo });
       syncEntryToKarte({ ...e, memo });
     };
-    // customerName のその日（viewDate）の来店記録をカルテから削除する。
+    // customerNameのその日（viewDate）の来店記録をカルテから削除する。
+    // customerIdが分かっていればそれで直接特定する（同姓同名の別人と混同しないため）。
+    // 分からない場合のみ、従来通り名前で検索する（古い伝票など）。
     // 来店記録が0件になり、他の情報も未入力（＝入力ミスで作られただけ）なら、お客様データごと削除する。
     // excludeEntryId は「今まさに名前を変更／削除しようとしている伝票自身」を除いて、
     // 同じ日の他の伝票がまだ同じ名前を使っていないか確認するために使う。
-    const removeKarteRecordForName = async (customerName, excludeEntryId) => {
+    const removeKarteRecordForEntry = async (customerName, customerId, excludeEntryId) => {
       if (!customerName || !karteUser) return;
       const stillUsed = entries.some(other => other.id !== excludeEntryId && (other.customerName || '').trim() === customerName);
       if (stillUsed) return;
       try {
         const customersCol = karteDb.collection('users').doc(karteUser.uid).collection('customers');
-        const custSnap = await customersCol.where('name', '==', customerName).limit(1).get();
-        if (custSnap.empty) return;
-        const customerDoc = custSnap.docs[0];
-        const customerId = customerDoc.id;
-        const recordsCol = customersCol.doc(customerId).collection('records');
+        let customerDoc = null;
+        if (customerId) {
+          const idSnap = await customersCol.doc(customerId).get();
+          if (idSnap.exists) customerDoc = idSnap;
+        }
+        if (!customerDoc) {
+          const custSnap = await customersCol.where('name', '==', customerName).limit(1).get();
+          if (custSnap.empty) return;
+          customerDoc = custSnap.docs[0];
+        }
+        const resolvedId = customerDoc.id;
+        const recordsCol = customersCol.doc(resolvedId).collection('records');
         const recSnap = await recordsCol.where('date', '==', viewDate).limit(1).get();
         if (recSnap.empty) return;
         await recordsCol.doc(recSnap.docs[0].id).delete();
@@ -2879,9 +2908,9 @@
         const isEmptyProfile = !(cd.feature || '').trim() && !(cd.memo || '').trim() && !(cd.kana || '').trim()
           && !(cd.tel || '').trim() && !(cd.email || '').trim();
         if (rSnap.size === 0 && isEmptyProfile) {
-          await customersCol.doc(customerId).delete();
+          await customersCol.doc(resolvedId).delete();
         } else {
-          await customersCol.doc(customerId).update({
+          await customersCol.doc(resolvedId).update({
             recordCount: rSnap.size,
             lastDate: rSnap.size > 0 ? rSnap.docs[0].data().date : '',
           });
@@ -2889,24 +2918,28 @@
       } catch (err) { /* 削除できなくても伝票側の操作自体は継続する */ }
     };
 
-    const saveEntryCustomerName = async (e, customerName) => {
+    // customerId が分かっているとき（候補から選んだ場合）はそれを直接使い、
+    // 分からないとき（自由入力）は syncEntryToKarte 側で名前から解決する。
+    const saveEntryCustomerName = async (e, customerName, selectedCustomerId) => {
       const oldName = (e.customerName || '').trim();
+      const oldCustomerId = e.customerId || null;
       if (oldName === customerName) return;
       if (!confirmEditIfSubmitted()) return;
-      dayRef().collection('entries').doc(e.id).update({ customerName });
-      syncEntryToKarte({ ...e, customerName });
+      const patch = { customerName, customerId: selectedCustomerId || '' };
+      dayRef().collection('entries').doc(e.id).update(patch);
+      syncEntryToKarte({ ...e, ...patch });
 
       // 名前を変更した場合、変更前の名前のその日の来店記録が残ってしまわないよう削除する
       // （同じ日の他の伝票がまだ同じ名前を使っている場合は削除しない）
-      await removeKarteRecordForName(oldName, e.id);
+      await removeKarteRecordForEntry(oldName, oldCustomerId, e.id);
 
       // 登録済みのお客様なら、最新の来店記録の「主訴」を参照表示用に取得する（この画面からは編集できない）
-      const matched = karteCustomers.find(c => c.name === customerName);
+      const matchedId = selectedCustomerId || (karteCustomers.find(c => c.name === customerName) || {}).customerId;
       let condition = '';
-      if (matched && karteUser) {
+      if (matchedId && karteUser) {
         try {
           const recSnap = await karteDb.collection('users').doc(karteUser.uid)
-            .collection('customers').doc(matched.customerId)
+            .collection('customers').doc(matchedId)
             .collection('records').orderBy('date', 'desc').limit(1).get();
           if (!recSnap.empty) condition = recSnap.docs[0].data().condition || '';
         } catch (err) { /* 参照表示できなくても保存自体は継続する */ }
@@ -2941,7 +2974,7 @@
       await dayRef().collection('entries').doc(id).delete();
       // 伝票を削除したら、その伝票からカルテに反映されていたその日の来店記録も削除する
       // （同じ日の他の伝票がまだ同じ名前を使っている場合は削除しない）
-      if (target) await removeKarteRecordForName((target.customerName || '').trim(), id);
+      if (target) await removeKarteRecordForEntry((target.customerName || '').trim(), target.customerId || null, id);
     };
 
     // 並び替え：隣り合うエントリの createdAt を入れ替えて順番を変更する
@@ -3108,7 +3141,7 @@
                   <CustomerNameField
                     entry={e}
                     karteCustomers={karteCustomers}
-                    onSave={name => saveEntryCustomerName(e, name)}
+                    onSave={(name, customerId) => saveEntryCustomerName(e, name, customerId)}
                   />
                   <button className={`data-btn ${openDataPanels.has(e.id) ? 'active' : ''}`} disabled={!(e.customerName || '').trim()} onClick={() => toggleDataPanel(e.id)}>データ</button>
                   <button className={`gender-btn ${e.gender === 'male' ? 'active' : ''}`} disabled={!(e.customerName || '').trim()} onClick={() => toggleEntryGender(e, 'male')}>男</button>
@@ -3877,7 +3910,7 @@
           const daysSnap = await db.collection('users').doc(uid).collection('days').get();
           for (const dayDoc of daysSnap.docs) {
             const entriesSnap = await dayDoc.ref.collection('entries').where('customerName', '==', c.name).get();
-            await Promise.all(entriesSnap.docs.map(d => d.ref.update({ customerName: '' })));
+            await Promise.all(entriesSnap.docs.map(d => d.ref.update({ customerName: '', customerId: '' })));
           }
         }
 
