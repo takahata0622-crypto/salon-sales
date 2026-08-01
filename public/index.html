@@ -958,6 +958,7 @@
     }
     .customer-existence-badge.existing { color: var(--accent); }
     .customer-existence-badge.new { color: var(--success); }
+    .customer-existence-badge.pending { color: var(--muted); }
     .entry-data-panel .entry-memo-row:not(:last-child) { margin-bottom: 8px; }
 
     .entry-main {
@@ -2421,7 +2422,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.23</span>
+              <span className="version">Ver 3.24</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -3037,7 +3038,7 @@
     // 今日新規登録した人は、その日のうちに保存済みになっても「新」のまま。
     const customerExistence = (e) => {
       const name = (e.customerName || '').trim();
-      if (!name) return null;
+      if (!name) return '未';
       const matched = e.customerId
         ? karteCustomers.find(c => c.customerId === e.customerId)
         : karteCustomers.find(c => c.name === name);
@@ -3220,9 +3221,11 @@
                     karteCustomers={karteCustomers}
                     onSave={(name, customerId) => saveEntryCustomerName(e, name, customerId)}
                   />
-                  {customerExistence(e) && (
-                    <span className={`customer-existence-badge ${customerExistence(e) === '既' ? 'existing' : 'new'}`}>◯{customerExistence(e)}</span>
-                  )}
+                  {(() => {
+                    const cx = customerExistence(e);
+                    const cls = cx === '既' ? 'existing' : cx === '新' ? 'new' : 'pending';
+                    return <span className={`customer-existence-badge ${cls}`}>{cx === '未' ? '✗未' : `◯${cx}`}</span>;
+                  })()}
                   <button className={`data-btn ${openDataPanels.has(e.id) ? 'active' : ''}`} disabled={!(e.customerName || '').trim()} onClick={() => toggleDataPanel(e.id)}>データ</button>
                   <button className={`gender-btn ${e.gender === 'male' ? 'active' : ''}`} disabled={!(e.customerName || '').trim()} onClick={() => toggleEntryGender(e, 'male')}>男</button>
                   <button className={`gender-btn ${e.gender === 'female' ? 'active' : ''}`} disabled={!(e.customerName || '').trim()} onClick={() => toggleEntryGender(e, 'female')}>女</button>
