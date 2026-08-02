@@ -2615,7 +2615,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.69</span>
+              <span className="version">Ver 3.70</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -2862,7 +2862,7 @@
         kana: cd.kana || '',
         feature: cd.feature || '',
         memo: (cd.memo || '').trim() || (!cd.feature && cd.note ? (cd.note || '').trim() : ''),
-        strength: typeof cd.strength === 'number' ? cd.strength : 5,
+        strength: typeof cd.strength === 'number' ? cd.strength : 0,
         condition,
         gender: cd.gender === '男性' ? 'male' : cd.gender === '女性' ? 'female' : '',
       };
@@ -3175,7 +3175,7 @@
       const karteNo = String(maxNo + 1).padStart(4, '0');
       const newDoc = await customersCol.add({
         name: customerName, kana: '', tel: '', email: '', birthday: '', gender: genderJa || '',
-        feature: '', memo: '', note: '', karteNo,
+        feature: '', memo: '', note: '', strength: 5, karteNo,
         recordCount: 0, lastDate: '', createdAt: new Date(),
       });
       return { customerId: newDoc.id, isNew: true };
@@ -4363,7 +4363,7 @@
         // nouvelle-salon本体と同じフォールバック：メモも特徴も空なら、旧フィールド note の内容をメモとして表示する
         const featureText = (cd.feature || '').trim();
         const memoText = (cd.memo || '').trim() || (!featureText && cd.note ? (cd.note || '').trim() : '');
-        setHistory({ name: cd.name || c.name, kana: cd.kana || c.kana, gender: cd.gender || '', strength: typeof cd.strength === 'number' ? cd.strength : 5, feature: featureText, memo: memoText, records });
+        setHistory({ name: cd.name || c.name, kana: cd.kana || c.kana, gender: cd.gender || '', strength: typeof cd.strength === 'number' ? cd.strength : 0, feature: featureText, memo: memoText, records });
       } catch (err) {
         setErrorMsg('履歴の取得に失敗しました：' + (err.message || err.code || err));
       } finally {
@@ -4451,7 +4451,7 @@
       setEditName(history.name || '');
       setEditKana(history.kana || '');
       setEditGender(history.gender || '');
-      setEditStrength(history.strength || 5);
+      setEditStrength(history.strength ?? 5);
       setEditFeature(history.feature || '');
       setEditMemo(history.memo || '');
       setEditingNote(true);
@@ -4633,7 +4633,7 @@
                         {history.gender && <div>性別：{history.gender}</div>}
                         {history.feature && <div>特徴：{history.feature}</div>}
                         {history.memo && <div>既往歴：{history.memo}</div>}
-                        <div>強さ：{history.strength || 5}/10</div>
+                        <div>強さ：{history.strength ?? 5}/10</div>
                       </div>
                     )
                   )}
