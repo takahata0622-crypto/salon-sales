@@ -565,7 +565,7 @@
       width: 60px;
       height: 60px;
       border-radius: 50%;
-      background: #5C9A5C;
+      background: var(--success);
       color: #fff;
       border: none;
       font-size: 32px;
@@ -2501,7 +2501,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.51</span>
+              <span className="version">Ver 3.52</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -3604,7 +3604,7 @@
           {rate !== null && (
             <div style={{textAlign:'right', lineHeight:1.2}}>
               <div className="stat-label" style={{fontSize:11, opacity:0.7}}>{isCurrentMonth ? '今日時点の達成率' : '達成率'}</div>
-              <div style={{fontSize:18, fontWeight:700, color: rate >= 100 ? '#27ae60' : 'inherit'}}>
+              <div style={{fontSize:18, fontWeight:700, color: rate >= 100 ? 'var(--accent)' : 'inherit'}}>
                 {rate}%{rate >= 100 ? ' 🎉' : ''}
               </div>
             </div>
@@ -3744,8 +3744,8 @@
               <div className="chart-title">日別売上・月間累計</div>
               <div className="chart-legend">
                 <span className="lg"><span className="sw" style={{ background: 'var(--accent)' }}></span>日別売上（棒）</span>
-                <span className="lg"><span className="sw" style={{ background: '#e67e22' }}></span>月間累計（線）</span>
-                <span className="lg"><span className="sw" style={{ background: '#27ae60' }}></span>目標</span>
+                <span className="lg"><span className="sw" style={{ background: 'var(--accent)' }}></span>月間累計（線）</span>
+                <span className="lg"><span className="sw" style={{ background: 'var(--success)' }}></span>目標</span>
               </div>
               <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block' }}>
                   {ticks.map((f, i) => {
@@ -3754,16 +3754,16 @@
                       <g key={i}>
                         <line x1={padL} y1={gy} x2={W - padR} y2={gy} stroke="var(--border)" strokeDasharray={f === 0 ? '' : '3,3'} />
                         <text x={padL - 4} y={gy + 3} textAnchor="end" fontSize="9" fill="var(--accent)">{fmtAxis(maxDaily * f)}</text>
-                        <text x={W - padR + 4} y={gy + 3} textAnchor="start" fontSize="9" fill="#e67e22">{fmtAxis(maxCum * f)}</text>
+                        <text x={W - padR + 4} y={gy + 3} textAnchor="start" fontSize="9" fill="var(--accent)">{fmtAxis(maxCum * f)}</text>
                       </g>
                     );
                   })}
                   {daily.map((v, i) => v > 0 && (
                     <rect key={i} x={cx(i) - barW / 2} y={yBar(v)} width={barW} height={padT + innerH - yBar(v)} fill="var(--accent)" rx="2" />
                   ))}
-                  <path d={linePath} fill="none" stroke="#e67e22" strokeWidth="2" />
+                  <path d={linePath} fill="none" stroke="var(--accent)" strokeWidth="2" />
                   {cum.map((v, i) => (
-                    <circle key={i} cx={cx(i)} cy={yLine(v)} r="2.5" fill="#e67e22" />
+                    <circle key={i} cx={cx(i)} cy={yLine(v)} r="2.5" fill="var(--accent)" />
                   ))}
                   {salesTarget > 0 && (() => {
                     // 休業日を除いた営業日ベースの日割り目標線（休みの日は横ばいになる）
@@ -3773,8 +3773,8 @@
                     const startY = yLine(salesTarget * bizDaysUpTo(1) / bizDaysTotal);
                     return (
                       <g key="goal">
-                        <path d={goalPath} fill="none" stroke="#27ae60" strokeWidth="1.5" strokeDasharray="5,3" />
-                        <text x={padL + 2} y={startY - 3} fontSize="8" fill="#27ae60">目標</text>
+                        <path d={goalPath} fill="none" stroke="var(--success)" strokeWidth="1.5" strokeDasharray="5,3" />
+                        <text x={padL + 2} y={startY - 3} fontSize="8" fill="var(--success)">目標</text>
                       </g>
                     );
                   })()}
