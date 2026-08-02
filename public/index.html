@@ -1068,7 +1068,7 @@
     .entry-disc-note {
       font-size: 14px;
       font-weight: 700;
-      color: var(--danger);
+      color: var(--success);
     }
 
     .toggle-btn.sm {
@@ -2485,7 +2485,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.45</span>
+              <span className="version">Ver 3.46</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -3364,7 +3364,7 @@
                           <React.Fragment key={i}>
                             {i > 0 && '＋'}
                             {p.label}
-                            <span style={p.discounted ? {color:'var(--danger)'} : undefined}>{p.amount.toLocaleString()}</span>
+                            <span style={p.discounted ? {color:'var(--success)'} : undefined}>{p.amount.toLocaleString()}</span>
                           </React.Fragment>
                         ))}
                       </span>
