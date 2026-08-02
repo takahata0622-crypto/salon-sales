@@ -2488,6 +2488,7 @@
       return STAT_ITEM_DEFS.map(s => s.id);
     });
     const [showStatPicker, setShowStatPicker] = useState(false); // 集計タブの表示項目設定ポップアップ（メニューから開く）
+    const [openKanaBulk, setOpenKanaBulk] = useState(false); // 記録タブのフリガナ一括入力を開くトリガー（メニューから開く）
     const toggleStatId = (id) => {
       setVisibleStatIds(prev => {
         const has = prev.includes(id);
@@ -2584,7 +2585,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.65</span>
+              <span className="version">Ver 3.66</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -2614,7 +2615,7 @@
           {tab === 'history' && <HistoryTab uid={uid} visibleStatIds={visibleStatIds} />}
           {tab === 'submit' && <SubmitTab uid={uid} userName={user.displayName || ''} dept={dept} setDept={handleSetDept} viewDate={viewDate} setViewDate={setViewDate} />}
           {tab === 'confirm' && <ConfirmTab uid={uid} userName={user.displayName || ''} />}
-          {tab === 'karte' && <KarteTab uid={uid} />}
+          {tab === 'karte' && <KarteTab uid={uid} openKanaBulk={openKanaBulk} onKanaBulkHandled={() => setOpenKanaBulk(false)} />}
         </div>
 
         {showMenu && (
@@ -2627,6 +2628,9 @@
               <div className="menu-list">
                 <button className="menu-item" onClick={() => { setShowMenu(false); setShowStatPicker(true); }}>
                   集計の表示項目設定（{visibleStatIds.length}）
+                </button>
+                <button className="menu-item" onClick={() => { setShowMenu(false); setTab('karte'); setOpenKanaBulk(true); }}>
+                  フリガナ一括入力
                 </button>
                 <button className="menu-item" onClick={() => { setShowMenu(false); auth.signOut(); }}>B-oneログアウト</button>
                 {karteUser
@@ -4189,7 +4193,7 @@
     );
   }
 
-  function KarteTab({ uid }) {
+  function KarteTab({ uid, openKanaBulk, onKanaBulkHandled }) {
     const karteUser = useKarteAuth();
     const [query, setQuery] = useState('');
     const [kanaFilter, setKanaFilter] = useState(''); // '' または KANA_ROW_CHARS のキー
@@ -4212,6 +4216,15 @@
     const [showKanaBulk, setShowKanaBulk] = useState(false); // フリガナ一括入力ポップアップ
     const [kanaBulkValues, setKanaBulkValues] = useState({}); // customerId -> フリガナ入力中の値
     const [savingKanaBulk, setSavingKanaBulk] = useState(false);
+
+    // ハンバーガーメニューの「フリガナ一括入力」から開かれた場合、このタブに来たタイミングで開く
+    useEffect(() => {
+      if (openKanaBulk) {
+        setKanaBulkValues({});
+        setShowKanaBulk(true);
+        onKanaBulkHandled();
+      }
+    }, [openKanaBulk]);
 
     // お客様一覧を取得（ログイン中の本人のアカウント配下だけを取得。他アカウントは見えない）
     const loadAll = async () => {
@@ -4446,7 +4459,6 @@
           <div className="karte-sort-toggle">
             <button className={sortOrder === 'kana' ? 'active' : ''} onClick={() => { setSortOrder('kana'); backToList(); }}>あいうえお順</button>
             <button className={sortOrder === 'karteNo' ? 'active' : ''} onClick={() => { setSortOrder('karteNo'); backToList(); }}>番号順</button>
-            <button onClick={() => { setKanaBulkValues({}); setShowKanaBulk(true); }}>フリガナ一括入力</button>
           </div>
           {allCustomers != null && (
             <span className="karte-count">{shown.length} / {allCustomers.length}件</span>
