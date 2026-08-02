@@ -2624,7 +2624,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.77</span>
+              <span className="version">Ver 3.78</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -2943,7 +2943,7 @@
         setEntryGender(entry, gender);
         saveEntryTodayCondition(entry, todayCondition.trim());
         saveEntryMemo(entry, treatment.trim());
-        markEntryDataSaved(entry);
+        if (trimmedName) markEntryDataSaved(entry);
         onClose();
       } catch (err) {
         setErrorMsg('保存に失敗しました：' + (err.message || err.code || err));
