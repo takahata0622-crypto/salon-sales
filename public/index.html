@@ -974,6 +974,7 @@
       justify-content: center;
       cursor: pointer;
     }
+    .data-btn svg { width: 17px; height: 17px; }
     .data-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
     .data-btn:disabled { opacity: 0.5; cursor: default; }
     .save-status-btn {
@@ -2494,7 +2495,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.40</span>
+              <span className="version">Ver 3.41</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -3397,7 +3398,12 @@
                       >{synced ? '保存済' : '未保存'}</button>
                     );
                   })()}
-                  <button className={`data-btn ${openDataPanels.has(e.id) ? 'active' : ''}`} onClick={() => toggleDataPanel(e.id)} aria-label="データ入力">✎</button>
+                  <button className={`data-btn ${openDataPanels.has(e.id) ? 'active' : ''}`} onClick={() => toggleDataPanel(e.id)} aria-label="データ入力">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4Z" />
+                    </svg>
+                  </button>
                 </div>
                 {openDataPanels.has(e.id) && (
                   <EntryDataPanel
