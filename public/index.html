@@ -111,7 +111,8 @@
       cursor: pointer;
     }
     .menu-item:active { background: var(--accent-light); }
-    .color-swatch-row { display: flex; gap: 8px; }
+    .menu-color-swatch-item { flex-direction: column; align-items: flex-start; gap: 10px; cursor: default; }
+    .color-swatch-row { display: flex; flex-wrap: wrap; gap: 8px; }
     .color-swatch {
       width: 26px;
       height: 26px;
@@ -2169,21 +2170,31 @@
   // カラー変更：ブランドカラー（--accent / --accent-light）の切り替え候補
   // darkLight はダークモード時に使う --accent-light（明るいパステルだと眩しいため暗めの色調にしてある）
   const ACCENT_THEMES = [
-    { id: 'brown', name: 'ブラウン', accent: '#9B6A4A', light: '#F3EAE0', darkLight: '#3A2E26' },
-    { id: 'rose',  name: 'ローズ',   accent: '#B4708A', light: '#F6E9ED', darkLight: '#3A2530' },
-    { id: 'green', name: 'グリーン', accent: '#6B8F71', light: '#E8F0E9', darkLight: '#253328' },
-    { id: 'navy',  name: 'ネイビー', accent: '#4A6B8A', light: '#E8EDF3', darkLight: '#212F3D' },
-    { id: 'gray',  name: 'グレー',   accent: '#6B6B6B', light: '#ECECEC', darkLight: '#2E2E2E' },
+    { id: 'brown',      name: 'ブラウン',     accent: '#9B6A4A', light: '#F3EAE0', darkLight: '#3A2E26' },
+    { id: 'rose',       name: 'ローズ',       accent: '#B4708A', light: '#F6E9ED', darkLight: '#3A2530' },
+    { id: 'green',      name: 'グリーン',     accent: '#6B8F71', light: '#E8F0E9', darkLight: '#253328' },
+    { id: 'navy',       name: 'ネイビー',     accent: '#4A6B8A', light: '#E8EDF3', darkLight: '#212F3D' },
+    { id: 'gray',       name: 'グレー',       accent: '#6B6B6B', light: '#ECECEC', darkLight: '#2E2E2E' },
+    { id: 'terracotta', name: 'テラコッタ',   accent: '#C16B4A', light: '#F6E7DF', darkLight: '#3E2B20' },
+    { id: 'mustard',    name: 'マスタード',   accent: '#B8922E', light: '#F5EEDA', darkLight: '#3B3220' },
+    { id: 'teal',       name: 'ティール',     accent: '#3E8E82', light: '#E3F1EF', darkLight: '#1E3532' },
+    { id: 'indigo',     name: 'インディゴ',   accent: '#5A6BAE', light: '#E9EBF6', darkLight: '#262A42' },
+    { id: 'plum',       name: 'プラム',       accent: '#8A5A8A', light: '#F0E6F0', darkLight: '#352536' },
   ];
   const ACCENT_THEME_STORAGE_KEY = 'boneAccentTheme';
   const DARK_MODE_STORAGE_KEY = 'boneDarkMode';
   // サブカラー（既存の緑バッジや割引明細などに使う色）の選択肢
   const SUB_THEMES = [
-    { id: 'green',  name: 'グリーン', color: '#2E7D5E' },
-    { id: 'teal',   name: 'ティール', color: '#1F8A8A' },
-    { id: 'blue',   name: 'ブルー',   color: '#3A6EA5' },
-    { id: 'amber',  name: 'アンバー', color: '#C08A2E' },
-    { id: 'purple', name: 'パープル', color: '#7A5EA6' },
+    { id: 'green',   name: 'グリーン',   color: '#2E7D5E' },
+    { id: 'teal',    name: 'ティール',   color: '#1F8A8A' },
+    { id: 'blue',    name: 'ブルー',     color: '#3A6EA5' },
+    { id: 'amber',   name: 'アンバー',   color: '#C08A2E' },
+    { id: 'purple',  name: 'パープル',   color: '#7A5EA6' },
+    { id: 'coral',   name: 'コーラル',   color: '#C1604A' },
+    { id: 'lime',    name: 'ライム',     color: '#7A9E3E' },
+    { id: 'gold',    name: 'ゴールド',   color: '#B8912E' },
+    { id: 'magenta', name: 'マゼンタ',   color: '#A6467E' },
+    { id: 'slate',   name: 'スレート',   color: '#5A7184' },
   ];
   const SUB_COLOR_STORAGE_KEY = 'boneSubColor';
   // ダークモード用の基本配色（ライト時のデフォルトは:root側のCSSで定義済み）
@@ -2509,7 +2520,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.59</span>
+              <span className="version">Ver 3.60</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -2555,7 +2566,7 @@
                   ? <button className="menu-item" onClick={() => { setShowMenu(false); karteAuth.signOut(); }}>nouvelle-salonログアウト</button>
                   : <button className="menu-item" onClick={() => { setShowMenu(false); setTab('karte'); }}>nouvelle-salonログイン</button>
                 }
-                <div className="menu-item menu-color-item">
+                <div className="menu-item menu-color-item menu-color-swatch-item">
                   <span>メインカラー</span>
                   <div className="color-swatch-row">
                     {ACCENT_THEMES.map(t => (
@@ -2570,7 +2581,7 @@
                     ))}
                   </div>
                 </div>
-                <div className="menu-item menu-color-item">
+                <div className="menu-item menu-color-item menu-color-swatch-item">
                   <span>サブカラー</span>
                   <div className="color-swatch-row">
                     {SUB_THEMES.map(t => (
