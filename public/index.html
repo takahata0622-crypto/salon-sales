@@ -2557,7 +2557,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.62</span>
+              <span className="version">Ver 3.63</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -3716,7 +3716,7 @@
             { id: 'remainingToGoal', label: '目標まで残り', value: remainingToGoal > 0 ? formatPrice(remainingToGoal) : '達成 🎉', show: salesTarget > 0 },
             { id: 'remainingDailyAvg', label: isCurrentMonth && bizDaysRemaining > 0 ? `残り1日平均（残${bizDaysRemaining}日）` : '残り1日平均', value: remainingDailyAvg > 0 ? formatPrice(remainingDailyAvg) : '—', show: salesTarget > 0 },
           ];
-          const shown = allStats.filter(s => s.show && visibleStatIds.includes(s.id));
+          const shown = visibleStatIds.map(id => allStats.find(s => s.id === id)).filter(s => s && s.show);
           const rows = [];
           for (let i = 0; i < shown.length; i += 3) rows.push(shown.slice(i, i + 3));
           return rows.map((row, i) => (
