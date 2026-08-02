@@ -2615,7 +2615,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.72</span>
+              <span className="version">Ver 3.73</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -4598,11 +4598,13 @@
           <div className="karte-history-box">
             <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10}}>
               <button className="del-link" onClick={() => { setSelected(null); setHistory(null); }}>‹ 検索結果に戻る</button>
-              {editingNote && (
+              {editingNote ? (
                 <div style={{display:'flex', gap:8}}>
                   <button className="goal-save-btn" onClick={saveNote} disabled={savingNote}>{savingNote ? '保存中…' : '保存'}</button>
                   <button className="del-link" onClick={() => setEditingNote(false)}>キャンセル</button>
                 </div>
+              ) : (
+                history && <button className="del-link" onClick={startEditNote}>編集</button>
               )}
             </div>
             {loadingHistory
@@ -4612,7 +4614,6 @@
                   {!editingNote && (
                     <div className="confirm-head">
                       <span className="confirm-date">{history.name}{history.kana && <span style={{marginLeft:6, fontSize:12, color:'var(--muted)', fontWeight:'normal'}}>（{history.kana}）</span>}</span>
-                      <button className="del-link" onClick={startEditNote}>編集</button>
                     </div>
                   )}
                   {editingNote ? (
