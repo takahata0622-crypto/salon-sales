@@ -2615,7 +2615,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.70</span>
+              <span className="version">Ver 3.71</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -4637,30 +4637,31 @@
                       </div>
                     )
                   )}
-                  {history.records.length === 0
-                    ? <div className="empty-state">来店履歴はありません</div>
-                    : history.records.map((r, i) => (
-                      <div key={i} className="karte-record-card">
-                        <div className="karte-record-head">
-                          <span className="karte-record-date">{r.date}</span>
-                          <div style={{display:'flex', alignItems:'center', gap:8}}>
-                            <span className="karte-record-menu">
-                              {r.menu}
-                              {r.lodging ? '（宿泊）' : ''}
-                              {r.discount ? '（割引）' : ''}
-                              {r.designation ? '（指名）' : ''}
-                              {r.preference ? '（男女希望）' : ''}
-                            </span>
-                            <button className="delete-btn" onClick={() => deleteRecord(r)}>✕</button>
+                  {!editingNote && (
+                    history.records.length === 0
+                      ? <div className="empty-state">来店履歴はありません</div>
+                      : history.records.map((r, i) => (
+                        <div key={i} className="karte-record-card">
+                          <div className="karte-record-head">
+                            <span className="karte-record-date">{r.date}</span>
+                            <div style={{display:'flex', alignItems:'center', gap:8}}>
+                              <span className="karte-record-menu">
+                                {r.menu}
+                                {r.lodging ? '（宿泊）' : ''}
+                                {r.discount ? '（割引）' : ''}
+                                {r.designation ? '（指名）' : ''}
+                                {r.preference ? '（男女希望）' : ''}
+                              </span>
+                              <button className="delete-btn" onClick={() => deleteRecord(r)}>✕</button>
+                            </div>
                           </div>
+                          {r.option.length > 0 && <div className="karte-record-line">オプション：{r.option.join('・')}</div>}
+                          {r.condition && <div className="karte-record-line">主訴：{r.condition}</div>}
+                          {r.treatment && <div className="karte-record-line">施術内容：{r.treatment}</div>}
+                          {r.nextNote && <div className="karte-record-line">次回への申し送り：{r.nextNote}</div>}
                         </div>
-                        {r.option.length > 0 && <div className="karte-record-line">オプション：{r.option.join('・')}</div>}
-                        {r.condition && <div className="karte-record-line">主訴：{r.condition}</div>}
-                        {r.treatment && <div className="karte-record-line">施術内容：{r.treatment}</div>}
-                        {r.nextNote && <div className="karte-record-line">次回への申し送り：{r.nextNote}</div>}
-                      </div>
-                    ))
-                  }
+                      ))
+                  )}
                 </>
               )
             }
