@@ -927,6 +927,13 @@
       max-height: 220px;
       overflow-y: auto;
     }
+    /* データ入力ポップアップなど、名前欄が上端に近く上に開くと画面外へはみ出す場所では
+       下向きに開く */
+    .entry-name-suggest-list.down {
+      bottom: auto;
+      top: calc(100% + 4px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+    }
     .entry-name-suggest-item {
       padding: 8px 10px;
       font-size: 14px;
@@ -2501,7 +2508,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.53</span>
+              <span className="version">Ver 3.54</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -2593,7 +2600,7 @@
 
   // お客様名の入力欄。途中まで入力すると、カルテ（karteCustomers）から名前・フリガナが
   // 部分一致する候補を出し、選ぶとその名前で確定できる（新しいお客様ならそのまま自由入力）。
-  function CustomerNameField({ entry, karteCustomers, onSave }) {
+  function CustomerNameField({ entry, karteCustomers, onSave, dropUp = true }) {
     const [value, setValue] = useState(entry.customerName || '');
     const [showList, setShowList] = useState(false);
     useEffect(() => { setValue(entry.customerName || ''); }, [entry.customerName]);
@@ -2613,7 +2620,7 @@
           onBlur={() => { setShowList(false); onSave(value.trim()); }}
         />
         {showList && suggestions.length > 0 && (
-          <div className="entry-name-suggest-list">
+          <div className={`entry-name-suggest-list ${dropUp ? '' : 'down'}`}>
             {suggestions.map((c, i) => (
               <div
                 key={i}
@@ -2762,6 +2769,7 @@
                     entry={entry}
                     karteCustomers={karteCustomers}
                     onSave={handleNameSave}
+                    dropUp={false}
                   />
                   <button className={`gender-btn ${gender === 'male' ? 'active' : ''}`} onClick={() => setGender(g => g === 'male' ? '' : 'male')}>男</button>
                   <button className={`gender-btn ${gender === 'female' ? 'active' : ''}`} onClick={() => setGender(g => g === 'female' ? '' : 'female')}>女</button>
