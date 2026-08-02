@@ -2480,6 +2480,33 @@
     const [accentThemeId, setAccentThemeId] = useState(() => localStorage.getItem(ACCENT_THEME_STORAGE_KEY) || 'brown');
     const [subColorId, setSubColorId] = useState(() => localStorage.getItem(SUB_COLOR_STORAGE_KEY) || 'green');
     const [darkMode, setDarkMode] = useState(() => localStorage.getItem(DARK_MODE_STORAGE_KEY) === '1');
+    const [visibleStatIds, setVisibleStatIds] = useState(() => {
+      try {
+        const saved = JSON.parse(localStorage.getItem(STAT_ITEMS_STORAGE_KEY) || 'null');
+        if (Array.isArray(saved) && saved.length > 0) return saved;
+      } catch (err) { /* 壊れた保存値は無視して既定値を使う */ }
+      return STAT_ITEM_DEFS.map(s => s.id);
+    });
+    const [showStatPicker, setShowStatPicker] = useState(false); // 集計タブの表示項目設定ポップアップ（メニューから開く）
+    const toggleStatId = (id) => {
+      setVisibleStatIds(prev => {
+        const has = prev.includes(id);
+        const next = has ? prev.filter(x => x !== id) : [...prev, id];
+        localStorage.setItem(STAT_ITEMS_STORAGE_KEY, JSON.stringify(next));
+        return next;
+      });
+    };
+    const moveStatId = (id, dir) => {
+      setVisibleStatIds(prev => {
+        const idx = prev.indexOf(id);
+        const j = idx + dir;
+        if (idx < 0 || j < 0 || j >= prev.length) return prev;
+        const next = prev.slice();
+        [next[idx], next[j]] = [next[j], next[idx]];
+        localStorage.setItem(STAT_ITEMS_STORAGE_KEY, JSON.stringify(next));
+        return next;
+      });
+    };
     const karteUser = useKarteAuth(); // メニューの「ノーベルサロンログイン／ログアウト」表示切り替え用
 
     useEffect(() => {
@@ -2557,7 +2584,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.63</span>
+              <span className="version">Ver 3.64</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -2584,7 +2611,7 @@
 
         <div className="main">
           {tab === 'today' && <TodayTab uid={uid} userName={user.displayName || ''} dept={dept} setDept={handleSetDept} viewDate={viewDate} setViewDate={setViewDate} />}
-          {tab === 'history' && <HistoryTab uid={uid} />}
+          {tab === 'history' && <HistoryTab uid={uid} visibleStatIds={visibleStatIds} />}
           {tab === 'submit' && <SubmitTab uid={uid} userName={user.displayName || ''} dept={dept} setDept={handleSetDept} viewDate={viewDate} setViewDate={setViewDate} />}
           {tab === 'confirm' && <ConfirmTab uid={uid} userName={user.displayName || ''} />}
           {tab === 'karte' && <KarteTab uid={uid} />}
@@ -2639,6 +2666,42 @@
                     <span className="dark-mode-toggle-knob" />
                   </button>
                 </div>
+                <button className="menu-item" onClick={() => { setShowMenu(false); setShowStatPicker(true); }}>
+                  集計の表示項目設定（{visibleStatIds.length}）
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showStatPicker && (
+          <div className="add-modal-overlay center-modal" onClick={() => setShowStatPicker(false)}>
+            <div className="add-modal center-modal" onClick={ev => ev.stopPropagation()}>
+              <div className="add-modal-header">
+                <h2>集計の表示項目設定</h2>
+                <button className="add-modal-close" onClick={() => setShowStatPicker(false)}>✕</button>
+              </div>
+              <div className="confirm-note" style={{marginBottom:10}}>表示する項目にチェックを入れ、矢印で並び替えできます（現在{visibleStatIds.length}個選択中）</div>
+              <div className="stat-picker-list">
+                {[
+                  ...visibleStatIds.map(id => STAT_ITEM_DEFS.find(d => d.id === id)).filter(Boolean),
+                  ...STAT_ITEM_DEFS.filter(d => !visibleStatIds.includes(d.id)),
+                ].map(s => {
+                  const checked = visibleStatIds.includes(s.id);
+                  const pos = visibleStatIds.indexOf(s.id);
+                  return (
+                    <div key={s.id} className="stat-picker-item">
+                      <input type="checkbox" checked={checked} onChange={() => toggleStatId(s.id)} />
+                      <span className="stat-picker-label" onClick={() => toggleStatId(s.id)}>{s.label}</span>
+                      {checked && (
+                        <div className="reorder-btns">
+                          <button className="reorder-btn" disabled={pos === 0} onClick={() => moveStatId(s.id, -1)}>▲</button>
+                          <button className="reorder-btn" disabled={pos === visibleStatIds.length - 1} onClick={() => moveStatId(s.id, 1)}>▼</button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -3510,7 +3573,7 @@
   // 月データのメモリキャッシュ（タブ切替や月移動のたびに白画面で待たせないため。
   // キャッシュは即表示用で、表示後に必ず最新を取り直して上書きする）
   const monthCache = {};
-  function HistoryTab({ uid }) {
+  function HistoryTab({ uid, visibleStatIds }) {
     const now = toJST();
     const [year, setYear] = useState(now.getUTCFullYear());
     const [month, setMonth] = useState(now.getUTCMonth() + 1);
@@ -3521,33 +3584,6 @@
     const [goalType, setGoalType] = useState('sales'); // 'sales' | 'takehome'
     const [savingGoal, setSavingGoal] = useState(false);
     const [holidays, setHolidays] = useState([]); // 確認タブで設定した休業日（日番号の配列）
-    const [visibleStatIds, setVisibleStatIds] = useState(() => {
-      try {
-        const saved = JSON.parse(localStorage.getItem(STAT_ITEMS_STORAGE_KEY) || 'null');
-        if (Array.isArray(saved) && saved.length > 0) return saved;
-      } catch (err) { /* 壊れた保存値は無視して既定値を使う */ }
-      return STAT_ITEM_DEFS.map(s => s.id);
-    });
-    const [showStatPicker, setShowStatPicker] = useState(false);
-    const toggleStatId = (id) => {
-      setVisibleStatIds(prev => {
-        const has = prev.includes(id);
-        const next = has ? prev.filter(x => x !== id) : [...prev, id];
-        localStorage.setItem(STAT_ITEMS_STORAGE_KEY, JSON.stringify(next));
-        return next;
-      });
-    };
-    const moveStatId = (id, dir) => {
-      setVisibleStatIds(prev => {
-        const idx = prev.indexOf(id);
-        const j = idx + dir;
-        if (idx < 0 || j < 0 || j >= prev.length) return prev;
-        const next = prev.slice();
-        [next[idx], next[j]] = [next[j], next[idx]];
-        localStorage.setItem(STAT_ITEMS_STORAGE_KEY, JSON.stringify(next));
-        return next;
-      });
-    };
 
     const monthKey = `${year}-${String(month).padStart(2,'0')}`;
 
@@ -3695,10 +3731,6 @@
           )}
         </div>
 
-        <div style={{display:'flex', justifyContent:'flex-end', marginBottom:6}}>
-          <button className="edit-link" onClick={() => setShowStatPicker(true)}>表示項目を選ぶ（{visibleStatIds.length}）</button>
-        </div>
-
         {(() => {
           const dailyAvg = dayCount > 0 ? Math.round(monthTotal / dayCount) : 0;
           // 出勤日数（＝休業日を除いた営業日数）で割る
@@ -3730,39 +3762,6 @@
             </div>
           ));
         })()}
-
-        {showStatPicker && (
-          <div className="add-modal-overlay center-modal" onClick={() => setShowStatPicker(false)}>
-            <div className="add-modal center-modal" onClick={ev => ev.stopPropagation()}>
-              <div className="add-modal-header">
-                <h2>表示項目を選ぶ</h2>
-                <button className="add-modal-close" onClick={() => setShowStatPicker(false)}>✕</button>
-              </div>
-              <div className="confirm-note" style={{marginBottom:10}}>表示する項目にチェックを入れ、矢印で並び替えできます（現在{visibleStatIds.length}個選択中）</div>
-              <div className="stat-picker-list">
-                {[
-                  ...visibleStatIds.map(id => STAT_ITEM_DEFS.find(d => d.id === id)).filter(Boolean),
-                  ...STAT_ITEM_DEFS.filter(d => !visibleStatIds.includes(d.id)),
-                ].map(s => {
-                  const checked = visibleStatIds.includes(s.id);
-                  const pos = visibleStatIds.indexOf(s.id);
-                  return (
-                    <div key={s.id} className="stat-picker-item">
-                      <input type="checkbox" checked={checked} onChange={() => toggleStatId(s.id)} />
-                      <span className="stat-picker-label" onClick={() => toggleStatId(s.id)}>{s.label}</span>
-                      {checked && (
-                        <div className="reorder-btns">
-                          <button className="reorder-btn" disabled={pos === 0} onClick={() => moveStatId(s.id, -1)}>▲</button>
-                          <button className="reorder-btn" disabled={pos === visibleStatIds.length - 1} onClick={() => moveStatId(s.id, 1)}>▼</button>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        )}
 
         <div className="goal-box">
           <div className="goal-row">
