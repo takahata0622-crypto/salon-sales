@@ -2613,7 +2613,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.67</span>
+              <span className="version">Ver 3.68</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -4580,15 +4580,25 @@
 
         {selected && (
           <div className="karte-history-box">
-            <button className="del-link" style={{marginBottom:10}} onClick={() => { setSelected(null); setHistory(null); }}>‹ 検索結果に戻る</button>
+            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10}}>
+              <button className="del-link" onClick={() => { setSelected(null); setHistory(null); }}>‹ 検索結果に戻る</button>
+              {editingNote && (
+                <div style={{display:'flex', gap:8}}>
+                  <button className="goal-save-btn" onClick={saveNote} disabled={savingNote}>{savingNote ? '保存中…' : '保存'}</button>
+                  <button className="del-link" onClick={() => setEditingNote(false)}>キャンセル</button>
+                </div>
+              )}
+            </div>
             {loadingHistory
               ? <div className="loading">読み込み中...</div>
               : history && (
                 <>
-                  <div className="confirm-head">
-                    <span className="confirm-date">{history.name}{history.kana && <span style={{marginLeft:6, fontSize:12, color:'var(--muted)', fontWeight:'normal'}}>（{history.kana}）</span>}</span>
-                    {!editingNote && <button className="del-link" onClick={startEditNote}>編集</button>}
-                  </div>
+                  {!editingNote && (
+                    <div className="confirm-head">
+                      <span className="confirm-date">{history.name}{history.kana && <span style={{marginLeft:6, fontSize:12, color:'var(--muted)', fontWeight:'normal'}}>（{history.kana}）</span>}</span>
+                      <button className="del-link" onClick={startEditNote}>編集</button>
+                    </div>
+                  )}
                   {editingNote ? (
                     <div className="karte-customer-note">
                       <label className="goal-label">名前</label>
@@ -4605,10 +4615,6 @@
                       <textarea className="karte-note-textarea" rows={2} value={editMemo} onChange={ev => setEditMemo(ev.target.value)} />
                       <label className="goal-label" style={{marginTop:8, display:'block'}}>強さ（{editStrength}/10）</label>
                       <StrengthGauge value={editStrength} onChange={setEditStrength} />
-                      <div style={{display:'flex', gap:8, marginTop:8}}>
-                        <button className="goal-save-btn" onClick={saveNote} disabled={savingNote}>{savingNote ? '保存中…' : '保存'}</button>
-                        <button className="del-link" onClick={() => setEditingNote(false)}>キャンセル</button>
-                      </div>
                     </div>
                   ) : (
                     (history.feature || history.memo || history.gender) && (
