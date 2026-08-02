@@ -2615,7 +2615,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.71</span>
+              <span className="version">Ver 3.72</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -4411,6 +4411,11 @@
         await customerRef.update({ recordCount, lastDate });
         setHistory(h => ({ ...h, records: h.records.filter(x => x.id !== r.id) }));
         setAllCustomers(prev => (prev || []).map(c => c.customerId === selected.customerId ? { ...c, recordCount, lastDate } : c));
+
+        // 削除した来店記録の日の伝票（今日タブ側）がこのお客様と紐づいたままなら、名前を未入力に戻す
+        const entriesSnap = await db.collection('users').doc(uid).collection('days').doc(r.date)
+          .collection('entries').where('customerId', '==', selected.customerId).get();
+        await Promise.all(entriesSnap.docs.map(d => d.ref.update({ customerName: '', customerId: '' })));
       } catch (err) {
         setErrorMsg('記録の削除に失敗しました：' + (err.message || err.code || err));
       }
