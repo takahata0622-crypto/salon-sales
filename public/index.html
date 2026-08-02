@@ -991,19 +991,20 @@
     }
     .save-status-btn.synced { background: var(--accent); border-color: var(--accent); color: #fff; }
     .save-status-btn.unsynced { background: var(--danger); border-color: var(--danger); color: #fff; }
-    .existence-badge-btn {
+    .existence-badge {
       flex-shrink: 0;
-      padding: 7px 14px;
-      border: none;
-      border-radius: 8px;
-      font-size: 12px;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
       font-weight: 700;
-      white-space: nowrap;
       color: #fff;
-      cursor: default;
     }
-    .existence-badge-btn.existing { background: var(--accent); }
-    .existence-badge-btn.new { background: var(--success); }
+    .existence-badge.existing { background: var(--accent); }
+    .existence-badge.new { background: var(--success); }
     .entry-data-panel .entry-memo-row:not(:last-child) { margin-bottom: 8px; }
     .entry-data-save-row {
       margin-top: 14px;
@@ -2493,7 +2494,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.39</span>
+              <span className="version">Ver 3.40</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -3380,12 +3381,13 @@
                   </div>
                 )}
                 <div className="entry-memo-row">
+                  <span className="entry-field-label">名前</span>
+                  <span className="entry-name-display">{e.customerName || '未入力'}</span>
                   {(() => {
                     const cx = customerExistence(e);
-                    if (!cx) return <span className="entry-field-label">名前</span>;
-                    return <button type="button" className={`existence-badge-btn ${cx === '既' ? 'existing' : 'new'}`}>{cx}</button>;
+                    if (!cx) return null;
+                    return <span className={`existence-badge ${cx === '既' ? 'existing' : 'new'}`}>{cx}</span>;
                   })()}
-                  <span className="entry-name-display">{e.customerName || '未入力'}</span>
                   {e.dataSyncSnapshot && (() => {
                     const synced = entryDataIsSynced(e);
                     return (
