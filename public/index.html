@@ -2076,8 +2076,13 @@
     ENTRY_OPTION_FIELDS.forEach(k => { snap[k] = e[k] ?? null; });
     return snap;
   };
-  // 保存済みスナップショットと現在のコース・オプションが一致しているか（＝保存済みか）
-  const entryDataIsSynced = (e) => !!e.dataSyncSnapshot && JSON.stringify(entryOptionSnapshot(e)) === JSON.stringify(e.dataSyncSnapshot);
+  // 保存済みスナップショットと現在のコース・オプションが一致しているか（＝保存済みか）。
+  // Firestoreはネストしたmapフィールドのキー順を書き込み時のまま保持するとは限らないため、
+  // JSON.stringifyでの丸ごと比較ではなく、項目ごとに値を比較する（順序に依存しないように）
+  const entryDataIsSynced = (e) => {
+    if (!e.dataSyncSnapshot) return false;
+    return ENTRY_OPTION_FIELDS.every(k => (e[k] ?? null) === (e.dataSyncSnapshot[k] ?? null));
+  };
 
   // タイ・バリのメニューかどうか（眼精疲労オプションの対象判定）
   const isTaiBariMenu = (name) => {
@@ -2500,7 +2505,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.43</span>
+              <span className="version">Ver 3.44</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
