@@ -2489,7 +2489,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.37</span>
+              <span className="version">Ver 3.38</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -3376,12 +3376,12 @@
                   </div>
                 )}
                 <div className="entry-memo-row">
-                  <span className="entry-field-label">名前</span>
                   {(() => {
                     const cx = customerExistence(e);
-                    if (!cx) return <span className="entry-name-display">未入力</span>;
+                    if (!cx) return <span className="entry-field-label">名前</span>;
                     return <button type="button" className={`existence-badge-btn ${cx === '既' ? 'existing' : 'new'}`}>{cx}</button>;
                   })()}
+                  <span className="entry-name-display">{e.customerName || '未入力'}</span>
                   {e.dataSyncSnapshot && (() => {
                     const synced = entryDataIsSynced(e);
                     return (
