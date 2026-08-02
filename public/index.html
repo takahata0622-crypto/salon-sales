@@ -2624,7 +2624,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.80</span>
+              <span className="version">Ver 3.81</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -2832,7 +2832,7 @@
 
   // データボタンを押すと画面中央に開く、名前・特徴・既往歴・主訴・今回の施術の入力ポップアップ。
   // 各欄は入力中はローカルに保持するだけで、「保存」ボタンを押した時にまとめて保存する。
-  function EntryDataPanel({ entry, karteUser, karteCustomers, ensureKarteCustomer, saveEntryCustomerName, saveEntryMemo, saveEntryTodayCondition, setEntryGender, markEntryDataSaved, onClose }) {
+  function EntryDataPanel({ entry, karteUser, karteCustomers, ensureKarteCustomer, saveEntryCustomerName, saveEntryMemo, saveEntryTodayCondition, setEntryGender, markEntryDataSaved, clearEntryDataSaved, onClose }) {
     const [loading, setLoading] = useState(true);
     const [name, setName] = useState(entry.customerName || '');
     const [selectedCustomerId, setSelectedCustomerId] = useState(entry.customerId || '');
@@ -2943,7 +2943,7 @@
         setEntryGender(entry, gender);
         saveEntryTodayCondition(entry, todayCondition.trim());
         saveEntryMemo(entry, treatment.trim());
-        if (trimmedName) markEntryDataSaved(entry);
+        if (trimmedName) markEntryDataSaved(entry); else clearEntryDataSaved(entry);
         onClose();
       } catch (err) {
         setErrorMsg('保存に失敗しました：' + (err.message || err.code || err));
@@ -3414,6 +3414,13 @@
       if (!confirmEditIfSubmitted()) return;
       dayRef().collection('entries').doc(e.id).update({ dataSyncSnapshot: entryOptionSnapshot(e) });
     };
+    // 名前を消して保存した時など、お客様と紐づいていない状態になったら保存状態ボタンごと消す
+    // （dataSyncSnapshotが残ったままだと、名前が無いのに「保存済／未保存」が表示され続けてしまう）
+    const clearEntryDataSaved = (e) => {
+      if (!e.dataSyncSnapshot) return;
+      if (!confirmEditIfSubmitted()) return;
+      dayRef().collection('entries').doc(e.id).update({ dataSyncSnapshot: firebase.firestore.FieldValue.delete() });
+    };
     const saveEntryTodayCondition = (e, todayCondition) => {
       if ((e.todayCondition || '') === todayCondition) return;
       if (!confirmEditIfSubmitted()) return;
@@ -3647,6 +3654,7 @@
                     saveEntryTodayCondition={saveEntryTodayCondition}
                     setEntryGender={setEntryGender}
                     markEntryDataSaved={markEntryDataSaved}
+                    clearEntryDataSaved={clearEntryDataSaved}
                     onClose={() => toggleDataPanel(e.id)}
                   />
                 )}
