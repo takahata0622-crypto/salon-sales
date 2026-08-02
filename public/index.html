@@ -1329,13 +1329,14 @@
       border-radius: 10px;
       font-size: 14px;
       color: var(--ink);
-      cursor: pointer;
     }
+    .stat-picker-label { flex: 1; cursor: pointer; }
     .stat-picker-item input[type="checkbox"] {
       width: 18px;
       height: 18px;
       accent-color: var(--accent);
       flex-shrink: 0;
+      cursor: pointer;
     }
 
     .day-card {
@@ -2221,7 +2222,7 @@
   const DARK_COLORS = { bg: '#221C18', card: '#2D2621', ink: '#EDE7E0', muted: '#B7A99A', border: '#463A30' };
   const LIGHT_COLORS = { bg: '#F7F3EE', card: '#FFFFFF', ink: '#1A1714', muted: '#8A7F76', border: '#E5DDD5' };
 
-  // 集計タブの数値カードの一覧（表示項目を選ぶポップアップ用）。6〜9個を選んで表示する。
+  // 集計タブの数値カードの一覧（表示項目を選ぶポップアップ用）。好きな数だけ選んで、好きな順に並び替えられる。
   const STAT_ITEM_DEFS = [
     { id: 'monthTotal',        label: '月間売上' },
     { id: 'monthTotalTicket',  label: 'チケット込月間売上' },
@@ -2236,8 +2237,6 @@
     { id: 'remainingDailyAvg', label: '残り1日平均' },
   ];
   const STAT_ITEMS_STORAGE_KEY = 'boneVisibleStats';
-  const STAT_ITEMS_MIN = 6;
-  const STAT_ITEMS_MAX = 9;
 
   // ボディケア初売りチケット：給料計算でのみ1枚あたり加算する金額（歩合対象）
   const TICKET_SALARY = 5000;
@@ -2558,7 +2557,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.61</span>
+              <span className="version">Ver 3.62</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -3530,13 +3529,21 @@
       return STAT_ITEM_DEFS.map(s => s.id);
     });
     const [showStatPicker, setShowStatPicker] = useState(false);
-    // 6〜9個の範囲内でだけ選択を切り替える
     const toggleStatId = (id) => {
       setVisibleStatIds(prev => {
         const has = prev.includes(id);
-        if (has && prev.length <= STAT_ITEMS_MIN) return prev;
-        if (!has && prev.length >= STAT_ITEMS_MAX) return prev;
         const next = has ? prev.filter(x => x !== id) : [...prev, id];
+        localStorage.setItem(STAT_ITEMS_STORAGE_KEY, JSON.stringify(next));
+        return next;
+      });
+    };
+    const moveStatId = (id, dir) => {
+      setVisibleStatIds(prev => {
+        const idx = prev.indexOf(id);
+        const j = idx + dir;
+        if (idx < 0 || j < 0 || j >= prev.length) return prev;
+        const next = prev.slice();
+        [next[idx], next[j]] = [next[j], next[idx]];
         localStorage.setItem(STAT_ITEMS_STORAGE_KEY, JSON.stringify(next));
         return next;
       });
@@ -3731,14 +3738,27 @@
                 <h2>表示項目を選ぶ</h2>
                 <button className="add-modal-close" onClick={() => setShowStatPicker(false)}>✕</button>
               </div>
-              <div className="confirm-note" style={{marginBottom:10}}>6〜9個を選んでください（現在{visibleStatIds.length}個選択中）</div>
+              <div className="confirm-note" style={{marginBottom:10}}>表示する項目にチェックを入れ、矢印で並び替えできます（現在{visibleStatIds.length}個選択中）</div>
               <div className="stat-picker-list">
-                {STAT_ITEM_DEFS.map(s => (
-                  <label key={s.id} className="stat-picker-item">
-                    <input type="checkbox" checked={visibleStatIds.includes(s.id)} onChange={() => toggleStatId(s.id)} />
-                    <span>{s.label}</span>
-                  </label>
-                ))}
+                {[
+                  ...visibleStatIds.map(id => STAT_ITEM_DEFS.find(d => d.id === id)).filter(Boolean),
+                  ...STAT_ITEM_DEFS.filter(d => !visibleStatIds.includes(d.id)),
+                ].map(s => {
+                  const checked = visibleStatIds.includes(s.id);
+                  const pos = visibleStatIds.indexOf(s.id);
+                  return (
+                    <div key={s.id} className="stat-picker-item">
+                      <input type="checkbox" checked={checked} onChange={() => toggleStatId(s.id)} />
+                      <span className="stat-picker-label" onClick={() => toggleStatId(s.id)}>{s.label}</span>
+                      {checked && (
+                        <div className="reorder-btns">
+                          <button className="reorder-btn" disabled={pos === 0} onClick={() => moveStatId(s.id, -1)}>▲</button>
+                          <button className="reorder-btn" disabled={pos === visibleStatIds.length - 1} onClick={() => moveStatId(s.id, 1)}>▼</button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
