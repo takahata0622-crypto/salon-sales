@@ -2636,7 +2636,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.82</span>
+              <span className="version">Ver 3.83</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -2861,14 +2861,16 @@
 
     // customerId・名前から、フリガナ・特徴・既往歴・過去の主訴・性別をまとめて取得する
     // （名前欄で過去のお客様を選んだときに、この結果でポップアップの各欄を上書きする）
-    const fetchCustomerProfile = async (customerId, customerName) => {
+    // allowNameMatch=false のときは、customerIdが分からない場合に名前だけで一致させない
+    // （同姓同名の別人に自動で紐づいてしまうのを防ぐため。名前欄で候補を選ばず自由入力した時に使う）
+    const fetchCustomerProfile = async (customerId, customerName, allowNameMatch = true) => {
       const customersCol = karteDb.collection('users').doc(karteUser.uid).collection('customers');
       let cd = null, cid = customerId || '';
       if (cid) {
         const idSnap = await customersCol.doc(cid).get();
         if (idSnap.exists) cd = idSnap.data();
       }
-      if (!cd && customerName) {
+      if (!cd && customerName && allowNameMatch) {
         const snap = await customersCol.where('name', '==', customerName).limit(1).get();
         if (!snap.empty) { cd = snap.docs[0].data(); cid = snap.docs[0].id; }
       }
@@ -2911,13 +2913,14 @@
       return () => { cancelled = true; };
     }, [entry.customerName, entry.customerId]);
 
-    // 名前欄で過去のお客様を選んだ（または一致する名前が確定した）ときに、
-    // フリガナ・特徴・既往歴・過去の主訴・性別を過去データから反映する
+    // 名前欄で候補（過去のお客様）を選んだ時だけ、フリガナ・特徴・既往歴・過去の主訴・性別を
+    // 過去データから反映する。候補を選ばず自由入力した場合は名前だけでの自動一致はしない
+    // （同姓同名の別人がいた場合に、無関係な過去のお客様のデータへ勝手に紐づいてしまうのを防ぐため）
     const handleNameSave = async (nm, cid) => {
       setName(nm);
       setSelectedCustomerId(cid || '');
       try {
-        const profile = await fetchCustomerProfile(cid, nm.trim());
+        const profile = await fetchCustomerProfile(cid, nm.trim(), !!cid);
         if (profile) {
           setKana(profile.kana);
           setFeature(profile.feature);
@@ -2944,11 +2947,14 @@
       setErrorMsg('');
       try {
         const trimmedName = name.trim();
+        let resolvedCustomerId = selectedCustomerId || entry.customerId || '';
         if (trimmedName !== (entry.customerName || '').trim()) {
-          await saveEntryCustomerName(entry, trimmedName, selectedCustomerId || undefined);
+          // ここでcustomerIdの解決（新規作成／既存の紐づけ）が一度だけ行われるので、
+          // その結果をそのまま使う（ensureKarteCustomerを二重に呼んで重複登録しないため）
+          resolvedCustomerId = await saveEntryCustomerName(entry, trimmedName, selectedCustomerId || undefined);
         }
         if (trimmedName) {
-          const customerId = selectedCustomerId || entry.customerId || (await ensureKarteCustomer(trimmedName)).customerId;
+          const customerId = resolvedCustomerId || (await ensureKarteCustomer(trimmedName)).customerId;
           await karteDb.collection('users').doc(karteUser.uid).collection('customers').doc(customerId)
             .update({ kana: kana.trim(), feature: feature.trim(), memo: memo.trim(), strength });
         }
@@ -3204,13 +3210,14 @@
       if (target) syncEntryToKarte({ ...target, name });
     };
 
-    // 名前でお客様を検索し、いなければ新規作成してcustomerIdを返す（nouvelle-salon本体と同じ
-    // カルテNo.採番方式）。genderJaを渡すと新規作成時のみ性別を入れる。
-    // 戻り値は { customerId, isNew }。isNew は「今回はじめて作成した（新規登録した）か」を示す。
+    // 新しいお客様として登録し、customerIdを返す（nouvelle-salon本体と同じカルテNo.採番方式）。
+    // genderJaを渡すと新規作成時のみ性別を入れる。
+    // 戻り値は { customerId, isNew }。isNew は常にtrue（このカルテレコードを今回作成したことを示す）。
+    // 注意：ここでは名前が一致する既存のお客様を自動で探して使い回すことはしない。
+    // 同姓同名の別人が来店した時に、無関係な過去のお客様へ勝手に紐づいてしまうため、
+    // 既存のお客様として扱いたい場合は名前欄の候補一覧から明示的に選んでもらう必要がある。
     const ensureKarteCustomer = async (customerName, genderJa) => {
       const customersCol = karteDb.collection('users').doc(karteUser.uid).collection('customers');
-      const existing = await customersCol.where('name', '==', customerName).limit(1).get();
-      if (!existing.empty) return { customerId: existing.docs[0].id, isNew: false };
       const allSnap = await customersCol.get();
       let maxNo = 0;
       allSnap.forEach(d => { const n = parseInt(d.data().karteNo || '0', 10); if (n > maxNo) maxNo = n; });
@@ -3383,16 +3390,18 @@
     };
 
     // customerId が分かっているとき（候補から選んだ場合）はそれを直接使い、
-    // 分からないとき（自由入力）は syncEntryToKarte 側で名前から解決する。
+    // 分からないとき（自由入力）は新しいお客様として登録する。
+    // 戻り値は解決したcustomerId（呼び出し側でensureKarteCustomerの二重呼び出しを避けるため）。
     const saveEntryCustomerName = async (e, customerName, selectedCustomerId) => {
       const oldName = (e.customerName || '').trim();
       const oldCustomerId = e.customerId || null;
-      if (oldName === customerName) return;
-      if (!confirmEditIfSubmitted()) return;
+      if (oldName === customerName) return e.customerId || '';
+      if (!confirmEditIfSubmitted()) return e.customerId || '';
 
       // customerId・customerIsNew（新規作成したか）の解決はここで一度だけ行う。
-      // ドロップダウンから選んだ場合は既存確定。自由入力の場合はここでensureKarteCustomerを呼んで
-      // 新規作成／既存一致を確定させ、以後syncEntryToKarteでは再解決しない
+      // ドロップダウンから選んだ場合は既存確定。自由入力の場合は同姓同名の別人と誤って
+      // 紐づけないよう、既存のお客様を検索せずに必ず新規作成する（ensureKarteCustomer）。
+      // 以後syncEntryToKarteでは再解決しない
       // （そうしないと、直後に別の操作が重なった際に「今作ったばかりの顧客」を既存と誤認してしまう）。
       let customerId = selectedCustomerId || '';
       let customerIsNew = selectedCustomerId ? false : null;
@@ -3432,6 +3441,7 @@
         } catch (err) { /* 参照表示できなくても保存自体は継続する */ }
       }
       dayRef().collection('entries').doc(e.id).update({ condition, ...extraPatch });
+      return customerId;
     };
     // データポップアップの性別ボタン用（トグルではなく指定した値をそのままセットする）
     const setEntryGender = (e, g) => {
