@@ -2685,7 +2685,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.88</span>
+              <span className="version">Ver 3.89</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -2905,7 +2905,7 @@
 
   // データボタンを押すと画面中央に開く、名前・特徴・既往歴・主訴・今回の施術の入力ポップアップ。
   // 各欄は入力中はローカルに保持するだけで、「保存」ボタンを押した時にまとめて保存する。
-  function EntryDataPanel({ entry, karteUser, karteCustomers, saveEntryCustomerName, saveEntryMemo, saveEntryTodayCondition, setEntryGender, markEntryDataSaved, clearEntryDataSaved, onClose }) {
+  function EntryDataPanel({ entry, karteUser, karteCustomers, saveEntryCustomerName, saveEntryMemo, saveEntryTodayCondition, setEntryGender, markEntryDataSaved, clearEntryDataSaved, confirmEditIfSubmitted, onClose }) {
     const [loading, setLoading] = useState(true);
     const [name, setName] = useState(entry.customerName || '');
     const [selectedCustomerId, setSelectedCustomerId] = useState(entry.customerId || '');
@@ -2956,6 +2956,9 @@
 
     useEffect(() => {
       let cancelled = false;
+      // 記録（nouvelle-salon）に未ログインだとお客様データを読み書きできないので、
+      // 読み込もうとしてエラーになる前に止める（画面にはログインを促す案内を出す）
+      if (!karteUser) { setLoading(false); return; }
       (async () => {
         setLoading(true);
         setErrorMsg('');
@@ -2974,7 +2977,7 @@
         }
       })();
       return () => { cancelled = true; };
-    }, [entry.customerName, entry.customerId]);
+    }, [entry.customerName, entry.customerId, karteUser]);
 
     // 名前欄で候補（過去のお客様）を選んだ時だけ、フリガナ・特徴・既往歴・過去の主訴・性別を
     // 過去データから反映する。候補を選ばず自由入力した場合は名前だけでの自動一致はしない
@@ -3011,6 +3014,12 @@
     };
 
     const handleSave = async () => {
+      // 送信済みの日はここで一度だけ確認する。キャンセルされたら何も保存せず、
+      // ポップアップも閉じない（閉じてしまうと保存できていないことに気づけないため）。
+      if (!confirmEditIfSubmitted()) {
+        setErrorMsg('保存を中止しました。');
+        return;
+      }
       setSaving(true);
       setErrorMsg('');
       try {
@@ -3051,6 +3060,11 @@
     // ポップアップに何が入力されていても無視して、伝票の名前・性別・主訴・施術内容を未入力に戻す
     const handleReset = async () => {
       if (!window.confirm('入力内容を消して未入力に戻しますか？')) return;
+      // 送信済みの日はここで一度だけ確認する（キャンセルされたら何もしない）
+      if (!confirmEditIfSubmitted()) {
+        setErrorMsg('リセットを中止しました。');
+        return;
+      }
       setSaving(true);
       setErrorMsg('');
       try {
@@ -3077,7 +3091,11 @@
             <button className="add-modal-close" onClick={onClose}>✕</button>
           </div>
           <div className="entry-data-panel">
-            {loading ? <div className="loading">読み込み中...</div> : (
+            {!karteUser ? (
+              <div className="karte-customer-note" style={{ marginBottom: 0 }}>
+                お客様データを使うには、記録タブから nouvelle-salon にログインしてください。
+              </div>
+            ) : loading ? <div className="loading">読み込み中...</div> : (
               <>
                 <div className="entry-memo-row">
                   <span className="entry-field-label">名前</span>
@@ -3819,6 +3837,7 @@
                     setEntryGender={setEntryGender}
                     markEntryDataSaved={markEntryDataSaved}
                     clearEntryDataSaved={clearEntryDataSaved}
+                    confirmEditIfSubmitted={confirmEditIfSubmitted}
                     onClose={() => toggleDataPanel(e.id)}
                   />
                 )}
