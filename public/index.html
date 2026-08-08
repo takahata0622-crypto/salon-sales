@@ -2636,7 +2636,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.83</span>
+              <span className="version">Ver 3.84</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -2770,7 +2770,14 @@
   function CustomerNameField({ entry, karteCustomers, onSave, onChangeText, dropUp = true }) {
     const [value, setValue] = useState(entry.customerName || '');
     const [showList, setShowList] = useState(false);
-    useEffect(() => { setValue(entry.customerName || ''); }, [entry.customerName]);
+    // 今の入力値がどのお客様を指しているか（候補から選んだ場合のみ確定する）。
+    // これを覚えておかないと、候補を選んだ直後にフォーカスが外れたとき onSave に
+    // customerId を渡せず、既存のお客様なのに別人として新規登録されてしまう。
+    const selectedIdRef = useRef(entry.customerId || '');
+    useEffect(() => {
+      setValue(entry.customerName || '');
+      selectedIdRef.current = entry.customerId || '';
+    }, [entry.customerName, entry.customerId]);
 
     const kw = value.trim().toLowerCase();
     const suggestions = kw && karteCustomers.length > 0
@@ -2782,9 +2789,9 @@
         <input
           className="entry-memo"
           value={value}
-          onChange={ev => { setValue(ev.target.value); setShowList(true); if (onChangeText) onChangeText(ev.target.value); }}
+          onChange={ev => { selectedIdRef.current = ''; setValue(ev.target.value); setShowList(true); if (onChangeText) onChangeText(ev.target.value); }}
           onFocus={() => setShowList(true)}
-          onBlur={() => { setShowList(false); onSave(value.trim()); }}
+          onBlur={() => { setShowList(false); onSave(value.trim(), selectedIdRef.current || undefined); }}
         />
         {showList && suggestions.length > 0 && (
           <div className={`entry-name-suggest-list ${dropUp ? '' : 'down'}`}>
@@ -2792,7 +2799,7 @@
               <div
                 key={i}
                 className="entry-name-suggest-item"
-                onMouseDown={ev => { ev.preventDefault(); setValue(c.name); onSave(c.name, c.customerId); setShowList(false); }}
+                onMouseDown={ev => { ev.preventDefault(); selectedIdRef.current = c.customerId; setValue(c.name); onSave(c.name, c.customerId); setShowList(false); }}
               >
                 <div>{c.name}{c.kana && <span className="entry-name-suggest-kana"> {c.kana}</span>}</div>
                 <div className="entry-name-suggest-info">最終来店 {c.lastDate || '—'}（{c.recordCount || 0}回）</div>
@@ -2844,7 +2851,7 @@
 
   // データボタンを押すと画面中央に開く、名前・特徴・既往歴・主訴・今回の施術の入力ポップアップ。
   // 各欄は入力中はローカルに保持するだけで、「保存」ボタンを押した時にまとめて保存する。
-  function EntryDataPanel({ entry, karteUser, karteCustomers, ensureKarteCustomer, saveEntryCustomerName, saveEntryMemo, saveEntryTodayCondition, setEntryGender, markEntryDataSaved, clearEntryDataSaved, onClose }) {
+  function EntryDataPanel({ entry, karteUser, karteCustomers, saveEntryCustomerName, saveEntryMemo, saveEntryTodayCondition, setEntryGender, markEntryDataSaved, clearEntryDataSaved, onClose }) {
     const [loading, setLoading] = useState(true);
     const [name, setName] = useState(entry.customerName || '');
     const [selectedCustomerId, setSelectedCustomerId] = useState(entry.customerId || '');
@@ -2858,6 +2865,8 @@
     const [treatment, setTreatment] = useState(entry.memo || '');
     const [errorMsg, setErrorMsg] = useState('');
     const [saving, setSaving] = useState(false);
+    // 直近で過去データを読み込んだ名前とお客様ID（同じ内容で読み込み直さないための記録）
+    const lastResolvedRef = useRef({ name: (entry.customerName || '').trim(), cid: entry.customerId || '' });
 
     // customerId・名前から、フリガナ・特徴・既往歴・過去の主訴・性別をまとめて取得する
     // （名前欄で過去のお客様を選んだときに、この結果でポップアップの各欄を上書きする）
@@ -2919,6 +2928,11 @@
     const handleNameSave = async (nm, cid) => {
       setName(nm);
       setSelectedCustomerId(cid || '');
+      // 名前もお客様も変わっていないなら何もしない。
+      // （名前欄をタップして何も変えずに離れただけで、入力途中の特徴・既往歴などが
+      //   読み込み直しで消えてしまうのを防ぐ）
+      if (nm.trim() === lastResolvedRef.current.name && (cid || '') === lastResolvedRef.current.cid) return;
+      lastResolvedRef.current = { name: nm.trim(), cid: cid || '' };
       try {
         const profile = await fetchCustomerProfile(cid, nm.trim(), !!cid);
         if (profile) {
@@ -2948,20 +2962,31 @@
       try {
         const trimmedName = name.trim();
         let resolvedCustomerId = selectedCustomerId || entry.customerId || '';
-        if (trimmedName !== (entry.customerName || '').trim()) {
+        // 名前が変わった時だけでなく、同姓同名の別人を選び直した（customerIdが変わった）時も保存する
+        const customerChanged = !!selectedCustomerId && selectedCustomerId !== (entry.customerId || '');
+        if (trimmedName !== (entry.customerName || '').trim() || customerChanged) {
           // ここでcustomerIdの解決（新規作成／既存の紐づけ）が一度だけ行われるので、
           // その結果をそのまま使う（ensureKarteCustomerを二重に呼んで重複登録しないため）
           resolvedCustomerId = await saveEntryCustomerName(entry, trimmedName, selectedCustomerId || undefined);
         }
-        if (trimmedName) {
-          const customerId = resolvedCustomerId || (await ensureKarteCustomer(trimmedName)).customerId;
-          await karteDb.collection('users').doc(karteUser.uid).collection('customers').doc(customerId)
+        // 名前は入っているのに紐づくお客様がまだ無い場合（カルテ未ログイン中に名前だけ入れた
+        // 古い伝票など）は、ここで登録して伝票にも紐づけを保存する。
+        // 保存だけしてIDを伝票に書き戻さないと、保存のたびに同じ人が重複登録されてしまう。
+        if (trimmedName && !resolvedCustomerId) {
+          resolvedCustomerId = await saveEntryCustomerName({ ...entry, customerName: '' }, trimmedName, undefined);
+        }
+        if (trimmedName && resolvedCustomerId) {
+          await karteDb.collection('users').doc(karteUser.uid).collection('customers').doc(resolvedCustomerId)
             .update({ kana: kana.trim(), feature: feature.trim(), memo: memo.trim(), strength });
         }
-        setEntryGender(entry, gender);
-        saveEntryTodayCondition(entry, todayCondition.trim());
-        saveEntryMemo(entry, treatment.trim());
-        if (trimmedName) markEntryDataSaved(entry); else clearEntryDataSaved(entry);
+        // 以降の保存はカルテ側へも反映される（syncEntryToKarte）ので、名前を変更した場合は
+        // 変更後のお客様を指す entry を渡す。propsのentryは変更前の customerName / customerId を
+        // 持ったままなので、そのまま渡すと変更前のお客様に今日の記録が作り直されてしまう。
+        const savedEntry = { ...entry, customerName: trimmedName, customerId: resolvedCustomerId };
+        setEntryGender(savedEntry, gender);
+        saveEntryTodayCondition(savedEntry, todayCondition.trim());
+        saveEntryMemo(savedEntry, treatment.trim());
+        if (trimmedName) markEntryDataSaved(savedEntry); else clearEntryDataSaved(savedEntry);
         onClose();
       } catch (err) {
         setErrorMsg('保存に失敗しました：' + (err.message || err.code || err));
@@ -2978,10 +3003,12 @@
         if ((entry.customerName || '').trim()) {
           await saveEntryCustomerName(entry, '', undefined);
         }
-        setEntryGender(entry, '');
-        saveEntryTodayCondition(entry, '');
-        saveEntryMemo(entry, '');
-        clearEntryDataSaved(entry);
+        // 名前を外した後の状態を渡す（変更前のお客様に記録が作り直されるのを防ぐ）
+        const clearedEntry = { ...entry, customerName: '', customerId: '' };
+        setEntryGender(clearedEntry, '');
+        saveEntryTodayCondition(clearedEntry, '');
+        saveEntryMemo(clearedEntry, '');
+        clearEntryDataSaved(clearedEntry);
         onClose();
       } catch (err) {
         setErrorMsg('リセットに失敗しました：' + (err.message || err.code || err));
@@ -3352,7 +3379,14 @@
     // 同じ日の他の伝票がまだ同じ名前を使っていないか確認するために使う。
     const removeKarteRecordForEntry = async (customerName, customerId, excludeEntryId) => {
       if (!customerName || !karteUser) return;
-      const stillUsed = entries.some(other => other.id !== excludeEntryId && (other.customerName || '').trim() === customerName);
+      // 同じお客様を使っている他の伝票が残っているなら記録は消さない。
+      // customerId が分かっている場合はIDで判定する（同姓同名の別人を「同じお客様」と
+      // 誤判定して、消すべき記録が残ってしまうのを防ぐため）。
+      const stillUsed = entries.some(other => {
+        if (other.id === excludeEntryId) return false;
+        if (customerId) return other.customerId === customerId;
+        return !other.customerId && (other.customerName || '').trim() === customerName;
+      });
       if (stillUsed) return;
       try {
         const customersCol = karteDb.collection('users').doc(karteUser.uid).collection('customers');
@@ -3361,11 +3395,14 @@
           const idSnap = await customersCol.doc(customerId).get();
           if (idSnap.exists) customerDoc = idSnap;
         }
-        if (!customerDoc) {
-          const custSnap = await customersCol.where('name', '==', customerName).limit(1).get();
-          if (custSnap.empty) return;
+        if (!customerDoc && !customerId) {
+          // customerIdが無い古い伝票のときだけ名前で探す。同姓同名が複数いる場合は
+          // どの人か特定できないので、誤って別人の記録を消さないよう何もしない。
+          const custSnap = await customersCol.where('name', '==', customerName).limit(2).get();
+          if (custSnap.size !== 1) return;
           customerDoc = custSnap.docs[0];
         }
+        if (!customerDoc) return;
         const resolvedId = customerDoc.id;
         const recordsCol = customersCol.doc(resolvedId).collection('records');
         const recSnap = await recordsCol.where('date', '==', viewDate).limit(1).get();
@@ -3395,7 +3432,9 @@
     const saveEntryCustomerName = async (e, customerName, selectedCustomerId) => {
       const oldName = (e.customerName || '').trim();
       const oldCustomerId = e.customerId || null;
-      if (oldName === customerName) return e.customerId || '';
+      // 名前が同じでも、候補から別のお客様（同姓同名の別人）を選び直した場合は紐づけを更新する
+      const sameCustomer = !selectedCustomerId || selectedCustomerId === oldCustomerId;
+      if (oldName === customerName && sameCustomer) return e.customerId || '';
       if (!confirmEditIfSubmitted()) return e.customerId || '';
 
       // customerId・customerIsNew（新規作成したか）の解決はここで一度だけ行う。
@@ -3691,7 +3730,6 @@
                     entry={e}
                     karteUser={karteUser}
                     karteCustomers={karteCustomers}
-                    ensureKarteCustomer={ensureKarteCustomer}
                     saveEntryCustomerName={saveEntryCustomerName}
                     saveEntryMemo={saveEntryMemo}
                     saveEntryTodayCondition={saveEntryTodayCondition}
@@ -4442,11 +4480,22 @@
         await Promise.all(recordsSnap.docs.map(d => d.ref.delete()));
         await customerRef.delete();
 
-        if (uid && c.name) {
+        // 削除したお客様に紐づく伝票の名前を外す。customerIdで特定し、名前だけ一致する
+        // 同姓同名の別人の伝票まで巻き添えで消さないようにする
+        // （customerIdが無い古い伝票のみ、名前一致でも外す）
+        if (uid) {
           const daysSnap = await db.collection('users').doc(uid).collection('days').get();
           for (const dayDoc of daysSnap.docs) {
-            const entriesSnap = await dayDoc.ref.collection('entries').where('customerName', '==', c.name).get();
-            await Promise.all(entriesSnap.docs.map(d => d.ref.update({ customerName: '', customerId: '' })));
+            const entriesSnap = await dayDoc.ref.collection('entries').get();
+            const targets = entriesSnap.docs.filter(d => {
+              const e = d.data();
+              if (e.customerId) return e.customerId === c.customerId;
+              return c.name && (e.customerName || '').trim() === c.name;
+            });
+            await Promise.all(targets.map(d => d.ref.update({
+              customerName: '', customerId: '', customerIsNew: null,
+              dataSyncSnapshot: firebase.firestore.FieldValue.delete(),
+            })));
           }
         }
 
@@ -4473,9 +4522,13 @@
         setAllCustomers(prev => (prev || []).map(c => c.customerId === selected.customerId ? { ...c, recordCount, lastDate } : c));
 
         // 削除した来店記録の日の伝票（今日タブ側）がこのお客様と紐づいたままなら、名前を未入力に戻す
+        // （保存状態ボタンも消えるよう dataSyncSnapshot も一緒に削除する）
         const entriesSnap = await db.collection('users').doc(uid).collection('days').doc(r.date)
           .collection('entries').where('customerId', '==', selected.customerId).get();
-        await Promise.all(entriesSnap.docs.map(d => d.ref.update({ customerName: '', customerId: '' })));
+        await Promise.all(entriesSnap.docs.map(d => d.ref.update({
+          customerName: '', customerId: '', customerIsNew: null,
+          dataSyncSnapshot: firebase.firestore.FieldValue.delete(),
+        })));
       } catch (err) {
         setErrorMsg('記録の削除に失敗しました：' + (err.message || err.code || err));
       }
