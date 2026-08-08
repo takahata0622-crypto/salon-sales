@@ -2656,7 +2656,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.85</span>
+              <span className="version">Ver 3.86</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -3214,6 +3214,14 @@
       const unsub = ref.onSnapshot(snap => {
         const dates = (snap.exists && snap.data().dates) || [];
         setSubmittedDates(new Set(dates));
+        // 送信し直された日は「編集確認済み」を解除する。
+        // 解除しないと、再送信後に編集しても確認ダイアログが出ず「未送信」にも戻らないため、
+        // 送信済み表示のままスプレッドシートの内容だけが古くなってしまう。
+        setEditConfirmed(prev => {
+          if (prev.size === 0) return prev;
+          const next = new Set([...prev].filter(k => !dates.includes(k)));
+          return next.size === prev.size ? prev : next;
+        });
       });
       return () => unsub();
     }, [uid]);
