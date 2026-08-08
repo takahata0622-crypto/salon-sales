@@ -975,6 +975,26 @@
     .entry-name-suggest-item:active { background: var(--bg); }
     .entry-name-suggest-kana { font-size: 12px; color: var(--muted); }
     .entry-name-suggest-info { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .entry-name-suggest-gender {
+      display: inline-block;
+      margin-left: 6px;
+      padding: 1px 7px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #fff;
+      vertical-align: middle;
+    }
+    .entry-name-suggest-gender.male { background: var(--accent); }
+    .entry-name-suggest-gender.female { background: var(--success); }
+    .entry-name-suggest-feature {
+      font-size: 12px;
+      color: var(--ink);
+      margin-top: 2px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
 
     .gender-btn {
       flex-shrink: 0;
@@ -2636,7 +2656,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.84</span>
+              <span className="version">Ver 3.85</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -2801,7 +2821,12 @@
                 className="entry-name-suggest-item"
                 onMouseDown={ev => { ev.preventDefault(); selectedIdRef.current = c.customerId; setValue(c.name); onSave(c.name, c.customerId); setShowList(false); }}
               >
-                <div>{c.name}{c.kana && <span className="entry-name-suggest-kana"> {c.kana}</span>}</div>
+                <div>
+                  {c.name}
+                  {c.kana && <span className="entry-name-suggest-kana"> {c.kana}</span>}
+                  {c.gender && <span className={`entry-name-suggest-gender ${c.gender === '男性' ? 'male' : 'female'}`}>{c.gender === '男性' ? '男' : '女'}</span>}
+                </div>
+                {c.feature && <div className="entry-name-suggest-feature">{c.feature}</div>}
                 <div className="entry-name-suggest-info">最終来店 {c.lastDate || '—'}（{c.recordCount || 0}回）</div>
               </div>
             ))}
@@ -3160,6 +3185,8 @@
             customerId: d.id,
             name: d.data().name || '',
             kana: d.data().kana || '',
+            gender: d.data().gender || '',
+            feature: (d.data().feature || '').trim(),
             lastDate: d.data().lastDate || '',
             recordCount: typeof d.data().recordCount === 'number' ? d.data().recordCount : 0,
           }))
