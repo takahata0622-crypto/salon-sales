@@ -1834,6 +1834,8 @@
     }
     .course-matrix {
       border-collapse: collapse;
+      /* 列幅を内容に関わらず一定にする（コース名の長さで幅がバラつかないように） */
+      table-layout: fixed;
       font-size: 12px;
       font-variant-numeric: tabular-nums;
       white-space: nowrap;
@@ -1841,9 +1843,10 @@
     .course-matrix th,
     .course-matrix td {
       border: 1px solid var(--border);
-      padding: 5px 8px;
+      padding: 5px 4px;
       text-align: center;
       color: var(--ink);
+      width: 52px;
     }
     .course-matrix thead th {
       background: var(--accent-light);
@@ -1860,10 +1863,11 @@
       background: var(--card);
       font-weight: 700;
       color: var(--muted);
-      min-width: 34px;
+      width: 40px;
     }
     .course-matrix thead .cm-day { background: var(--accent-light); color: var(--accent); z-index: 2; }
-    .course-matrix .cm-total { text-align: right; font-weight: 700; color: var(--accent); }
+    /* 合計だけは金額（例：202,450）が入るので広めにする */
+    .course-matrix .cm-total { text-align: right; font-weight: 700; color: var(--accent); width: 80px; }
     .course-matrix tr.zero td { color: var(--muted); opacity: 0.55; }
     .course-matrix tr.cm-sum td {
       background: var(--accent-light);
@@ -2282,6 +2286,7 @@
     .replace('セレクトボディケア', 'S')
     .replace('ストレッチ', 'ST')
     .replace('ボディケア', 'B')
+    .replace('部分集中', '部')
     .replace(/分$/, '');
   // 一覧表示用の延長ラベル（セットはタイ・バリ別々に表示）
   const extLabelFor = (e) => {
@@ -2745,7 +2750,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.93</span>
+              <span className="version">Ver 3.94</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
