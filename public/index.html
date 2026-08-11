@@ -2287,6 +2287,11 @@
     .replace('ストレッチ', 'ST')
     .replace('ボディケア', 'B')
     .replace('部分集中', '部')
+    .replace('初売りチケット', 'チケ')
+    .replace('キャンペーン', 'キャ')
+    .replace('タイ古式', 'タイ')
+    .replace('バリアロマ', 'バリ')
+    .replace('セット', 'set')
     .replace(/分$/, '');
   // 一覧表示用の延長ラベル（セットはタイ・バリ別々に表示）
   const extLabelFor = (e) => {
@@ -2750,7 +2755,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.94</span>
+              <span className="version">Ver 3.95</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
