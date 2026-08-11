@@ -1852,7 +1852,7 @@
       position: sticky;
       top: 0;
     }
-    .course-matrix .cm-course { max-width: 120px; white-space: normal; }
+    .course-matrix .cm-course { white-space: nowrap; }
     .course-matrix .cm-day {
       position: sticky;
       left: 0;
@@ -2276,6 +2276,13 @@
   };
   // 延長の合計分数（表示条件の判定用）
   const extMinTotal = (e) => isSetMenu(e.name) ? (e.extTaiMin || 0) + (e.extBariMin || 0) : (e.extMin || 0);
+  // 集計表の列見出し用の短縮名（例：セレクトボディケア80分 → S80／ストレッチ40分 → ST40）。
+  // 「セレクトボディケア」は「ボディケア」を含むので、先に置き換える必要がある。
+  const shortCourseName = (name) => (name || '')
+    .replace('セレクトボディケア', 'S')
+    .replace('ストレッチ', 'ST')
+    .replace('ボディケア', 'B')
+    .replace(/分$/, '');
   // 一覧表示用の延長ラベル（セットはタイ・バリ別々に表示）
   const extLabelFor = (e) => {
     if (isSetMenu(e.name)) {
@@ -2738,7 +2745,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.92</span>
+              <span className="version">Ver 3.93</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -4218,16 +4225,24 @@
               const d = byDate[date];
               const counts = {};
               let amount = 0;
+              let extUnits = 0; // 延長は10分を1として数える
+              let shimeiCnt = 0;
               if (d) {
-                d.entries.forEach(e => { counts[e.name] = (counts[e.name] || 0) + 1; });
+                d.entries.forEach(e => {
+                  counts[e.name] = (counts[e.name] || 0) + 1;
+                  extUnits += extMinTotal(e) / 10;
+                  if (e.shimei) shimeiCnt += 1;
+                });
                 // 上の「月間売上」と同じ計算（割引を引く前の金額＝P）に合わせる。
                 // d.total は割引後（J）なので、そのまま使うと合計が食い違う。
                 amount = d.subtotal + d.extraTotal;
               }
-              return { day, date, counts, amount };
+              return { day, date, counts, extUnits, shimeiCnt, amount };
             });
             const totals = {};
             courseNames.forEach(n => { totals[n] = rows.reduce((s, r) => s + (r.counts[n] || 0), 0); });
+            const extTotal = rows.reduce((s, r) => s + r.extUnits, 0);
+            const shimeiTotalCnt = rows.reduce((s, r) => s + r.shimeiCnt, 0);
             const grandTotal = rows.reduce((s, r) => s + r.amount, 0);
             return (
               <div className="course-matrix-box">
@@ -4237,7 +4252,9 @@
                     <thead>
                       <tr>
                         <th className="cm-day">日</th>
-                        {courseNames.map(n => <th key={n} className="cm-course">{n}</th>)}
+                        {courseNames.map(n => <th key={n} className="cm-course" title={n}>{shortCourseName(n)}</th>)}
+                        <th className="cm-course">延長</th>
+                        <th className="cm-course">指名</th>
                         <th className="cm-total">合計</th>
                       </tr>
                     </thead>
@@ -4246,12 +4263,16 @@
                         <tr key={r.day} className={r.amount === 0 ? 'zero' : ''}>
                           <td className="cm-day">{r.day}</td>
                           {courseNames.map(n => <td key={n}>{r.counts[n] || ''}</td>)}
+                          <td>{r.extUnits || ''}</td>
+                          <td>{r.shimeiCnt || ''}</td>
                           <td className="cm-total">{r.amount ? r.amount.toLocaleString() : ''}</td>
                         </tr>
                       ))}
                       <tr className="cm-sum">
                         <td className="cm-day">合計</td>
                         {courseNames.map(n => <td key={n}>{totals[n] || ''}</td>)}
+                        <td>{extTotal || ''}</td>
+                        <td>{shimeiTotalCnt || ''}</td>
                         <td className="cm-total">{grandTotal ? grandTotal.toLocaleString() : ''}</td>
                       </tr>
                     </tbody>
