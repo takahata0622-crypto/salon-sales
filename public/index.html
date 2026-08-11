@@ -1818,6 +1818,59 @@
       font-weight: 700;
       margin-bottom: 4px;
     }
+
+    /* 日付別コース集計表（縦＝日付、横＝コース） */
+    .course-matrix-box {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 14px;
+      margin-bottom: 16px;
+    }
+    .course-matrix-scroll {
+      overflow-x: auto;
+      margin-top: 8px;
+      -webkit-overflow-scrolling: touch;
+    }
+    .course-matrix {
+      border-collapse: collapse;
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    .course-matrix th,
+    .course-matrix td {
+      border: 1px solid var(--border);
+      padding: 5px 8px;
+      text-align: center;
+      color: var(--ink);
+    }
+    .course-matrix thead th {
+      background: var(--accent-light);
+      color: var(--accent);
+      font-weight: 700;
+      position: sticky;
+      top: 0;
+    }
+    .course-matrix .cm-course { max-width: 120px; white-space: normal; }
+    .course-matrix .cm-day {
+      position: sticky;
+      left: 0;
+      z-index: 1;
+      background: var(--card);
+      font-weight: 700;
+      color: var(--muted);
+      min-width: 34px;
+    }
+    .course-matrix thead .cm-day { background: var(--accent-light); color: var(--accent); z-index: 2; }
+    .course-matrix .cm-total { text-align: right; font-weight: 700; color: var(--accent); }
+    .course-matrix tr.zero td { color: var(--muted); opacity: 0.55; }
+    .course-matrix tr.cm-sum td {
+      background: var(--accent-light);
+      font-weight: 700;
+      opacity: 1;
+    }
+    .course-matrix tr.cm-sum .cm-day { background: var(--accent-light); color: var(--accent); }
     .chart-legend {
       display: flex;
       gap: 16px;
@@ -2685,7 +2738,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.90</span>
+              <span className="version">Ver 3.91</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -3859,7 +3912,6 @@
     const [year, setYear] = useState(now.getUTCFullYear());
     const [month, setMonth] = useState(now.getUTCMonth() + 1);
     const [days, setDays] = useState([]);
-    const [expanded, setExpanded] = useState(null);
     const [goalAmount, setGoalAmount] = useState(0);
     const [commission, setCommission] = useState(0);
     const [goalType, setGoalType] = useState('sales'); // 'sales' | 'takehome'
@@ -4150,56 +4202,62 @@
 
         {days.length === 0
           ? <div className="empty-state" style={{background:'var(--card)',borderRadius:16,padding:32,color:'var(--muted)'}}>この月のデータはありません</div>
-          : days.map(d => {
-            const ticketsForDay = d.entries.filter(e => isBodyTicket(e.name)).length * TICKET_SALARY;
+          : (() => {
+            // 日付ごと × コースごとの件数表。割引・宿泊では分けず、コース単位で数える。
+            const byDate = {};
+            days.forEach(d => { byDate[d.date] = d; });
+            // 列に並べるコースは、その月に実際に出てきたメニューだけにする
+            const courseNames = [];
+            days.forEach(d => d.entries.forEach(e => {
+              if (e.name && !courseNames.includes(e.name)) courseNames.push(e.name);
+            }));
+            const monthStr = `${year}-${String(month).padStart(2, '0')}`;
+            const rows = Array.from({ length: daysInMonthCnt }, (_, i) => {
+              const day = i + 1;
+              const date = `${monthStr}-${String(day).padStart(2, '0')}`;
+              const d = byDate[date];
+              const counts = {};
+              let amount = 0;
+              if (d) {
+                d.entries.forEach(e => { counts[e.name] = (counts[e.name] || 0) + 1; });
+                amount = d.total;
+              }
+              return { day, date, counts, amount };
+            });
+            const totals = {};
+            courseNames.forEach(n => { totals[n] = rows.reduce((s, r) => s + (r.counts[n] || 0), 0); });
+            const grandTotal = rows.reduce((s, r) => s + r.amount, 0);
             return (
-            <div key={d.date} className="day-card">
-              <div className="day-card-header" onClick={() => setExpanded(expanded === d.date ? null : d.date)}>
-                <span className="day-label">{d.date.replace(/-/g, '/')} ({['日','月','火','水','木','金','土'][new Date(d.date + 'T00:00:00+09:00').getDay()]})</span>
-                <div style={{textAlign:'right'}}>
-                  <div className="day-total">{formatPrice(d.subtotal + d.extraTotal + ticketsForDay)}</div>
-                  <div style={{fontSize:11,color:'var(--muted)',marginTop:2}}>
-                    <span><span style={{fontWeight:700}}>J</span> {formatPrice(d.total)}</span>
-                    <span style={{marginLeft:8}}><span style={{fontWeight:700}}>P</span> {formatPrice(d.subtotal + d.extraTotal)}</span>
-                  </div>
+              <div className="course-matrix-box">
+                <div className="chart-title">日付別コース集計</div>
+                <div className="course-matrix-scroll">
+                  <table className="course-matrix">
+                    <thead>
+                      <tr>
+                        <th className="cm-day">日</th>
+                        {courseNames.map(n => <th key={n} className="cm-course">{n}</th>)}
+                        <th className="cm-total">合計</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map(r => (
+                        <tr key={r.day} className={r.amount === 0 ? 'zero' : ''}>
+                          <td className="cm-day">{r.day}</td>
+                          {courseNames.map(n => <td key={n}>{r.counts[n] || ''}</td>)}
+                          <td className="cm-total">{r.amount ? r.amount.toLocaleString() : ''}</td>
+                        </tr>
+                      ))}
+                      <tr className="cm-sum">
+                        <td className="cm-day">合計</td>
+                        {courseNames.map(n => <td key={n}>{totals[n] || ''}</td>)}
+                        <td className="cm-total">{grandTotal ? grandTotal.toLocaleString() : ''}</td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
               </div>
-              {expanded === d.date && (
-                <div className="day-card-body">
-                  {d.entries.map((e) => {
-                    const c = calcEntry(e);
-                    return (
-                      <div key={e.id} className="day-entry-wrap">
-                        <div className="day-entry">
-                          <span>
-                            {e.name}
-                            {c.rate > 0 ? `（${e.lodging ? '宿泊' : ''}割引${Math.round(c.rate * 100)}%）` : ''}
-                            {extLabelFor(e)}
-                            {e.shimei ? '（指名）' : ''}
-                            {e.seibetsu ? '（男女希望）' : ''}
-                          </span>
-                          <span className="de-price">{formatPrice(c.net)}</span>
-                        </div>
-                        {e.memo && <div className="day-entry-memo">📝 {e.memo}</div>}
-                      </div>
-                    );
-                  })}
-                  {d.discountAmount > 0 && (
-                    <div className="day-entry day-discount">
-                      <span>割引合計</span>
-                      <span className="de-price">−{formatPrice(d.discountAmount)}</span>
-                    </div>
-                  )}
-                  {d.extraTotal > 0 && (
-                    <div className="day-entry">
-                      <span>追加料金合計</span>
-                      <span className="de-price">+{formatPrice(d.extraTotal)}</span>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          );})
+            );
+          })()
         }
       </>
     );
