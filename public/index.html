@@ -2685,7 +2685,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.89</span>
+              <span className="version">Ver 3.90</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -5427,32 +5427,15 @@
           )
         }
 
-        {(() => {
-          const pad = (n) => String(n).padStart(2, '0');
-          const dateKey = `${year}${pad(month)}${pad(selectedDay)}`;
-          const isSent = sentDates.has(dateKey);
-          return (
-            <div className="submit-footer" ref={footerRef}>
-              <div className="day-totals">
-                <span>割引合計（J）<b>{formatPrice(dayAmounts[selectedDay] || 0)}</b></span>
-                <span>合計（P）<b>{formatPrice(dayAmountsNoDisc[selectedDay] || 0)}</b></span>
-              </div>
-              <div className="end-of-day-row">
-                <button className={`end-of-day-btn${isSent ? ' sent' : ''}`} onClick={handleEndOfDay} disabled={sending}>
-                  {sending ? '送信中...' : isSent ? '送信済み' : '業務終了　未送信'}
-                </button>
-                <span className="send-caution">指示なく前日より前のデータを訂正する場合は責任者に連絡をしてください。</span>
-              </div>
-              {sendResult && (
-                <div className={`send-result ${sendResult}`}>
-                  {sendResult === 'success'
-                    ? 'スプレッドシートに転記しました ✓'
-                    : `送信に失敗しました。再度お試しください。${sendErrMsg ? '（' + sendErrMsg + '）' : ''}`}
-                </div>
-              )}
-            </div>
-          );
-        })()}
+        {/* 「業務終了（データ送信）」ボタンと送信結果の表示は一旦停止中。
+            送信処理（handleEndOfDay）とスプレッドシート連携のコードはそのまま残してあるので、
+            再開したいときはこの下に end-of-day-row と send-result を戻せばよい。 */}
+        <div className="submit-footer" ref={footerRef}>
+          <div className="day-totals">
+            <span>割引合計（J）<b>{formatPrice(dayAmounts[selectedDay] || 0)}</b></span>
+            <span>合計（P）<b>{formatPrice(dayAmountsNoDisc[selectedDay] || 0)}</b></span>
+          </div>
+        </div>
       </>
     );
   }
