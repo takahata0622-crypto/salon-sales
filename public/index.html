@@ -1856,15 +1856,16 @@
       top: 0;
     }
     .course-matrix .cm-course { white-space: nowrap; }
-    /* メニュー名の見出しは縦書き。英数字も寝かせず立てたままにする（B40 を縦に積む） */
+    /* 見出しは縦書き。英数字も寝かせず立てたままにする（B40 を縦に積む）。
+       text-align-last: justify で、文字数が違っても上端から下端まで均等に配置する。 */
     .course-matrix thead .cm-vert {
       writing-mode: vertical-rl;
       text-orientation: upright;
       height: 92px;
       padding: 6px 2px;
-      white-space: nowrap;
-      letter-spacing: 0.04em;
-      vertical-align: bottom;
+      letter-spacing: 0;
+      text-align: justify;
+      text-align-last: justify;
     }
     .course-matrix .cm-day {
       position: sticky;
@@ -1879,9 +1880,18 @@
     /* 合計だけは金額（例：202,450）が入るので広めにする */
     .course-matrix .cm-total { text-align: right; font-weight: 700; color: var(--accent); width: 80px; }
     .course-matrix tr.zero td { color: var(--muted); opacity: 0.55; }
+    /* 10日ごとの小計。合計より控えめにして、区切りとして上に線を引く */
+    .course-matrix tr.cm-subtotal td {
+      background: var(--bg);
+      font-weight: 700;
+      border-top: 2px solid var(--accent);
+      opacity: 1;
+    }
+    .course-matrix tr.cm-subtotal .cm-day { background: var(--bg); color: var(--accent); }
     .course-matrix tr.cm-sum td {
       background: var(--accent-light);
       font-weight: 700;
+      border-top: 2px solid var(--accent);
       opacity: 1;
     }
     .course-matrix tr.cm-sum .cm-day { background: var(--accent-light); color: var(--accent); }
@@ -2765,7 +2775,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.96</span>
+              <span className="version">Ver 3.97</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -4259,11 +4269,27 @@
               }
               return { day, date, counts, extUnits, shimeiCnt, amount };
             });
-            const totals = {};
-            courseNames.forEach(n => { totals[n] = rows.reduce((s, r) => s + (r.counts[n] || 0), 0); });
-            const extTotal = rows.reduce((s, r) => s + r.extUnits, 0);
-            const shimeiTotalCnt = rows.reduce((s, r) => s + r.shimeiCnt, 0);
-            const grandTotal = rows.reduce((s, r) => s + r.amount, 0);
+            // 指定した行の合計（小計・合計の両方で使う）
+            const sumRows = (rs) => {
+              const counts = {};
+              courseNames.forEach(n => { counts[n] = rs.reduce((s, r) => s + (r.counts[n] || 0), 0); });
+              return {
+                counts,
+                extUnits: rs.reduce((s, r) => s + r.extUnits, 0),
+                shimeiCnt: rs.reduce((s, r) => s + r.shimeiCnt, 0),
+                amount: rs.reduce((s, r) => s + r.amount, 0),
+              };
+            };
+            // 1〜10日／11〜20日／21日〜月末 の3区切りで小計を出す。
+            // 「10日ごと」で区切ると31日の月で31日だけが独立してしまうため、
+            // 最後の区切りは月末までをひとまとめにする。
+            const blocks = [];
+            let current = [];
+            rows.forEach(r => {
+              current.push(r);
+              if (r.day === 10 || r.day === 20 || r.day === daysInMonthCnt) { blocks.push(current); current = []; }
+            });
+            const grand = sumRows(rows);
             return (
               <div className="course-matrix-box">
                 <div className="chart-title">日付別コース集計</div>
@@ -4273,27 +4299,41 @@
                       <tr>
                         <th className="cm-day">日</th>
                         {courseNames.map(n => <th key={n} className="cm-course cm-vert" title={n}>{shortCourseName(n)}</th>)}
-                        <th className="cm-course">延長</th>
-                        <th className="cm-course">指名</th>
+                        <th className="cm-course cm-vert">延長</th>
+                        <th className="cm-course cm-vert">指名</th>
                         <th className="cm-total">合計</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {rows.map(r => (
-                        <tr key={r.day} className={r.amount === 0 ? 'zero' : ''}>
-                          <td className="cm-day">{r.day}</td>
-                          {courseNames.map(n => <td key={n}>{r.counts[n] || ''}</td>)}
-                          <td>{r.extUnits || ''}</td>
-                          <td>{r.shimeiCnt || ''}</td>
-                          <td className="cm-total">{r.amount ? r.amount.toLocaleString() : ''}</td>
-                        </tr>
-                      ))}
+                      {blocks.map((block, bi) => {
+                        const sub = sumRows(block);
+                        return (
+                          <React.Fragment key={bi}>
+                            {block.map(r => (
+                              <tr key={r.day} className={r.amount === 0 ? 'zero' : ''}>
+                                <td className="cm-day">{r.day}</td>
+                                {courseNames.map(n => <td key={n}>{r.counts[n] || ''}</td>)}
+                                <td>{r.extUnits || ''}</td>
+                                <td>{r.shimeiCnt || ''}</td>
+                                <td className="cm-total">{r.amount ? r.amount.toLocaleString() : ''}</td>
+                              </tr>
+                            ))}
+                            <tr className="cm-subtotal">
+                              <td className="cm-day">小計</td>
+                              {courseNames.map(n => <td key={n}>{sub.counts[n] || ''}</td>)}
+                              <td>{sub.extUnits || ''}</td>
+                              <td>{sub.shimeiCnt || ''}</td>
+                              <td className="cm-total">{sub.amount ? sub.amount.toLocaleString() : ''}</td>
+                            </tr>
+                          </React.Fragment>
+                        );
+                      })}
                       <tr className="cm-sum">
                         <td className="cm-day">合計</td>
-                        {courseNames.map(n => <td key={n}>{totals[n] || ''}</td>)}
-                        <td>{extTotal || ''}</td>
-                        <td>{shimeiTotalCnt || ''}</td>
-                        <td className="cm-total">{grandTotal ? grandTotal.toLocaleString() : ''}</td>
+                        {courseNames.map(n => <td key={n}>{grand.counts[n] || ''}</td>)}
+                        <td>{grand.extUnits || ''}</td>
+                        <td>{grand.shimeiCnt || ''}</td>
+                        <td className="cm-total">{grand.amount ? grand.amount.toLocaleString() : ''}</td>
                       </tr>
                     </tbody>
                   </table>
