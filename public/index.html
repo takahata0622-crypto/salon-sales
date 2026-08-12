@@ -1888,9 +1888,11 @@
       top: 0;
       z-index: 5;
     }
-    /* 「日」と「合計」の見出しは、縦書きのコース名に合わせて下に揃える */
+    /* 「日」と「合計」の見出しは、縦書きのコース名に合わせて下に揃える。
+       横方向は中央（本文の金額だけ右寄せのまま） */
     .course-matrix thead .cm-day,
     .course-matrix thead .cm-total { vertical-align: bottom; }
+    .course-matrix thead .cm-total { text-align: center; }
     .course-matrix .cm-course { white-space: nowrap; }
     /* 見出しは1文字ずつ縦に積む。writing-mode + text-align-last: justify は
        縦書きだと均等割り付けが効かない環境があるため、1文字ずつ span に分けて
@@ -2830,7 +2832,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 4.04</span>
+              <span className="version">Ver 4.05</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
