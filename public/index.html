@@ -1293,6 +1293,16 @@
       font-size: 14px;
     }
 
+    /* 伝票が無いときだけ出す案内 */
+    .privacy-note {
+      margin-top: 20px;
+      text-align: center;
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.7;
+      padding: 0 12px;
+    }
+
     /* 月次集計 */
     .month-header {
       display: flex;
@@ -2872,7 +2882,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 4.14</span>
+              <span className="version">Ver 4.15</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -4033,6 +4043,13 @@
             })
           }
         </div>
+
+        {/* 伝票が1件も無いときだけ、空いているところに出す案内 */}
+        {entries.length === 0 && (
+          <div className="privacy-note">
+            このアプリのデータ・情報は会社や他人には一切共有されません
+          </div>
+        )}
       </>
     );
   }
