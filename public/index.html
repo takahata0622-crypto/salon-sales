@@ -2077,16 +2077,12 @@
     .cal-daynum { font-size: 13px; font-weight: 700; color: var(--ink); }
     .cal-daynum.sun { color: var(--danger); }
     .cal-daynum.sat { color: #3F6BA3; }
-    /* 今日は日付を塗りつぶした丸で示す（休みの赤枠と重なっても分かるように） */
-    .cal-cell.today .cal-daynum {
-      width: 22px;
-      height: 22px;
-      border-radius: 50%;
-      background: var(--accent);
-      color: #fff;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+    /* 今日はメインカラーの枠で囲う。
+       休みの赤枠より後に書いて、両方に当てはまる日はこちらが優先されるようにする。
+       太さは box-shadow で足しているので、枠が太くなってもセルの大きさは変わらない。 */
+    .cal-cell.today {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1.5px var(--accent);
     }
     .cal-count {
       margin-top: auto;
@@ -2882,7 +2878,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 4.16</span>
+              <span className="version">Ver 4.17</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
