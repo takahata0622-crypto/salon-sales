@@ -2031,14 +2031,21 @@
     }
     .cal-cell.holiday { background: rgba(192,57,43,0.08); border-color: var(--danger); }
     /* 休みに設定した日に表示するバッジ（右上） */
+    /* 休みの日に付ける赤丸バッジ（セル下部の中央） */
     .cal-holiday {
-      position: absolute;
-      top: 3px;
-      right: 4px;
+      margin-top: auto;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--danger);
+      color: #fff;
       font-size: 11px;
-      font-weight: 900;
-      color: var(--danger);
+      font-weight: 800;
       line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
     }
     .cal-daynum { font-size: 13px; font-weight: 700; color: var(--ink); }
     .cal-daynum.sun { color: var(--danger); }
@@ -2837,7 +2844,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 4.08</span>
+              <span className="version">Ver 4.09</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -4550,8 +4557,8 @@
                       onClick={() => { if (!savingHoliday) toggleHoliday(d); }}
                     >
                       {mine && <span className="cal-mine">✓</span>}
-                      {holiday && <span className="cal-holiday">休</span>}
                       <span className={`cal-daynum${wdCls}`}>{d}</span>
+                      {holiday && <span className="cal-holiday">休</span>}
                     </div>
                   );
                 })}
