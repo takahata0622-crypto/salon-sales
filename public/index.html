@@ -1830,8 +1830,10 @@
     .course-matrix-scroll {
       overflow: auto;
       /* 表の中だけを縦にもスクロールさせる。こうしないと見出しの sticky が
-         ページのスクロールに追従できず、スクロールで見出しが消えてしまう */
-      max-height: 70vh;
+         ページのスクロールに追従できず、スクロールで見出しが消えてしまう。
+         高さは上部バーを除いた画面いっぱいまで使い、一度に見える行数を増やす。
+         画面より高くすると固定した行が画面外に出てしまうので、ここが上限。 */
+      max-height: calc(100dvh - var(--topbar-h, 100px) - 80px);
       margin-top: 8px;
       -webkit-overflow-scrolling: touch;
     }
@@ -2801,7 +2803,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 4.01</span>
+              <span className="version">Ver 4.02</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
