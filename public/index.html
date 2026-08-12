@@ -1856,16 +1856,21 @@
       top: 0;
     }
     .course-matrix .cm-course { white-space: nowrap; }
-    /* 見出しは縦書き。英数字も寝かせず立てたままにする（B40 を縦に積む）。
-       text-align-last: justify で、文字数が違っても上端から下端まで均等に配置する。 */
+    /* 見出しは1文字ずつ縦に積む。writing-mode + text-align-last: justify は
+       縦書きだと均等割り付けが効かない環境があるため、1文字ずつ span に分けて
+       flex の space-between で確実に上端から下端まで均等配置する。 */
     .course-matrix thead .cm-vert {
-      writing-mode: vertical-rl;
-      text-orientation: upright;
-      height: 92px;
+      height: 96px;
       padding: 6px 2px;
-      letter-spacing: 0;
-      text-align: justify;
-      text-align-last: justify;
+      vertical-align: middle;
+    }
+    .cm-vert-inner {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      height: 84px;
+      line-height: 1;
     }
     .course-matrix .cm-day {
       position: sticky;
@@ -2306,13 +2311,19 @@
     .replace('セレクトボディケア', 'S')
     .replace('ストレッチ', 'ST')
     .replace('ボディケア', 'B')
-    .replace('部分集中', '部')
+    .replace('部分集中', '部分')
     .replace('初売りチケット', 'チケ')
     .replace('キャンペーン', 'キャ')
     .replace('タイ古式', 'タイ')
     .replace('バリアロマ', 'バリ')
     .replace('セット', 'set')
     .replace(/分$/, '');
+  // 見出しを1文字ずつ縦に積むための要素（CSS側の flex で上下均等に配置する）
+  const verticalLabel = (text) => (
+    <span className="cm-vert-inner">
+      {String(text).split('').map((ch, i) => <span key={i}>{ch}</span>)}
+    </span>
+  );
   // 一覧表示用の延長ラベル（セットはタイ・バリ別々に表示）
   const extLabelFor = (e) => {
     if (isSetMenu(e.name)) {
@@ -2775,7 +2786,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.97</span>
+              <span className="version">Ver 3.98</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -4298,9 +4309,11 @@
                     <thead>
                       <tr>
                         <th className="cm-day">日</th>
-                        {courseNames.map(n => <th key={n} className="cm-course cm-vert" title={n}>{shortCourseName(n)}</th>)}
-                        <th className="cm-course cm-vert">延長</th>
-                        <th className="cm-course cm-vert">指名</th>
+                        {courseNames.map(n => (
+                          <th key={n} className="cm-course cm-vert" title={n}>{verticalLabel(shortCourseName(n))}</th>
+                        ))}
+                        <th className="cm-course cm-vert">{verticalLabel('延長')}</th>
+                        <th className="cm-course cm-vert">{verticalLabel('指名')}</th>
                         <th className="cm-total">合計</th>
                       </tr>
                     </thead>
