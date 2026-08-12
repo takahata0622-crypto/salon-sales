@@ -1860,8 +1860,7 @@
        縦書きだと均等割り付けが効かない環境があるため、1文字ずつ span に分けて
        flex の space-between で確実に上端から下端まで均等配置する。 */
     .course-matrix thead .cm-vert {
-      height: 96px;
-      padding: 6px 2px;
+      padding: 4px 2px;
       vertical-align: middle;
     }
     .cm-vert-inner {
@@ -1869,7 +1868,8 @@
       flex-direction: column;
       align-items: center;
       justify-content: space-between;
-      height: 84px;
+      /* 一番長い見出しがちょうど収まる高さ。列数ぶんの文字が入るよう JS 側で計算する */
+      height: var(--cm-head-h, 84px);
       line-height: 1;
     }
     .course-matrix .cm-day {
@@ -2786,7 +2786,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 3.98</span>
+              <span className="version">Ver 3.99</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -4280,6 +4280,10 @@
               }
               return { day, date, counts, extUnits, shimeiCnt, amount };
             });
+            // 見出しの高さは、その月に出てくる一番長い見出しがちょうど収まる分だけにする
+            const headerLabels = courseNames.map(shortCourseName).concat(['延長', '指名']);
+            const maxHeadChars = headerLabels.reduce((m, l) => Math.max(m, l.length), 1);
+            const headHeight = maxHeadChars * 13;
             // 指定した行の合計（小計・合計の両方で使う）
             const sumRows = (rs) => {
               const counts = {};
@@ -4305,7 +4309,7 @@
               <div className="course-matrix-box">
                 <div className="chart-title">日付別コース集計</div>
                 <div className="course-matrix-scroll">
-                  <table className="course-matrix">
+                  <table className="course-matrix" style={{ '--cm-head-h': headHeight + 'px' }}>
                     <thead>
                       <tr>
                         <th className="cm-day">日</th>
