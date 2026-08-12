@@ -37,6 +37,20 @@
       min-height: 100vh;
     }
 
+    /* タップで操作する要素（ボタンではない div や span）は文字を選択不可にする。
+       選択できる状態だと、タップしたときに Chrome の「タップして検索」が反応して
+       画面下に検索バーが出てしまうため。 */
+    .cal-cell,
+    .entry-name-text,
+    .add-fab-wrap,
+    .stat-picker-label,
+    .karte-result-item,
+    .course-matrix-toggle {
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
+    }
+
     .topbar {
       position: sticky;
       top: 0;
@@ -2847,7 +2861,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 4.12</span>
+              <span className="version">Ver 4.13</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
