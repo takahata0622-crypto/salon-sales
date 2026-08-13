@@ -42,6 +42,7 @@
        画面下に検索バーが出てしまうため。 */
     .cal-cell,
     .entry-name-text,
+    .entry-name-display,
     .add-fab-wrap,
     .stat-picker-label,
     .karte-result-item,
@@ -976,12 +977,14 @@
       border-color: var(--accent);
     }
 
+    /* タップするとデータ入力ポップアップが開く（エンピツアイコンと同じ動き） */
     .entry-name-display {
       flex: 1;
       width: 100%;
       font-size: 14px;
       color: var(--ink);
       padding: 7px 10px;
+      cursor: pointer;
     }
 
     .entry-name-autocomplete { position: relative; flex: 1; width: 100%; }
@@ -2878,7 +2881,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 4.17</span>
+              <span className="version">Ver 4.18</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -4010,7 +4013,7 @@
                     if (!cx) return null;
                     return <span className={`existence-badge ${cx === '既' ? 'existing' : 'new'}`}>{cx}</span>;
                   })()}
-                  <span className="entry-name-display">{e.customerName || '未入力'}</span>
+                  <span className="entry-name-display" onClick={() => toggleDataPanel(e.id)}>{e.customerName || '未入力'}</span>
                   {e.dataSyncSnapshot && <span className="save-status-btn synced">保存済</span>}
                   <button className={`data-btn ${openDataPanels.has(e.id) ? 'active' : ''}`} onClick={() => toggleDataPanel(e.id)} aria-label="データ入力">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
