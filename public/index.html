@@ -2004,6 +2004,45 @@
       padding-bottom: 4px;
     }
     .confirm-note { font-size: 12px; color: var(--muted); margin-bottom: 0; }
+    /* 休み希望をそのまま送れるテキスト（コピーボタン付き） */
+    .holiday-text-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 14px 14px;
+      margin-top: 14px;
+    }
+    .holiday-text-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .holiday-text-title { font-size: 12px; font-weight: 700; color: var(--muted); }
+    .holiday-copy-btn {
+      border: 1px solid var(--accent);
+      background: var(--accent);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 6px 14px;
+      border-radius: 999px;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .holiday-copy-btn.copied { background: var(--success); border-color: var(--success); }
+    .holiday-copy-btn:disabled { background: var(--border); border-color: var(--border); color: var(--muted); cursor: default; }
+    .holiday-text-body {
+      font-size: 13px;
+      line-height: 1.8;
+      color: var(--ink);
+      white-space: pre-wrap;
+      word-break: break-all;
+      margin: 0;
+      font-family: inherit;
+    }
+    .holiday-text-empty { font-size: 12px; color: var(--muted); }
     .confirm-card {
       background: var(--card);
       border: 1px solid var(--border);
@@ -2894,7 +2933,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 4.19</span>
+              <span className="version">Ver 4.20</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -4517,6 +4556,7 @@
     const [month, setMonth] = useState(todayM);
     const [loading, setLoading] = useState(true);
     const [savingHoliday, setSavingHoliday] = useState(false);
+    const [copied, setCopied] = useState(false);
     const [holidayDays, setHolidayDays] = useState([]); // 休みは他人と共有せず自分専用（users/{uid}配下）に保存
     const [shiftMap, setShiftMap] = useState({}); // 日 → '朝' | '中' | '夜'
 
@@ -4526,6 +4566,7 @@
     // 集計タブは休みの配列（YYYY-MM）だけを見ているので、そちらには影響しない。
     useEffect(() => {
       setLoading(true);
+      setCopied(false);
       const monthKey = `${year}-${String(month).padStart(2, '0')}`;
       const unsub = db.collection('users').doc(uid).collection('meta').doc('holidays')
         .onSnapshot(doc => {
@@ -4584,6 +4625,34 @@
     for (let d = 1; d <= daysInMonth; d++) cells.push(d);
     while (cells.length % 7 !== 0) cells.push(null);
 
+    // 休み希望をそのまま送れる文章にする（例：「9月休み希望」＋改行＋「5（土）13（日）」）
+    const holidayList = Array.from(holidaySet).sort((a, b) => a - b);
+    const holidayText = `${month}月休み希望\n\n`
+      + holidayList.map(d => `${d}（${WD[new Date(year, month - 1, d).getDay()]}）`).join('');
+
+    const copyHolidayText = async () => {
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(holidayText);
+        } else {
+          // クリップボードAPIが使えない環境（古いアプリ内ブラウザなど）向けの代替手段
+          const ta = document.createElement('textarea');
+          ta.value = holidayText;
+          ta.style.position = 'fixed';
+          ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+        }
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1800);
+      } catch (err) {
+        setCopied(false);
+        alert('コピーできませんでした。文章を長押しして選択してください。');
+      }
+    };
+
     return (
       <>
         <div className="confirm-fixed">
@@ -4628,6 +4697,23 @@
                 休 {holidaySet.size}日 ／ 朝 {Object.values(shiftMap).filter(v => v === '朝').length}日
                 ／ 中 {Object.values(shiftMap).filter(v => v === '中').length}日
                 ／ 夜 {Object.values(shiftMap).filter(v => v === '夜').length}日
+              </div>
+
+              <div className="holiday-text-card">
+                <div className="holiday-text-head">
+                  <span className="holiday-text-title">休み希望（提出用）</span>
+                  <button
+                    className={`holiday-copy-btn${copied ? ' copied' : ''}`}
+                    onClick={copyHolidayText}
+                    disabled={holidayList.length === 0}
+                  >
+                    {copied ? 'コピーしました' : 'コピー'}
+                  </button>
+                </div>
+                {holidayList.length === 0
+                  ? <div className="holiday-text-empty">カレンダーで「休」を選ぶとここに文章が出ます。</div>
+                  : <p className="holiday-text-body">{holidayText}</p>
+                }
               </div>
             </>
         }
