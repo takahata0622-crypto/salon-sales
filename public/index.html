@@ -2928,7 +2928,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 4.26</span>
+              <span className="version">Ver 4.27</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -4044,7 +4044,15 @@
                     )}
                   </div>
                 )}
+                {/* オプションの並びはどのコースでも同じ位置になるようにする。
+                    1段目（宿泊・割引・指名料）と2段目前半（男女希望・ポイント20分）は常に固定。
+                    コースによって有無が変わる延長・眼精疲労は後ろにまとめる。 */}
                 <div className="entry-toggle-grid with-divider">
+                  <button className={`toggle-btn sm ${e.lodging ? 'active' : ''}`} onClick={() => toggleEntryLodging(e)}>宿泊</button>
+                  <button className={`toggle-btn sm ${e.discount ? 'active' : ''}`} onClick={() => toggleEntryDiscount(e)}>割引</button>
+                  <button className={`toggle-btn sm ${e.shimei ? 'active' : ''}`} onClick={() => toggleEntryShimei(e)}>指名料</button>
+                  <button className={`toggle-btn sm ${e.seibetsu ? 'active' : ''}`} onClick={() => toggleEntrySeibetsu(e)}>男女希望</button>
+                  <button className={`toggle-btn sm ${e.point20 ? 'active' : ''}`} onClick={() => toggleEntryPoint20(e)}>ポイント20分</button>
                   {isSetMenu(e.name) ? (
                     <>
                       <button className={`toggle-btn sm ${(e.extTaiMin || 0) > 0 ? 'active' : ''}`} onClick={() => cycleEntryExtTai(e)}>タイ延長{e.extTaiMin || 0}分</button>
@@ -4056,11 +4064,6 @@
                   {isTaiBariMenu(e.name) && (
                     <button className={`toggle-btn sm ${e.ganseihirou ? 'active' : ''}`} onClick={() => toggleEntryGanseihirou(e)}>眼精疲労</button>
                   )}
-                  <button className={`toggle-btn sm ${e.lodging ? 'active' : ''}`} onClick={() => toggleEntryLodging(e)}>宿泊</button>
-                  <button className={`toggle-btn sm ${e.discount ? 'active' : ''}`} onClick={() => toggleEntryDiscount(e)}>割引</button>
-                  <button className={`toggle-btn sm ${e.shimei ? 'active' : ''}`} onClick={() => toggleEntryShimei(e)}>指名料</button>
-                  <button className={`toggle-btn sm ${e.seibetsu ? 'active' : ''}`} onClick={() => toggleEntrySeibetsu(e)}>男女希望</button>
-                  <button className={`toggle-btn sm ${e.point20 ? 'active' : ''}`} onClick={() => toggleEntryPoint20(e)}>ポイント20分</button>
                 </div>
                 <div className="entry-memo-row">
                   <span className="entry-field-label">名前</span>
