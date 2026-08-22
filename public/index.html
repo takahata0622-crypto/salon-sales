@@ -2410,10 +2410,14 @@
     return snap;
   };
 
+  // タイ・バリのポイントメニュー。名前でメニューの所属部門を判定しているため、
+  // ボディケア側の「ポイント20分」と区別できる名前にしている
+  const TAIBARI_POINT_MENU = 'タイ・バリポイント20分';
+
   // タイ・バリのメニューかどうか（眼精疲労オプションの対象判定）
   const isTaiBariMenu = (name) => {
     const n = name || '';
-    return n.includes('タイ古式') || n.includes('バリアロマ') || n.includes('セット');
+    return n.includes('タイ古式') || n.includes('バリアロマ') || n.includes('セット') || n === TAIBARI_POINT_MENU;
   };
 
   // 延長10分あたりの単価（メニュー種別ごと）
@@ -2448,6 +2452,7 @@
     .replace('ストレッチ', 'ST')
     .replace('ボディケア', 'B')
     .replace('部分集中', '部分')
+    .replace('タイ・バリ', 'TB')
     .replace('ポイント', 'ポ')
     .replace('初売りチケット', 'チケ')
     .replace('キャンペーン', 'キャ')
@@ -2617,6 +2622,7 @@
     { id: 'p21', name: 'バリアロマ90分', price: 14000, category: 'タイ・バリ', isDefault: true },
     { id: 'p22', name: 'バリアロマ120分', price: 18000, category: 'タイ・バリ', isDefault: true },
     { id: 'p23', name: 'セット120分', price: 14800, category: 'タイ・バリ', isDefault: true },
+    { id: 'p27', name: TAIBARI_POINT_MENU, price: 0, category: 'タイ・バリ', isDefault: true },
   ];
 
   // 提出（スプレッドシート転記）時に既存メニューへ本数換算で折り込むメニュー
@@ -2924,7 +2930,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 4.22</span>
+              <span className="version">Ver 4.23</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
