@@ -2564,7 +2564,7 @@
   // 集計タブの数値カードの一覧（表示項目を選ぶポップアップ用）。好きな数だけ選んで、好きな順に並び替えられる。
   const STAT_ITEM_DEFS = [
     { id: 'monthTotal',        label: '月間売上' },
-    { id: 'monthTotalTicket',  label: 'チケット込月間売上' },
+    { id: 'monthTotalTicket',  label: 'チケット・ポイント込月間売上' },
     { id: 'targetToday',       label: '今日時点の目標売上／必要売上' },
     { id: 'salesTarget',       label: '目標売上' },
     { id: 'dailyAvg',          label: '1日平均' },
@@ -2579,6 +2579,9 @@
 
   // ボディケア初売りチケット：給料計算でのみ1枚あたり加算する金額（歩合対象）
   const TICKET_SALARY = 5000;
+  // ポイント20分：売上は0円だが、チケットと同じく給料計算でのみ1件あたり加算する（歩合対象）
+  // 金額はボディケア延長10分（¥1,350）×2 ＝ 20分ぶんの換算
+  const POINT20_SALARY = 2700;
   // ボディケア初売りチケット判定（タイ・バリの初売りチケットは対象外なので完全一致）
   const isBodyTicket = (name) => name === '初売りチケット';
 
@@ -2925,7 +2928,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 4.24</span>
+              <span className="version">Ver 4.25</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -4212,8 +4215,10 @@
     const seibetsuTotal = days.reduce((s, d) => s + d.entries.reduce((t, e) => t + (e.seibetsu ? PRICING.fees.seibetsu : 0), 0), 0);
     // ボディケア初売りチケットは売上0だが、給料計算では1枚¥5,000を歩合対象に含める
     const ticketCount = days.reduce((s, d) => s + d.entries.filter(e => isBodyTicket(e.name)).length, 0);
-    const ticketSalaryBase = ticketCount * TICKET_SALARY;
-    // 歩合の対象額（指名料・男女希望を除いた売上＋チケット給料分）
+    // ポイント20分も同じく売上0だが、1件¥2,700を歩合対象に含める
+    const point20Count = days.reduce((s, d) => s + d.entries.filter(e => e.point20).length, 0);
+    const ticketSalaryBase = ticketCount * TICKET_SALARY + point20Count * POINT20_SALARY;
+    // 歩合の対象額（指名料・男女希望を除いた売上＋チケット・ポイント給料分）
     const commissionBase = monthTotal - shimeiTotal - seibetsuTotal + ticketSalaryBase;
     const payEstimate = commission > 0 ? Math.round(commissionBase * (commission / 100)) + shimeiTotal : 0;
     // グラフ・達成率用の売上目標（手取目標の場合は必要売上に換算）
@@ -4274,7 +4279,7 @@
           const goalDailyAvg = salesTarget > 0 ? Math.round(salesTarget / bizDaysTotal) : 0;
           const allStats = [
             { id: 'monthTotal', label: '月間売上', value: formatPrice(monthTotal), show: true },
-            { id: 'monthTotalTicket', label: 'チケット込月間売上', value: formatPrice(monthTotal + ticketSalaryBase), show: true },
+            { id: 'monthTotalTicket', label: 'チケット・ポイント込売上', value: formatPrice(monthTotal + ticketSalaryBase), show: true },
             { id: 'targetToday', label: (isCurrentMonth ? '今日時点の' : '') + (goalType === 'takehome' ? '必要売上' : '目標売上'), value: formatPrice(targetToday), show: salesTarget > 0 },
             { id: 'salesTarget', label: '目標売上', value: formatPrice(salesTarget), show: salesTarget > 0 },
             { id: 'dailyAvg', label: `1日平均（${dayCount}日分）`, value: dailyAvg ? formatPrice(dailyAvg) : '—', show: true },
@@ -4331,8 +4336,9 @@
           days.forEach(d => {
             const dn = parseInt(d.date.slice(8, 10), 10);
             if (dn >= 1 && dn <= dim) {
-              // チケット金額込み：ボディケア初売りチケット 1枚=5000円を当日分に加算
-              const ticketsForDay = (d.entries || []).filter(e => isBodyTicket(e.name)).length * TICKET_SALARY;
+              // 歩合対象の加算込み：初売りチケット 1枚=5,000円、ポイント20分 1件=2,700円を当日分に加算
+              const ticketsForDay = (d.entries || []).filter(e => isBodyTicket(e.name)).length * TICKET_SALARY
+                + (d.entries || []).filter(e => e.point20).length * POINT20_SALARY;
               daily[dn - 1] = d.subtotal + d.extraTotal + ticketsForDay;
             }
           });
