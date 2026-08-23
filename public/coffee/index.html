@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>コーヒー代精算</title>
+  <title>コーヒー豆管理</title>
 
   <!-- Firebase compat SDK（salon-salesと同じプロジェクトを利用） -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
@@ -135,10 +135,9 @@
       justify-content: space-between;
     }
     .topbar h1 { font-size: 18px; }
-    .topbar .who { font-size: 12px; color: var(--muted); }
     .logout-link { font-size: 12px; color: var(--muted); background: none; border: none; text-decoration: underline; }
 
-    .app-body { padding: 8px 16px 90px; max-width: 480px; margin: 0 auto; }
+    .app-body { padding: 8px 16px 100px; max-width: 480px; margin: 0 auto; }
 
     .card {
       background: var(--card);
@@ -148,52 +147,100 @@
       box-shadow: 0 2px 10px rgba(0,0,0,0.04);
     }
 
-    .balance-card { text-align: center; }
-    .balance-label { font-size: 13px; color: var(--muted); margin-bottom: 4px; }
-    .balance-amount { font-size: 36px; font-weight: 800; color: var(--accent); }
-    .balance-amount.negative { color: var(--danger); }
+    .section-title { font-size: 14px; font-weight: 700; color: var(--muted); margin-bottom: 10px; }
 
-    .section-title { font-size: 14px; font-weight: 700; color: var(--muted); margin-bottom: 8px; }
-
-    .tabbar {
-      position: fixed;
-      bottom: 0; left: 0; right: 0;
-      background: var(--card);
-      border-top: 1px solid var(--border);
-      display: flex;
-      z-index: 20;
+    .photo-tap { cursor: pointer; margin-bottom: 12px; }
+    .photo-preview {
+      width: 100%;
+      max-height: 220px;
+      object-fit: cover;
+      border-radius: 10px;
+      display: block;
     }
-    .tabbar button {
-      flex: 1;
+    .photo-placeholder {
+      border: 1px dashed var(--border);
+      border-radius: 10px;
+      padding: 44px 10px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .rating-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 0;
+    }
+    .rating-label { font-size: 14px; font-weight: 600; }
+    .stars { display: flex; gap: 2px; }
+    .star-btn {
+      background: none;
+      border: none;
+      font-size: 24px;
+      line-height: 1;
+      color: var(--accent);
+      padding: 2px;
+    }
+
+    .collect-table { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 4px; }
+    .collect-table th {
+      text-align: left;
+      font-size: 12px;
+      color: var(--muted);
+      padding: 6px 4px;
+      border-bottom: 1px solid var(--border);
+    }
+    .collect-table td {
+      padding: 10px 4px;
+      border-bottom: 1px solid var(--border);
+    }
+    .collect-table td.col-amount { text-align: right; white-space: nowrap; }
+    .collect-table tfoot td { border-bottom: none; border-top: 2px solid var(--border); padding-top: 10px; }
+    .row-delete {
       border: none;
       background: none;
-      padding: 10px 4px 12px;
-      font-size: 11px;
-      color: var(--muted);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 2px;
+      color: var(--danger);
+      font-size: 16px;
+      padding: 2px 6px;
     }
-    .tabbar button .ico { font-size: 20px; }
-    .tabbar button.active { color: var(--accent); font-weight: 700; }
 
-    .method-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
-    .method-tabs button {
-      flex: 1;
-      padding: 10px 4px;
-      border: 1px solid var(--border);
-      border-radius: 10px;
+    .empty { text-align: center; color: var(--muted); font-size: 13px; padding: 20px 0; }
+
+    .fab {
+      position: fixed;
+      right: 20px;
+      bottom: 24px;
+      width: 58px;
+      height: 58px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #fff;
+      font-size: 28px;
+      border: none;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+      z-index: 30;
+    }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 40;
+      padding: 20px;
+    }
+    .modal-card {
       background: var(--card);
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--muted);
+      border-radius: 14px;
+      padding: 20px;
+      width: 100%;
+      max-width: 360px;
     }
-    .method-tabs button.active {
-      background: var(--accent-light);
-      border-color: var(--accent);
-      color: var(--accent);
-    }
+
+    .field-label { font-size: 12px; color: var(--muted); margin-bottom: 6px; font-weight: 600; }
 
     .amount-input-wrap {
       display: flex;
@@ -212,92 +259,9 @@
       outline: none;
     }
 
-    .quick-amounts { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
-    .quick-amounts button {
-      padding: 8px 14px;
-      border-radius: 20px;
-      border: 1px solid var(--border);
-      background: var(--card);
-      font-size: 13px;
-      color: var(--ink);
-    }
-
-    .hint-box {
-      background: var(--accent-light);
-      border-radius: 10px;
-      padding: 12px;
-      font-size: 12.5px;
-      color: var(--muted);
-      line-height: 1.6;
-      margin-bottom: 14px;
-    }
-
-    .list-item {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 12px 0;
-      border-bottom: 1px solid var(--border);
-      gap: 10px;
-    }
-    .list-item:last-child { border-bottom: none; }
-    .list-item .meta { font-size: 12px; color: var(--muted); }
-    .list-item .name { font-weight: 600; font-size: 14px; }
-    .list-item .amt { font-weight: 700; font-size: 15px; white-space: nowrap; }
-    .amt.plus { color: var(--success); }
-    .amt.minus { color: var(--danger); }
-    .badge {
-      display: inline-block;
-      font-size: 10.5px;
-      padding: 2px 7px;
-      border-radius: 10px;
-      background: var(--accent-light);
-      color: var(--accent);
-      margin-left: 6px;
-    }
-    .badge.pending { background: #FCEFCB; color: #8A6D1D; }
-
-    .empty { text-align: center; color: var(--muted); font-size: 13px; padding: 24px 0; }
-
-    .member-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
-    .member-chip {
-      padding: 7px 12px;
-      border-radius: 20px;
-      border: 1px solid var(--border);
-      background: var(--card);
-      font-size: 13px;
-    }
-    .member-chip.selected { background: var(--accent); color: #fff; border-color: var(--accent); }
-
-    .photo-preview {
-      width: 100%;
-      max-height: 220px;
-      object-fit: cover;
-      border-radius: 10px;
-      margin-bottom: 10px;
-    }
-
-    textarea.login-input { resize: vertical; min-height: 60px; }
-
-    .field-label { font-size: 12px; color: var(--muted); margin-bottom: 6px; font-weight: 600; }
-
-    .balance-row-list .list-item .name { flex: 1; }
-
-    a.link-btn {
-      display: block;
-      text-align: center;
-      padding: 12px;
-      border-radius: 10px;
-      background: var(--accent);
-      color: #fff;
-      text-decoration: none;
-      font-weight: 700;
-      margin-bottom: 10px;
-    }
-
     .toast {
       position: fixed;
-      bottom: 80px;
+      bottom: 96px;
       left: 50%;
       transform: translateX(-50%);
       background: var(--ink);
@@ -330,7 +294,7 @@
   </script>
 
   <script type="text/babel">
-    const { useState, useEffect, useMemo, useRef, useCallback } = React;
+    const { useState, useEffect, useRef, useCallback } = React;
 
     firebase.initializeApp(window.FIREBASE_CONFIG);
     const db = firebase.firestore();
@@ -347,11 +311,6 @@
     };
 
     const yen = (n) => `¥${Number(n || 0).toLocaleString('ja-JP')}`;
-    const fmtDate = (ts) => {
-      if (!ts || !ts.toDate) return '';
-      const d = ts.toDate();
-      return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-    };
 
     // 写真をリサイズ＆圧縮してdataURLにする（Firebase Storageを使わずFirestoreに直接保存するため）
     function resizeImageToDataURL(file, maxW = 900, quality = 0.6) {
@@ -418,7 +377,7 @@
       return (
         <div className="login-wrap">
           <div className="login-card">
-            <h1>☕ コーヒー代精算</h1>
+            <h1>☕ コーヒー豆管理</h1>
             <div className="login-mode">
               <button className={mode === 'login' ? 'active' : ''} onClick={() => { setMode('login'); setError(''); }}>ログイン</button>
               <button className={mode === 'signup' ? 'active' : ''} onClick={() => { setMode('signup'); setError(''); }}>新規登録</button>
@@ -447,263 +406,48 @@
               {busy ? '処理中…' : (mode === 'signup' ? '登録して始める' : 'ログイン')}
             </button>
             <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 12, textAlign: 'center' }}>
-              salon-salesアプリと同じ名前・パスワードでもログインできます
+              幹事用の画面です。salon-salesアプリと同じ名前・パスワードでもログインできます
             </p>
           </div>
         </div>
       );
     }
 
-    // ========== ホーム ==========
-    function HomeTab({ profile, myCharges, myPurchases }) {
-      const history = useMemo(() => {
-        const items = [
-          ...myCharges.map(c => ({ ...c, kind: 'charge' })),
-          ...myPurchases.map(p => ({ ...p, kind: 'purchase' })),
-        ];
-        items.sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
-        return items.slice(0, 8);
-      }, [myCharges, myPurchases]);
-
+    // ========== 星評価 ==========
+    function StarRow({ label, value, onChange }) {
       return (
-        <div>
-          <div className="card balance-card">
-            <div className="balance-label">現在のチャージ残高</div>
-            <div className={`balance-amount ${profile.balance < 0 ? 'negative' : ''}`}>{yen(profile.balance)}</div>
-            {profile.balance < 0 && <div style={{ fontSize: 12, color: 'var(--danger)', marginTop: 6 }}>残高がマイナスです。チャージをお願いします</div>}
-          </div>
-
-          <div className="card">
-            <div className="section-title">最近の履歴</div>
-            {history.length === 0 && <div className="empty">まだ履歴がありません</div>}
-            {history.map(item => (
-              <div className="list-item" key={item.kind + item.id}>
-                <div>
-                  <div className="name">
-                    {item.kind === 'charge' ? chargeMethodLabel(item.method) : `豆購入: ${item.note || 'コーヒー豆'}`}
-                    {item.kind === 'charge' && item.status === 'pending' && <span className="badge pending">確認待ち</span>}
-                  </div>
-                  <div className="meta">{fmtDate(item.createdAt)}</div>
-                </div>
-                <div className={`amt ${item.kind === 'charge' ? 'plus' : 'minus'}`}>
-                  {item.kind === 'charge' ? '+' : '-'}{yen(item.kind === 'charge' ? item.amount : item.perPersonAmounts?.[profile.uid] ?? item.perPerson)}
-                </div>
-              </div>
+        <div className="rating-row">
+          <div className="rating-label">{label}</div>
+          <div className="stars">
+            {[1, 2, 3, 4, 5].map(n => (
+              <button
+                key={n}
+                type="button"
+                className="star-btn"
+                onClick={() => onChange(n === value ? 0 : n)}
+              >
+                {n <= value ? '★' : '☆'}
+              </button>
             ))}
           </div>
         </div>
       );
     }
 
-    function chargeMethodLabel(m) {
-      return { paypay: 'PayPayでチャージ', rakuten: '楽天ペイでチャージ', cash: '現金でチャージ' }[m] || 'チャージ';
-    }
-
-    // ========== チャージ ==========
-    function ChargeTab({ uid, name, config, onToast }) {
-      const [method, setMethod] = useState('paypay');
-      const [amount, setAmount] = useState('');
-      const [busy, setBusy] = useState(false);
-      const [step, setStep] = useState('input'); // input | waiting
-
-      const quick = [300, 500, 1000, 2000];
-
-      const openLink = () => {
-        const link = method === 'paypay' ? config.paypayLink : config.rakutenLink;
-        if (!link) { onToast('管理者がまだ送金リンクを設定していません'); return; }
-        window.open(link, '_blank');
-        setStep('waiting');
-      };
-
-      const reportPaid = async () => {
-        const amt = Number(amount);
-        if (!amt || amt <= 0) { onToast('金額を入力してください'); return; }
-        setBusy(true);
-        try {
-          await db.collection('coffeeCharges').add({
-            uid, name, method, amount: amt, status: 'pending', createdAt: FV.serverTimestamp(),
-          });
-          onToast('報告しました。管理者の確認後に残高へ反映されます');
-          setAmount(''); setStep('input');
-        } catch (e) {
-          onToast('エラー: ' + e.message);
-        } finally {
-          setBusy(false);
-        }
-      };
-
-      const reportCash = async () => {
-        const amt = Number(amount);
-        if (!amt || amt <= 0) { onToast('金額を入力してください'); return; }
-        setBusy(true);
-        try {
-          await db.collection('coffeeCharges').add({
-            uid, name, method: 'cash', amount: amt, status: 'pending', createdAt: FV.serverTimestamp(),
-          });
-          onToast('報告しました。幹事が現金を確認後に残高へ反映されます');
-          setAmount('');
-        } catch (e) {
-          onToast('エラー: ' + e.message);
-        } finally {
-          setBusy(false);
-        }
-      };
-
-      return (
-        <div>
-          <div className="card">
-            <div className="section-title">チャージ方法</div>
-            <div className="method-tabs">
-              <button className={method === 'paypay' ? 'active' : ''} onClick={() => { setMethod('paypay'); setStep('input'); }}>PayPay</button>
-              <button className={method === 'rakuten' ? 'active' : ''} onClick={() => { setMethod('rakuten'); setStep('input'); }}>楽天ペイ</button>
-              <button className={method === 'cash' ? 'active' : ''} onClick={() => { setMethod('cash'); setStep('input'); }}>現金</button>
-            </div>
-
-            <div className="field-label">金額</div>
-            <div className="amount-input-wrap">
-              <span>¥</span>
-              <input type="number" inputMode="numeric" placeholder="0" value={amount} onChange={e => setAmount(e.target.value)} />
-            </div>
-            <div className="quick-amounts">
-              {quick.map(q => <button key={q} onClick={() => setAmount(String(q))}>{yen(q)}</button>)}
-            </div>
-
-            {method !== 'cash' && (
-              <React.Fragment>
-                {step === 'input' && (
-                  <React.Fragment>
-                    <div className="hint-box">
-                      「支払いを開く」をタップすると{method === 'paypay' ? 'PayPay' : '楽天ペイ'}アプリが開きます。金額は自動入力されない場合があるので、送る側で上の金額を入力して幹事へ送金してください。送金後は「送金しました」を押して報告してください。
-                    </div>
-                    <button className="ghost-btn" style={{ marginBottom: 10 }} onClick={openLink}>
-                      支払いを開く（{method === 'paypay' ? 'PayPay' : '楽天ペイ'}）
-                    </button>
-                  </React.Fragment>
-                )}
-                <button className="primary-btn" disabled={busy} onClick={reportPaid}>
-                  {busy ? '送信中…' : '送金しました（報告する）'}
-                </button>
-              </React.Fragment>
-            )}
-
-            {method === 'cash' && (
-              <React.Fragment>
-                <div className="hint-box">現金を幹事に手渡ししたあと、「現金を渡しました」を押して報告してください。幹事が金額を確認すると残高に反映されます。</div>
-                <button className="primary-btn" disabled={busy} onClick={reportCash}>
-                  {busy ? '送信中…' : '現金を渡しました（報告する）'}
-                </button>
-              </React.Fragment>
-            )}
-          </div>
-        </div>
-      );
-    }
-
-    // ========== 履歴（全件） ==========
-    function HistoryTab({ uid, myCharges, myPurchases }) {
-      const items = useMemo(() => {
-        const list = [
-          ...myCharges.map(c => ({ ...c, kind: 'charge' })),
-          ...myPurchases.map(p => ({ ...p, kind: 'purchase' })),
-        ];
-        list.sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
-        return list;
-      }, [myCharges, myPurchases]);
-
-      return (
-        <div className="card">
-          <div className="section-title">すべての履歴</div>
-          {items.length === 0 && <div className="empty">まだ履歴がありません</div>}
-          {items.map(item => (
-            <div className="list-item" key={item.kind + item.id}>
-              <div>
-                <div className="name">
-                  {item.kind === 'charge' ? chargeMethodLabel(item.method) : `豆購入: ${item.note || 'コーヒー豆'}`}
-                  {item.kind === 'charge' && (
-                    <span className={`badge ${item.status === 'pending' ? 'pending' : ''}`}>
-                      {item.status === 'pending' ? '確認待ち' : '確認済み'}
-                    </span>
-                  )}
-                </div>
-                <div className="meta">{fmtDate(item.createdAt)}</div>
-              </div>
-              <div className={`amt ${item.kind === 'charge' ? 'plus' : 'minus'}`}>
-                {item.kind === 'charge' ? '+' : '-'}{yen(item.kind === 'charge' ? item.amount : (item.perPersonAmounts?.[uid] ?? item.perPerson))}
-              </div>
-            </div>
-          ))}
-        </div>
-      );
-    }
-
-    // ========== 管理: 保留中チャージの確認 ==========
-    function AdminPendingCharges({ pendingCharges, onToast }) {
-      const [busyId, setBusyId] = useState(null);
-
-      const confirm = async (charge) => {
-        setBusyId(charge.id);
-        try {
-          const batch = db.batch();
-          batch.update(db.collection('coffeeCharges').doc(charge.id), {
-            status: 'confirmed',
-            confirmedAt: FV.serverTimestamp(),
-          });
-          batch.update(db.collection('coffeeUsers').doc(charge.uid), {
-            balance: FV.increment(charge.amount),
-          });
-          await batch.commit();
-          onToast('反映しました');
-        } catch (e) {
-          onToast('エラー: ' + e.message);
-        } finally {
-          setBusyId(null);
-        }
-      };
-
-      return (
-        <div className="card">
-          <div className="section-title">チャージの確認待ち（{pendingCharges.length}件）</div>
-          {pendingCharges.length === 0 && <div className="empty">確認待ちはありません</div>}
-          {pendingCharges.map(c => (
-            <div className="list-item" key={c.id}>
-              <div>
-                <div className="name">{c.name} - {chargeMethodLabel(c.method)}</div>
-                <div className="meta">{fmtDate(c.createdAt)}</div>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div className="amt plus">{yen(c.amount)}</div>
-                <button className="ghost-btn" style={{ width: 'auto', padding: '8px 12px' }} disabled={busyId === c.id} onClick={() => confirm(c)}>確認</button>
-              </div>
-            </div>
-          ))}
-        </div>
-      );
-    }
-
-    // ========== 管理: 豆購入登録 ==========
-    function AdminPurchaseForm({ users, buyerUid, buyerName, onToast }) {
-      const [photo, setPhoto] = useState(null);
-      const [amount, setAmount] = useState('');
-      const [note, setNote] = useState('');
-      const [selected, setSelected] = useState(() => new Set(users.map(u => u.id)));
-      const [busy, setBusy] = useState(false);
+    // ========== コーヒー豆情報カード ==========
+    function CoffeeInfoCard({ onToast }) {
+      const [info, setInfo] = useState(null);
       const fileRef = useRef(null);
-      const initializedRef = useRef(users.length > 0);
 
-      // 利用者一覧の読み込みが完了した直後の1回だけ、全員を初期選択状態にする
       useEffect(() => {
-        if (!initializedRef.current && users.length > 0) {
-          initializedRef.current = true;
-          setSelected(new Set(users.map(u => u.id)));
-        }
-      }, [users.length]);
-
-      const toggle = (id) => {
-        setSelected(prev => {
-          const next = new Set(prev);
-          next.has(id) ? next.delete(id) : next.add(id);
-          return next;
+        return db.collection('coffeeInfo').doc('current').onSnapshot(snap => {
+          setInfo(snap.exists ? snap.data() : { photoURL: null, brand: '', bitterness: 0, acidity: 0, body: 0, aroma: 0 });
         });
+      }, []);
+
+      const save = (patch) => {
+        db.collection('coffeeInfo').doc('current').set({ ...patch, updatedAt: FV.serverTimestamp() }, { merge: true })
+          .catch(e => onToast('エラー: ' + e.message));
       };
 
       const onFile = async (e) => {
@@ -712,47 +456,66 @@
         try {
           const dataUrl = await resizeImageToDataURL(f);
           if (dataUrl.length > 900000) { onToast('画像サイズが大きすぎます。別の写真をお試しください'); return; }
-          setPhoto(dataUrl);
+          setInfo(prev => ({ ...prev, photoURL: dataUrl }));
+          save({ photoURL: dataUrl });
         } catch (err) {
           onToast('画像の処理に失敗しました: ' + err.message);
         }
       };
 
+      const setRating = (key, v) => {
+        setInfo(prev => ({ ...prev, [key]: v }));
+        save({ [key]: v });
+      };
+
+      if (!info) return null;
+
+      return (
+        <div className="card">
+          <div className="section-title">今のコーヒー豆</div>
+
+          <div className="photo-tap" onClick={() => fileRef.current.click()}>
+            {info.photoURL
+              ? <img className="photo-preview" src={info.photoURL} alt="豆の写真" />
+              : <div className="photo-placeholder">タップして写真を追加</div>}
+          </div>
+          <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={onFile} style={{ display: 'none' }} />
+
+          <input
+            className="login-input"
+            placeholder="銘柄"
+            value={info.brand || ''}
+            onChange={e => setInfo(prev => ({ ...prev, brand: e.target.value }))}
+            onBlur={e => save({ brand: e.target.value.trim() })}
+          />
+
+          <StarRow label="苦味" value={info.bitterness || 0} onChange={v => setRating('bitterness', v)} />
+          <StarRow label="酸味" value={info.acidity || 0} onChange={v => setRating('acidity', v)} />
+          <StarRow label="コク" value={info.body || 0} onChange={v => setRating('body', v)} />
+          <StarRow label="香り" value={info.aroma || 0} onChange={v => setRating('aroma', v)} />
+        </div>
+      );
+    }
+
+    // ========== 徴収記録の追加フォーム ==========
+    function CollectionForm({ onClose, onToast }) {
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const [date, setDate] = useState(todayStr);
+      const [name, setName] = useState('');
+      const [amount, setAmount] = useState('');
+      const [busy, setBusy] = useState(false);
+
       const submit = async () => {
+        if (!name.trim()) { onToast('名前を入力してください'); return; }
         const amt = Number(amount);
-        const members = Array.from(selected);
         if (!amt || amt <= 0) { onToast('金額を入力してください'); return; }
-        if (members.length === 0) { onToast('割り勘対象を選んでください'); return; }
         setBusy(true);
         try {
-          const per = Math.floor(amt / members.length);
-          let remainder = amt - per * members.length;
-          const perPersonAmounts = {};
-          members.forEach((uid, i) => {
-            perPersonAmounts[uid] = per + (i < remainder ? 1 : 0);
+          await db.collection('coffeeCollections').add({
+            date, name: name.trim(), amount: amt, createdAt: FV.serverTimestamp(),
           });
-
-          const purchaseRef = db.collection('coffeePurchases').doc();
-          const batch = db.batch();
-          batch.set(purchaseRef, {
-            photoURL: photo || null,
-            amount: amt,
-            note: note.trim(),
-            memberUids: members,
-            perPerson: per,
-            perPersonAmounts,
-            buyerUid, buyerName,
-            createdAt: FV.serverTimestamp(),
-          });
-          members.forEach(uid => {
-            batch.update(db.collection('coffeeUsers').doc(uid), {
-              balance: FV.increment(-perPersonAmounts[uid]),
-            });
-          });
-          await batch.commit();
-          onToast('豆購入を登録し、残高から差し引きました');
-          setPhoto(null); setAmount(''); setNote('');
-          if (fileRef.current) fileRef.current.value = '';
+          onToast('記録しました');
+          onClose();
         } catch (e) {
           onToast('エラー: ' + e.message);
         } finally {
@@ -761,141 +524,90 @@
       };
 
       return (
-        <div className="card">
-          <div className="section-title">コーヒー豆の購入を登録</div>
-          {photo && <img className="photo-preview" src={photo} alt="豆の写真" />}
-          <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={onFile} style={{ marginBottom: 12 }} />
+        <div className="modal-backdrop" onClick={onClose}>
+          <div className="modal-card" onClick={e => e.stopPropagation()}>
+            <div className="section-title">徴収を記録</div>
 
-          <div className="field-label">金額</div>
-          <div className="amount-input-wrap">
-            <span>¥</span>
-            <input type="number" inputMode="numeric" placeholder="0" value={amount} onChange={e => setAmount(e.target.value)} />
+            <div className="field-label">日付</div>
+            <input type="date" className="login-input" value={date} onChange={e => setDate(e.target.value)} />
+
+            <div className="field-label">名前</div>
+            <input className="login-input" placeholder="名前" value={name} onChange={e => setName(e.target.value)} />
+
+            <div className="field-label">金額</div>
+            <div className="amount-input-wrap">
+              <span>¥</span>
+              <input type="number" inputMode="numeric" placeholder="0" value={amount} onChange={e => setAmount(e.target.value)} />
+            </div>
+
+            <button className="primary-btn" disabled={busy} onClick={submit}>{busy ? '追加中…' : '追加する'}</button>
+            <button className="ghost-btn" style={{ marginTop: 8 }} onClick={onClose}>キャンセル</button>
           </div>
-
-          <div className="field-label">メモ（任意）</div>
-          <textarea className="login-input" placeholder="例: ○○珈琲 中煎り 200g" value={note} onChange={e => setNote(e.target.value)} />
-
-          <div className="field-label">割り勘対象（{selected.size}人）</div>
-          <div className="member-grid">
-            {users.map(u => (
-              <button key={u.id} className={`member-chip ${selected.has(u.id) ? 'selected' : ''}`} onClick={() => toggle(u.id)}>
-                {u.name}
-              </button>
-            ))}
-          </div>
-
-          {amount > 0 && selected.size > 0 && (
-            <div className="hint-box">1人あたり 約{yen(Math.floor(Number(amount) / selected.size))} が残高から差し引かれます</div>
-          )}
-
-          <button className="primary-btn" disabled={busy} onClick={submit}>{busy ? '登録中…' : '登録して残高から差し引く'}</button>
         </div>
       );
     }
 
-    // ========== 管理: 残高一覧・手動チャージ ==========
-    function AdminUsersPanel({ users, onToast }) {
-      const [manualUid, setManualUid] = useState('');
-      const [manualAmount, setManualAmount] = useState('');
-      const [busy, setBusy] = useState(false);
+    // ========== 徴収記録の表 ==========
+    function CollectionsSection({ onToast }) {
+      const [rows, setRows] = useState([]);
+      const [showForm, setShowForm] = useState(false);
 
-      const addManual = async () => {
-        const amt = Number(manualAmount);
-        if (!manualUid) { onToast('対象者を選んでください'); return; }
-        if (!amt) { onToast('金額を入力してください（マイナスも可）'); return; }
-        setBusy(true);
+      useEffect(() => {
+        return db.collection('coffeeCollections').orderBy('date', 'desc').onSnapshot(snap => {
+          setRows(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        });
+      }, []);
+
+      const total = rows.reduce((sum, r) => sum + Number(r.amount || 0), 0);
+
+      const remove = async (id) => {
+        if (!window.confirm('この記録を削除しますか？')) return;
         try {
-          const u = users.find(x => x.id === manualUid);
-          const batch = db.batch();
-          batch.set(db.collection('coffeeCharges').doc(), {
-            uid: manualUid, name: u ? u.name : '', method: 'cash', amount: amt,
-            status: 'confirmed', createdAt: FV.serverTimestamp(), confirmedAt: FV.serverTimestamp(), note: '幹事による手動調整',
-          });
-          batch.update(db.collection('coffeeUsers').doc(manualUid), { balance: FV.increment(amt) });
-          await batch.commit();
-          onToast('残高を調整しました');
-          setManualAmount('');
+          await db.collection('coffeeCollections').doc(id).delete();
         } catch (e) {
           onToast('エラー: ' + e.message);
-        } finally {
-          setBusy(false);
         }
       };
 
       return (
         <React.Fragment>
-          <div className="card balance-row-list">
-            <div className="section-title">全員の残高</div>
-            {users.length === 0 && <div className="empty">まだ利用者がいません</div>}
-            {users.map(u => (
-              <div className="list-item" key={u.id}>
-                <div className="name">{u.name}</div>
-                <div className={`amt ${u.balance < 0 ? 'minus' : ''}`}>{yen(u.balance)}</div>
-              </div>
-            ))}
-          </div>
-
           <div className="card">
-            <div className="section-title">手動で残高を調整</div>
-            <div className="field-label">対象者</div>
-            <select className="login-input" value={manualUid} onChange={e => setManualUid(e.target.value)}>
-              <option value="">選択してください</option>
-              {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-            </select>
-            <div className="field-label">金額（マイナスで減額）</div>
-            <div className="amount-input-wrap">
-              <span>¥</span>
-              <input type="number" inputMode="numeric" placeholder="0" value={manualAmount} onChange={e => setManualAmount(e.target.value)} />
-            </div>
-            <button className="primary-btn" disabled={busy} onClick={addManual}>{busy ? '処理中…' : '反映する'}</button>
+            <div className="section-title">徴収記録</div>
+            {rows.length === 0 && <div className="empty">まだ記録がありません</div>}
+            {rows.length > 0 && (
+              <table className="collect-table">
+                <thead>
+                  <tr><th>日付</th><th>金額</th><th>名前</th><th></th></tr>
+                </thead>
+                <tbody>
+                  {rows.map(r => (
+                    <tr key={r.id}>
+                      <td>{r.date}</td>
+                      <td className="col-amount">{yen(r.amount)}</td>
+                      <td>{r.name}</td>
+                      <td><button className="row-delete" onClick={() => remove(r.id)}>✕</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td><strong>合計</strong></td>
+                    <td className="col-amount"><strong>{yen(total)}</strong></td>
+                    <td></td><td></td>
+                  </tr>
+                </tfoot>
+              </table>
+            )}
           </div>
+
+          <button className="fab" onClick={() => setShowForm(true)}>＋</button>
+          {showForm && <CollectionForm onClose={() => setShowForm(false)} onToast={onToast} />}
         </React.Fragment>
-      );
-    }
-
-    // ========== 管理: 設定 ==========
-    function AdminSettings({ config, onToast }) {
-      const [paypayLink, setPaypayLink] = useState(config.paypayLink || '');
-      const [rakutenLink, setRakutenLink] = useState(config.rakutenLink || '');
-      const [busy, setBusy] = useState(false);
-
-      const save = async () => {
-        setBusy(true);
-        try {
-          await db.collection('coffeeConfig').doc('settings').set({
-            paypayLink: paypayLink.trim(), rakutenLink: rakutenLink.trim(),
-          }, { merge: true });
-          onToast('設定を保存しました');
-        } catch (e) {
-          onToast('エラー: ' + e.message);
-        } finally {
-          setBusy(false);
-        }
-      };
-
-      return (
-        <div className="card">
-          <div className="section-title">送金リンクの設定</div>
-          <div className="field-label">PayPayの送金用リンク</div>
-          <input className="login-input" placeholder="https://qr.paypay.ne.jp/..." value={paypayLink} onChange={e => setPaypayLink(e.target.value)} />
-          <div className="field-label">楽天ペイの送金用リンク</div>
-          <input className="login-input" placeholder="https://pay.rakuten.co.jp/..." value={rakutenLink} onChange={e => setRakutenLink(e.target.value)} />
-          <div className="hint-box">それぞれのアプリの「送る／受け取る」機能で発行できる自分宛てのリンクを貼り付けてください。金額の自動入力には対応していないアプリが多いため、利用者は表示された金額を手入力して送金します。</div>
-          <button className="primary-btn" disabled={busy} onClick={save}>{busy ? '保存中…' : '保存する'}</button>
-        </div>
       );
     }
 
     // ========== メインアプリ ==========
     function MainApp({ user }) {
-      const [tab, setTab] = useState('home');
-      const [profile, setProfile] = useState(null);
-      const [config, setConfig] = useState({});
-      const [isAdmin, setIsAdmin] = useState(false);
-      const [users, setUsers] = useState([]);
-      const [myCharges, setMyCharges] = useState([]);
-      const [myPurchases, setMyPurchases] = useState([]);
-      const [pendingCharges, setPendingCharges] = useState([]);
       const [toast, setToast] = useState('');
 
       const showToast = useCallback((msg) => {
@@ -903,133 +615,19 @@
         setTimeout(() => setToast(''), 3000);
       }, []);
 
-      // 自分のプロフィール（無ければ作成）
-      useEffect(() => {
-        const ref = db.collection('coffeeUsers').doc(user.uid);
-        let created = false;
-        const unsub = ref.onSnapshot(async (snap) => {
-          if (!snap.exists && !created) {
-            created = true;
-            await ref.set({
-              name: user.displayName || '名無し',
-              balance: 0,
-              createdAt: FV.serverTimestamp(),
-            });
-            return;
-          }
-          if (snap.exists) setProfile({ uid: user.uid, ...snap.data() });
-        });
-        return unsub;
-      }, [user.uid]);
-
-      // 設定
-      useEffect(() => {
-        const unsub = db.collection('coffeeConfig').doc('settings').onSnapshot(snap => {
-          const data = snap.exists ? snap.data() : {};
-          setConfig(data);
-          setIsAdmin(!!(data.adminUids || []).includes(user.uid));
-        });
-        return unsub;
-      }, [user.uid]);
-
-      // 全利用者
-      useEffect(() => {
-        const unsub = db.collection('coffeeUsers').orderBy('name').onSnapshot(snap => {
-          setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-        });
-        return unsub;
-      }, []);
-
-      // 自分のチャージ履歴
-      useEffect(() => {
-        const unsub = db.collection('coffeeCharges').where('uid', '==', user.uid).onSnapshot(snap => {
-          setMyCharges(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-        });
-        return unsub;
-      }, [user.uid]);
-
-      // 自分が対象になっている豆購入
-      useEffect(() => {
-        const unsub = db.collection('coffeePurchases').where('memberUids', 'array-contains', user.uid).onSnapshot(snap => {
-          setMyPurchases(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-        });
-        return unsub;
-      }, [user.uid]);
-
-      // 管理者向け: 確認待ちチャージ
-      useEffect(() => {
-        if (!isAdmin) { setPendingCharges([]); return; }
-        const unsub = db.collection('coffeeCharges').where('status', '==', 'pending').onSnapshot(snap => {
-          setPendingCharges(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-        });
-        return unsub;
-      }, [isAdmin]);
-
-      const becomeFirstAdmin = async () => {
-        try {
-          await db.collection('coffeeConfig').doc('settings').set({ adminUids: [user.uid] });
-          showToast('管理者になりました');
-        } catch (e) {
-          showToast('エラー: ' + e.message);
-        }
-      };
-
-      if (!profile) {
-        return <div className="loading-wrap">読み込み中…</div>;
-      }
-
-      const noAdminYet = !config.adminUids || config.adminUids.length === 0;
-
       return (
         <div>
           <div className="topbar">
-            <div>
-              <h1>☕ コーヒー代精算</h1>
-              <div className="who">{profile.name} さん{isAdmin ? '（管理者）' : ''}</div>
-            </div>
+            <h1>☕ コーヒー豆管理</h1>
             <button className="logout-link" onClick={() => auth.signOut()}>ログアウト</button>
           </div>
 
           <div className="app-body">
-            {noAdminYet && (
-              <div className="card">
-                <div className="section-title">初期設定</div>
-                <p style={{ fontSize: 13, marginBottom: 10 }}>まだ管理者（幹事）が設定されていません。あなたが幹事の場合は登録してください。</p>
-                <button className="ghost-btn" onClick={becomeFirstAdmin}>自分を管理者にする</button>
-              </div>
-            )}
-
-            {tab === 'home' && <HomeTab profile={profile} myCharges={myCharges} myPurchases={myPurchases} />}
-            {tab === 'charge' && <ChargeTab uid={user.uid} name={profile.name} config={config} onToast={showToast} />}
-            {tab === 'history' && <HistoryTab uid={user.uid} myCharges={myCharges} myPurchases={myPurchases} />}
-            {tab === 'admin' && isAdmin && (
-              <React.Fragment>
-                <AdminPendingCharges pendingCharges={pendingCharges} onToast={showToast} />
-                <AdminPurchaseForm users={users} buyerUid={user.uid} buyerName={profile.name} onToast={showToast} />
-                <AdminUsersPanel users={users} onToast={showToast} />
-                <AdminSettings config={config} onToast={showToast} />
-              </React.Fragment>
-            )}
+            <CoffeeInfoCard onToast={showToast} />
+            <CollectionsSection onToast={showToast} />
           </div>
 
           {toast && <div className="toast">{toast}</div>}
-
-          <div className="tabbar">
-            <button className={tab === 'home' ? 'active' : ''} onClick={() => setTab('home')}>
-              <span className="ico">🏠</span>ホーム
-            </button>
-            <button className={tab === 'charge' ? 'active' : ''} onClick={() => setTab('charge')}>
-              <span className="ico">💳</span>チャージ
-            </button>
-            <button className={tab === 'history' ? 'active' : ''} onClick={() => setTab('history')}>
-              <span className="ico">📜</span>履歴
-            </button>
-            {isAdmin && (
-              <button className={tab === 'admin' ? 'active' : ''} onClick={() => setTab('admin')}>
-                <span className="ico">⚙️</span>管理
-              </button>
-            )}
-          </div>
         </div>
       );
     }
