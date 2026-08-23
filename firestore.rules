@@ -21,5 +21,51 @@ service cloud.firestore {
                        );
       allow delete: if false;
     }
+
+    // ========== コーヒー代精算アプリ ==========
+    function coffeeIsAdmin() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/coffeeConfig/settings)
+        && request.auth.uid in get(/databases/$(database)/documents/coffeeConfig/settings).data.adminUids;
+    }
+
+    // 幹事の送金リンクや管理者一覧（未作成時は最初にアクセスした本人が管理者として作成できる＝ブートストラップ）
+    match /coffeeConfig/settings {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+                    && !exists(/databases/$(database)/documents/coffeeConfig/settings)
+                    && request.resource.data.adminUids == [request.auth.uid];
+      allow update: if coffeeIsAdmin();
+      allow delete: if false;
+    }
+
+    // 利用者プロフィール＆チャージ残高（残高の変更は管理者のみ／本人は残高以外のみ変更可）
+    match /coffeeUsers/{uid} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && request.auth.uid == uid && request.resource.data.balance == 0;
+      allow update: if request.auth != null && (
+                        (request.auth.uid == uid && request.resource.data.balance == resource.data.balance)
+                        || coffeeIsAdmin()
+                      );
+      allow delete: if false;
+    }
+
+    // チャージ申請（本人はpendingのみ作成可／確認・確定は管理者のみ）
+    match /coffeeCharges/{chargeId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && (
+                        (request.resource.data.uid == request.auth.uid && request.resource.data.status == 'pending')
+                        || coffeeIsAdmin()
+                      );
+      allow update: if coffeeIsAdmin();
+      allow delete: if false;
+    }
+
+    // コーヒー豆の購入登録（管理者のみ・作成後の編集は不可）
+    match /coffeePurchases/{purchaseId} {
+      allow read: if request.auth != null;
+      allow create: if coffeeIsAdmin();
+      allow update, delete: if false;
+    }
   }
 }
