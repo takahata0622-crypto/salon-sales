@@ -802,7 +802,9 @@
     }
 
     // ========== 個人別集計タブ ==========
-    // スタッフ登録月から今月までの月数（毎月1日に「コーヒー代」として-300円が発生する想定。今月免除の月は除く）
+    // スタッフ登録月から今月までの月数（毎月1日に「コーヒー代」として-300円が発生する想定）
+    // 今月免除は「収支がプラスに余っている人から今月分の集金を省略する」だけなので、
+    // -300円の計算自体は他の月と同じように行う（免除の記録は徴収額としては数えない）
     function monthsInclusive(fromDate, toDate) {
       return Math.max(1, (toDate.getFullYear() - fromDate.getFullYear()) * 12 + (toDate.getMonth() - fromDate.getMonth()) + 1);
     }
@@ -813,13 +815,9 @@
       useEffect(() => {
         return db.collection('coffeeCollections').onSnapshot(snap => {
           const totals = {}; // 名前 -> 徴収額の累計・回数・最終日（免除の記録は含めない）
-          const exemptCountByStaffId = {};
           snap.docs.forEach(d => {
             const r = d.data();
-            if (r.status === 'exempt') {
-              if (r.staffId) exemptCountByStaffId[r.staffId] = (exemptCountByStaffId[r.staffId] || 0) + 1;
-              return;
-            }
+            if (r.status === 'exempt') return;
             const key = (r.name || '').trim() || '(名前なし)';
             if (!totals[key]) totals[key] = { name: key, total: 0, count: 0, last: null };
             totals[key].total += Number(r.amount || 0);
@@ -833,7 +831,7 @@
             const t = totals[m.name] || { total: 0, count: 0, last: null };
             usedNames.add(m.name);
             const joined = m.createdAt && m.createdAt.toDate ? m.createdAt.toDate() : now;
-            const monthsOwed = Math.max(0, monthsInclusive(joined, now) - (exemptCountByStaffId[m.id] || 0));
+            const monthsOwed = monthsInclusive(joined, now);
             const balance = t.total - MONTHLY_DUE_AMOUNT * monthsOwed;
             return { name: m.name, count: t.count, last: t.last, balance };
           });
@@ -853,7 +851,7 @@
       return (
         <div className="card">
           <div className="section-title">個人別集計（今までの収支）</div>
-          <div className="hint-note">毎月1日に「コーヒー代」として-¥{MONTHLY_DUE_AMOUNT}が発生します（今月免除の月は除く）。徴収済みの分と相殺され、未徴収の月はマイナスになります。</div>
+          <div className="hint-note">毎月1日に「コーヒー代」として-¥{MONTHLY_DUE_AMOUNT}が発生します（今月免除の月も同様に発生します）。徴収済みの分と相殺され、未徴収・今月免除の月はマイナスになります。</div>
           {rows.length === 0 && <div className="empty">まだ記録がありません</div>}
           {rows.length > 0 && (
             <table className="collect-table">
