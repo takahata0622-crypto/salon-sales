@@ -667,37 +667,41 @@
       return Math.max(1, (toDate.getFullYear() - fromDate.getFullYear()) * 12 + (toDate.getMonth() - fromDate.getMonth()) + 1);
     }
 
-    function PersonSummaryTab({ staff }) {
+    function PersonSummaryTab({ staff, onToast }) {
       const [rows, setRows] = useState([]);
+      const [busyName, setBusyName] = useState(null);
 
       useEffect(() => {
         return db.collection('coffeeCollections').onSnapshot(snap => {
-          const totals = {}; // 名前 -> 徴収額の累計・回数・最終日（免除の記録は含めない）
+          const totals = {}; // 名前 -> 徴収額の累計・回数・最終日・最終記録のID（免除の記録は含めない）
           snap.docs.forEach(d => {
             const r = d.data();
             if (r.status === 'exempt') return;
             const key = (r.name || '').trim() || '(名前なし)';
-            if (!totals[key]) totals[key] = { name: key, total: 0, count: 0, last: null };
+            if (!totals[key]) totals[key] = { name: key, total: 0, count: 0, last: null, lastId: null };
             totals[key].total += Number(r.amount || 0);
             totals[key].count += 1;
-            if (!totals[key].last || (r.date || '') > totals[key].last) totals[key].last = r.date || null;
+            if (!totals[key].last || (r.date || '') > totals[key].last) {
+              totals[key].last = r.date || null;
+              totals[key].lastId = d.id;
+            }
           });
 
           const now = new Date();
           const usedNames = new Set();
           const list = staff.map(m => {
-            const t = totals[m.name] || { total: 0, count: 0, last: null };
+            const t = totals[m.name] || { total: 0, count: 0, last: null, lastId: null };
             usedNames.add(m.name);
             const joined = m.createdAt && m.createdAt.toDate ? m.createdAt.toDate() : now;
             const monthsOwed = monthsInclusive(joined, now);
             const balance = t.total - MONTHLY_DUE_AMOUNT * monthsOwed;
-            return { name: m.name, count: t.count, last: t.last, balance };
+            return { name: m.name, count: t.count, last: t.last, lastId: t.lastId, balance };
           });
 
           // スタッフ一覧に無い名前（削除済みスタッフなど）の過去記録も一応表示する
           Object.keys(totals).forEach(key => {
             if (!usedNames.has(key)) {
-              list.push({ name: key, count: totals[key].count, last: totals[key].last, balance: totals[key].total });
+              list.push({ name: key, count: totals[key].count, last: totals[key].last, lastId: totals[key].lastId, balance: totals[key].total });
             }
           });
 
@@ -706,15 +710,28 @@
         });
       }, [staff]);
 
+      const removeLast = async (r) => {
+        if (!r.lastId) return;
+        if (!window.confirm(`${r.name} さんの最新の記録（${r.last}）を削除しますか？`)) return;
+        setBusyName(r.name);
+        try {
+          await db.collection('coffeeCollections').doc(r.lastId).delete();
+        } catch (e) {
+          onToast('エラー: ' + e.message);
+        } finally {
+          setBusyName(null);
+        }
+      };
+
       return (
         <div className="card">
           <div className="section-title">個人別集計（今までの収支）</div>
-          <div className="hint-note">毎月1日に「コーヒー代」として-¥{MONTHLY_DUE_AMOUNT}が発生します（今月免除の月も同様に発生します）。徴収済みの分と相殺され、未徴収・今月免除の月はマイナスになります。</div>
+          <div className="hint-note">毎月1日に「コーヒー代」として-¥{MONTHLY_DUE_AMOUNT}が発生します（今月免除の月も同様に発生します）。徴収済みの分と相殺され、未徴収・今月免除の月はマイナスになります。「最終」の✕はその人の最新の記録を削除します。</div>
           {rows.length === 0 && <div className="empty">まだ記録がありません</div>}
           {rows.length > 0 && (
             <table className="collect-table">
               <thead>
-                <tr><th>名前</th><th>収支</th><th>回数</th><th>最終</th></tr>
+                <tr><th>名前</th><th>収支</th><th>回数</th><th>最終</th><th></th></tr>
               </thead>
               <tbody>
                 {rows.map(r => (
@@ -723,6 +740,11 @@
                     <td className={`col-amount ${r.balance < 0 ? 'negative' : ''}`}>{yen(r.balance)}</td>
                     <td className="col-amount">{r.count}</td>
                     <td>{r.last || '-'}</td>
+                    <td>
+                      {r.lastId && (
+                        <button className="row-delete" disabled={busyName === r.name} onClick={() => removeLast(r)}>✕</button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -771,7 +793,7 @@
               </React.Fragment>
             )}
             {tab === 'monthly' && <MonthlyDuesTab staff={staff} onToast={showToast} />}
-            {tab === 'person' && <PersonSummaryTab staff={staff} />}
+            {tab === 'person' && <PersonSummaryTab staff={staff} onToast={showToast} />}
           </div>
 
           {toast && <div className="toast">{toast}</div>}
