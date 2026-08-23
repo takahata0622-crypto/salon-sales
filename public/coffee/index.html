@@ -196,6 +196,7 @@
       border-bottom: 1px solid var(--border);
     }
     .collect-table td.col-amount { text-align: right; white-space: nowrap; }
+    .collect-table td.col-amount.negative { color: var(--danger); }
     .collect-table tfoot td { border-bottom: none; border-top: 2px solid var(--border); padding-top: 10px; }
     .row-delete {
       border: none;
@@ -206,6 +207,8 @@
     }
 
     .empty { text-align: center; color: var(--muted); font-size: 13px; padding: 20px 0; }
+
+    .hint-note { font-size: 12px; color: var(--muted); line-height: 1.6; margin-bottom: 12px; }
 
     .tab-switch {
       display: flex;
@@ -264,7 +267,8 @@
       white-space: nowrap;
     }
     .due-badge.paid { background: var(--success); color: #fff; }
-    .due-badge.unpaid { background: var(--accent-light); color: var(--accent); }
+    .due-badge.none { background: var(--accent-light); color: var(--accent); }
+    .due-badge.exempt { background: var(--border); color: var(--muted); }
 
     .add-staff-row {
       display: flex;
@@ -681,9 +685,12 @@
     // ========== 月別徴収タブ ==========
     const MONTHLY_DUE_AMOUNT = 300;
 
+    // 未徴収 → 徴収済み → 今月免除 → 未徴収 … の順で切り替える
+    const NEXT_DUE_STATUS = { none: 'paid', paid: 'exempt', exempt: 'none' };
+
     function MonthlyDuesTab({ staff, onToast }) {
       const [monthOffset, setMonthOffset] = useState(0);
-      const [paidStaffIds, setPaidStaffIds] = useState(new Set());
+      const [statusMap, setStatusMap] = useState(new Map());
       const [newName, setNewName] = useState('');
       const [busyId, setBusyId] = useState(null);
       const [addBusy, setAddBusy] = useState(false);
@@ -696,21 +703,28 @@
 
       useEffect(() => {
         return db.collection('coffeeCollections').where('month', '==', monthKey).onSnapshot(snap => {
-          setPaidStaffIds(new Set(snap.docs.map(d => d.data().staffId).filter(Boolean)));
+          const m = new Map();
+          snap.docs.forEach(d => {
+            const data = d.data();
+            if (data.staffId) m.set(data.staffId, data.status === 'exempt' ? 'exempt' : 'paid');
+          });
+          setStatusMap(m);
         });
       }, [monthKey]);
 
       const toggle = async (member) => {
+        const current = statusMap.get(member.id) || 'none';
+        const next = NEXT_DUE_STATUS[current];
         setBusyId(member.id);
         try {
           const ref = db.collection('coffeeCollections').doc(`monthly_${monthKey}_${member.id}`);
-          if (paidStaffIds.has(member.id)) {
+          if (next === 'none') {
             await ref.delete();
           } else {
             const todayStr = new Date().toISOString().slice(0, 10);
             await ref.set({
-              date: todayStr, name: member.name, amount: MONTHLY_DUE_AMOUNT,
-              month: monthKey, staffId: member.id, createdAt: FV.serverTimestamp(),
+              date: todayStr, name: member.name, amount: next === 'paid' ? MONTHLY_DUE_AMOUNT : 0,
+              month: monthKey, staffId: member.id, status: next, createdAt: FV.serverTimestamp(),
             });
           }
         } catch (e) {
@@ -754,17 +768,18 @@
 
           {staff.length === 0 && <div className="empty">まだスタッフが登録されていません</div>}
           {staff.map(member => {
-            const paid = paidStaffIds.has(member.id);
+            const status = statusMap.get(member.id) || 'none';
+            const label = status === 'paid' ? `徴収済み（¥${MONTHLY_DUE_AMOUNT}）` : status === 'exempt' ? '今月免除' : '未徴収';
             return (
               <div className="list-item" key={member.id}>
                 <div className="name">{member.name}</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <button
-                    className={`due-badge ${paid ? 'paid' : 'unpaid'}`}
+                    className={`due-badge ${status}`}
                     disabled={busyId === member.id}
                     onClick={() => toggle(member)}
                   >
-                    {paid ? `徴収済み（¥${MONTHLY_DUE_AMOUNT}）` : '未徴収'}
+                    {label}
                   </button>
                   <button className="row-delete" onClick={() => removeStaff(member)}>✕</button>
                 </div>
@@ -787,41 +802,69 @@
     }
 
     // ========== 個人別集計タブ ==========
+    // スタッフ登録月から今月までの月数（毎月1日に「コーヒー代」として-300円が発生する想定。今月免除の月は除く）
+    function monthsInclusive(fromDate, toDate) {
+      return Math.max(1, (toDate.getFullYear() - fromDate.getFullYear()) * 12 + (toDate.getMonth() - fromDate.getMonth()) + 1);
+    }
+
     function PersonSummaryTab({ staff }) {
       const [rows, setRows] = useState([]);
 
       useEffect(() => {
         return db.collection('coffeeCollections').onSnapshot(snap => {
-          const totals = {};
+          const totals = {}; // 名前 -> 徴収額の累計・回数・最終日（免除の記録は含めない）
+          const exemptCountByStaffId = {};
           snap.docs.forEach(d => {
             const r = d.data();
+            if (r.status === 'exempt') {
+              if (r.staffId) exemptCountByStaffId[r.staffId] = (exemptCountByStaffId[r.staffId] || 0) + 1;
+              return;
+            }
             const key = (r.name || '').trim() || '(名前なし)';
             if (!totals[key]) totals[key] = { name: key, total: 0, count: 0, last: null };
             totals[key].total += Number(r.amount || 0);
             totals[key].count += 1;
             if (!totals[key].last || (r.date || '') > totals[key].last) totals[key].last = r.date || null;
           });
-          staff.forEach(m => {
-            if (!totals[m.name]) totals[m.name] = { name: m.name, total: 0, count: 0, last: null };
+
+          const now = new Date();
+          const usedNames = new Set();
+          const list = staff.map(m => {
+            const t = totals[m.name] || { total: 0, count: 0, last: null };
+            usedNames.add(m.name);
+            const joined = m.createdAt && m.createdAt.toDate ? m.createdAt.toDate() : now;
+            const monthsOwed = Math.max(0, monthsInclusive(joined, now) - (exemptCountByStaffId[m.id] || 0));
+            const balance = t.total - MONTHLY_DUE_AMOUNT * monthsOwed;
+            return { name: m.name, count: t.count, last: t.last, balance };
           });
-          setRows(Object.values(totals).sort((a, b) => b.total - a.total));
+
+          // スタッフ一覧に無い名前（削除済みスタッフなど）の過去記録も一応表示する
+          Object.keys(totals).forEach(key => {
+            if (!usedNames.has(key)) {
+              list.push({ name: key, count: totals[key].count, last: totals[key].last, balance: totals[key].total });
+            }
+          });
+
+          list.sort((a, b) => b.balance - a.balance);
+          setRows(list);
         });
       }, [staff]);
 
       return (
         <div className="card">
           <div className="section-title">個人別集計（今までの収支）</div>
+          <div className="hint-note">毎月1日に「コーヒー代」として-¥{MONTHLY_DUE_AMOUNT}が発生します（今月免除の月は除く）。徴収済みの分と相殺され、未徴収の月はマイナスになります。</div>
           {rows.length === 0 && <div className="empty">まだ記録がありません</div>}
           {rows.length > 0 && (
             <table className="collect-table">
               <thead>
-                <tr><th>名前</th><th>累計</th><th>回数</th><th>最終</th></tr>
+                <tr><th>名前</th><th>収支</th><th>回数</th><th>最終</th></tr>
               </thead>
               <tbody>
                 {rows.map(r => (
                   <tr key={r.name}>
                     <td>{r.name}</td>
-                    <td className="col-amount">{yen(r.total)}</td>
+                    <td className={`col-amount ${r.balance < 0 ? 'negative' : ''}`}>{yen(r.balance)}</td>
                     <td className="col-amount">{r.count}</td>
                     <td>{r.last || '-'}</td>
                   </tr>
