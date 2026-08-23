@@ -482,9 +482,8 @@
     }
 
     // ========== 徴収記録の追加フォーム ==========
-    function CollectionForm({ onClose, onToast, staffNames }) {
-      const todayStr = new Date().toISOString().slice(0, 10);
-      const [date, setDate] = useState(todayStr);
+    function CollectionForm({ onClose, onToast, staffNames, defaultDate }) {
+      const [date, setDate] = useState(defaultDate);
       const [name, setName] = useState('');
       const [amount, setAmount] = useState('');
       const [busy, setBusy] = useState(false);
@@ -534,18 +533,22 @@
       );
     }
 
-    // ========== 徴収記録の表 ==========
-    function CollectionsSection({ onToast, staffNames }) {
-      const [rows, setRows] = useState([]);
+    // ========== 徴収記録の表（月別徴収タブで選んでいる月だけを表示） ==========
+    function CollectionsSection({ onToast, staffNames, monthKey, monthLabel }) {
+      const [allRows, setAllRows] = useState([]);
       const [showForm, setShowForm] = useState(false);
 
       useEffect(() => {
         return db.collection('coffeeCollections').orderBy('date', 'desc').onSnapshot(snap => {
-          setRows(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+          setAllRows(snap.docs.map(d => ({ id: d.id, ...d.data() })));
         });
       }, []);
 
+      const rows = allRows.filter(r => (r.date || '').startsWith(monthKey));
       const total = rows.reduce((sum, r) => sum + Number(r.amount || 0), 0);
+
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const defaultDate = todayStr.startsWith(monthKey) ? todayStr : `${monthKey}-01`;
 
       const remove = async (id) => {
         if (!window.confirm('この記録を削除しますか？')) return;
@@ -559,7 +562,7 @@
       return (
         <React.Fragment>
           <div className="card">
-            <div className="section-title">徴収記録</div>
+            <div className="section-title">徴収記録（{monthLabel}）</div>
             {rows.length === 0 && <div className="empty">まだ記録がありません</div>}
             {rows.length > 0 && (
               <table className="collect-table">
@@ -588,7 +591,7 @@
           </div>
 
           <button className="fab" onClick={() => setShowForm(true)}>＋</button>
-          {showForm && <CollectionForm onClose={() => setShowForm(false)} onToast={onToast} staffNames={staffNames} />}
+          {showForm && <CollectionForm onClose={() => setShowForm(false)} onToast={onToast} staffNames={staffNames} defaultDate={defaultDate} />}
         </React.Fragment>
       );
     }
@@ -711,7 +714,7 @@
           </div>
         </div>
 
-        <CollectionsSection onToast={onToast} staffNames={staffNames} />
+        <CollectionsSection onToast={onToast} staffNames={staffNames} monthKey={monthKey} monthLabel={monthLabel} />
         </React.Fragment>
       );
     }
