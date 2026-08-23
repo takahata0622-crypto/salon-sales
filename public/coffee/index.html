@@ -40,45 +40,6 @@
     button { font-family: inherit; cursor: pointer; }
     input, textarea, select { font-family: inherit; }
 
-    .login-wrap {
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 24px;
-    }
-    .login-card {
-      width: 100%;
-      max-width: 360px;
-      background: var(--card);
-      border-radius: 16px;
-      padding: 28px 24px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.06);
-    }
-    .login-card h1 {
-      text-align: center;
-      margin-bottom: 20px;
-      font-size: 24px;
-    }
-    .login-mode {
-      display: flex;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      overflow: hidden;
-      margin-bottom: 16px;
-    }
-    .login-mode button {
-      flex: 1;
-      padding: 10px;
-      border: none;
-      background: var(--card);
-      color: var(--muted);
-      font-weight: 600;
-    }
-    .login-mode button.active {
-      background: var(--accent);
-      color: #fff;
-    }
     .login-input {
       width: 100%;
       padding: 12px 14px;
@@ -86,21 +47,6 @@
       border-radius: 10px;
       margin-bottom: 12px;
       font-size: 15px;
-    }
-    .password-field { position: relative; }
-    .password-field .toggle-pw {
-      position: absolute;
-      right: 10px;
-      top: 10px;
-      border: none;
-      background: none;
-      color: var(--muted);
-      font-size: 13px;
-    }
-    .login-error {
-      color: var(--danger);
-      font-size: 13px;
-      margin-bottom: 10px;
     }
     .primary-btn {
       width: 100%;
@@ -135,7 +81,6 @@
       justify-content: space-between;
     }
     .topbar h1 { font-size: 18px; }
-    .logout-link { font-size: 12px; color: var(--muted); background: none; border: none; text-decoration: underline; }
 
     .app-body { padding: 8px 16px 100px; max-width: 480px; margin: 0 auto; }
 
@@ -374,15 +319,6 @@
     const auth = firebase.auth();
     const FV = firebase.firestore.FieldValue;
 
-    // 名前を内部的なメールアドレスへ変換（salon-salesアプリと同じ変換方式。
-    // 同じ名前・パスワードなら salon-sales と共通のアカウントでログインできる）
-    const nameToEmail = (name) => {
-      const bytes = new TextEncoder().encode(name.trim().toLowerCase());
-      let hex = '';
-      bytes.forEach(b => { hex += b.toString(16).padStart(2, '0'); });
-      return `u${hex}@salon-sales.local`;
-    };
-
     const yen = (n) => `¥${Number(n || 0).toLocaleString('ja-JP')}`;
 
     // 写真をリサイズ＆圧縮してdataURLにする（Firebase Storageを使わずFirestoreに直接保存するため）
@@ -406,84 +342,6 @@
         };
         reader.readAsDataURL(file);
       });
-    }
-
-    // ========== ログイン画面 ==========
-    function LoginScreen() {
-      const [mode, setMode] = useState('login');
-      const [name, setName] = useState('');
-      const [password, setPassword] = useState('');
-      const [error, setError] = useState('');
-      const [busy, setBusy] = useState(false);
-      const [showPassword, setShowPassword] = useState(false);
-
-      const submit = async () => {
-        setError('');
-        const nm = name.trim();
-        if (!nm) { setError('名前を入力してください'); return; }
-        if (password.length < 6) { setError('パスワードは6文字以上で入力してください'); return; }
-        setBusy(true);
-        const email = nameToEmail(nm);
-        try {
-          if (mode === 'signup') {
-            const result = await auth.createUserWithEmailAndPassword(email, password);
-            await result.user.updateProfile({ displayName: nm });
-          } else {
-            await auth.signInWithEmailAndPassword(email, password);
-          }
-        } catch (err) {
-          const map = {
-            'auth/email-already-in-use': 'この名前は既に登録されています。「ログイン」を選んでください。',
-            'auth/user-not-found': 'この名前は登録されていません。「新規登録」を選んでください。',
-            'auth/wrong-password': 'パスワードが違います。',
-            'auth/invalid-credential': '名前またはパスワードが違います。',
-            'auth/weak-password': 'パスワードは6文字以上で入力してください。',
-            'auth/operation-not-allowed': 'メール/パスワードログインが有効になっていません。',
-            'auth/network-request-failed': 'ネットワークエラーが発生しました。',
-          };
-          setError(map[err.code] || ('エラー: ' + (err.message || err.code)));
-        } finally {
-          setBusy(false);
-        }
-      };
-
-      return (
-        <div className="login-wrap">
-          <div className="login-card">
-            <h1>☕ コーヒー豆管理</h1>
-            <div className="login-mode">
-              <button className={mode === 'login' ? 'active' : ''} onClick={() => { setMode('login'); setError(''); }}>ログイン</button>
-              <button className={mode === 'signup' ? 'active' : ''} onClick={() => { setMode('signup'); setError(''); }}>新規登録</button>
-            </div>
-            <input
-              className="login-input"
-              placeholder="名前（本名・スペース無し）"
-              value={name}
-              onChange={e => setName(e.target.value)}
-            />
-            <div className="password-field">
-              <input
-                className="login-input"
-                type={showPassword ? 'text' : 'password'}
-                placeholder="パスワード（6文字以上）"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') submit(); }}
-              />
-              <button type="button" className="toggle-pw" onClick={() => setShowPassword(v => !v)}>
-                {showPassword ? '隠す' : '表示'}
-              </button>
-            </div>
-            {error && <div className="login-error">{error}</div>}
-            <button className="primary-btn" disabled={busy} onClick={submit}>
-              {busy ? '処理中…' : (mode === 'signup' ? '登録して始める' : 'ログイン')}
-            </button>
-            <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 12, textAlign: 'center' }}>
-              幹事用の画面です。salon-salesアプリと同じ名前・パスワードでもログインできます
-            </p>
-          </div>
-        </div>
-      );
     }
 
     // ========== 星評価 ==========
@@ -875,7 +733,7 @@
     }
 
     // ========== メインアプリ ==========
-    function MainApp({ user }) {
+    function MainApp() {
       const [tab, setTab] = useState('info');
       const [staff, setStaff] = useState([]);
       const [toast, setToast] = useState('');
@@ -897,7 +755,6 @@
         <div>
           <div className="topbar">
             <h1>☕ コーヒー豆管理</h1>
-            <button className="logout-link" onClick={() => auth.signOut()}>ログアウト</button>
           </div>
 
           <div className="app-body">
@@ -922,16 +779,24 @@
       );
     }
 
+    // ログイン画面は無し。Firestoreのルールを満たすためだけに、裏側で匿名認証する
     function App() {
-      const [user, setUser] = useState(undefined); // undefined=判定中, null=未ログイン
+      const [ready, setReady] = useState(false);
+      const [authError, setAuthError] = useState('');
 
       useEffect(() => {
-        return auth.onAuthStateChanged(setUser);
+        const unsub = auth.onAuthStateChanged(u => {
+          if (u) { setReady(true); return; }
+          auth.signInAnonymously().catch(err => {
+            setAuthError('接続に失敗しました（' + (err.message || err.code) + '）。Firebaseコンソールで匿名認証を有効にしてください。');
+          });
+        });
+        return unsub;
       }, []);
 
-      if (user === undefined) return <div className="loading-wrap">読み込み中…</div>;
-      if (user === null) return <LoginScreen />;
-      return <MainApp user={user} key={user.uid} />;
+      if (authError) return <div className="loading-wrap">{authError}</div>;
+      if (!ready) return <div className="loading-wrap">読み込み中…</div>;
+      return <MainApp />;
     }
 
     ReactDOM.createRoot(document.getElementById('root')).render(<App />);
