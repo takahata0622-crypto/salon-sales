@@ -94,6 +94,8 @@
 
     .section-title { font-size: 14px; font-weight: 700; color: var(--muted); margin-bottom: 10px; }
 
+    .bean-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+
     .photo-tap { cursor: pointer; margin-bottom: 12px; }
     .photo-preview {
       width: 100%;
@@ -366,18 +368,13 @@
     }
 
     // ========== コーヒー豆情報カード ==========
-    function CoffeeInfoCard({ onToast }) {
-      const [info, setInfo] = useState(null);
+    // 複数の豆を扱うカード（写真・銘柄・星評価）。銘柄はuncontrolled inputにして
+    // 他人の編集によるスナップショット更新で入力中の文字が消えないようにしている
+    function BeanCard({ bean, onToast, onDelete }) {
       const fileRef = useRef(null);
 
-      useEffect(() => {
-        return db.collection('coffeeInfo').doc('current').onSnapshot(snap => {
-          setInfo(snap.exists ? snap.data() : { photoURL: null, brand: '', bitterness: 0, acidity: 0, body: 0, aroma: 0 });
-        });
-      }, []);
-
       const save = (patch) => {
-        db.collection('coffeeInfo').doc('current').set({ ...patch, updatedAt: FV.serverTimestamp() }, { merge: true })
+        db.collection('coffeeBeans').doc(bean.id).set({ ...patch, updatedAt: FV.serverTimestamp() }, { merge: true })
           .catch(e => onToast('エラー: ' + e.message));
       };
 
@@ -387,27 +384,22 @@
         try {
           const dataUrl = await resizeImageToDataURL(f);
           if (dataUrl.length > 900000) { onToast('画像サイズが大きすぎます。別の写真をお試しください'); return; }
-          setInfo(prev => ({ ...prev, photoURL: dataUrl }));
           save({ photoURL: dataUrl });
         } catch (err) {
           onToast('画像の処理に失敗しました: ' + err.message);
         }
       };
 
-      const setRating = (key, v) => {
-        setInfo(prev => ({ ...prev, [key]: v }));
-        save({ [key]: v });
-      };
-
-      if (!info) return null;
-
       return (
         <div className="card">
-          <div className="section-title">今のコーヒー豆</div>
+          <div className="bean-card-header">
+            <div className="section-title" style={{ marginBottom: 0 }}>コーヒー豆</div>
+            <button className="row-delete" onClick={() => onDelete(bean)}>✕</button>
+          </div>
 
           <div className="photo-tap" onClick={() => fileRef.current.click()}>
-            {info.photoURL
-              ? <img className="photo-preview" src={info.photoURL} alt="豆の写真" />
+            {bean.photoURL
+              ? <img className="photo-preview" src={bean.photoURL} alt="豆の写真" />
               : <div className="photo-placeholder">タップして写真を追加</div>}
           </div>
           <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={onFile} style={{ display: 'none' }} />
@@ -415,15 +407,76 @@
           <input
             className="login-input"
             placeholder="銘柄"
-            value={info.brand || ''}
-            onChange={e => setInfo(prev => ({ ...prev, brand: e.target.value }))}
+            defaultValue={bean.brand || ''}
             onBlur={e => save({ brand: e.target.value.trim() })}
           />
 
-          <StarRow label="苦味" value={info.bitterness || 0} onChange={v => setRating('bitterness', v)} />
-          <StarRow label="酸味" value={info.acidity || 0} onChange={v => setRating('acidity', v)} />
-          <StarRow label="コク" value={info.body || 0} onChange={v => setRating('body', v)} />
-          <StarRow label="香り" value={info.aroma || 0} onChange={v => setRating('aroma', v)} />
+          <StarRow label="苦味" value={bean.bitterness || 0} onChange={v => save({ bitterness: v })} />
+          <StarRow label="酸味" value={bean.acidity || 0} onChange={v => save({ acidity: v })} />
+          <StarRow label="コク" value={bean.body || 0} onChange={v => save({ body: v })} />
+          <StarRow label="香り" value={bean.aroma || 0} onChange={v => save({ aroma: v })} />
+        </div>
+      );
+    }
+
+    // ========== 豆情報タブ ==========
+    function BeansTab({ onToast }) {
+      const [beans, setBeans] = useState(null);
+
+      // 旧バージョン（豆1つだけ・coffeeInfo/current）からの一度きりの移行
+      useEffect(() => {
+        (async () => {
+          try {
+            const old = await db.collection('coffeeInfo').doc('current').get();
+            if (!old.exists || old.data().migratedToBeans) return;
+            const d = old.data();
+            if (d.brand || d.photoURL) {
+              await db.collection('coffeeBeans').add({
+                brand: d.brand || '', photoURL: d.photoURL || null,
+                bitterness: d.bitterness || 0, acidity: d.acidity || 0,
+                body: d.body || 0, aroma: d.aroma || 0,
+                createdAt: FV.serverTimestamp(),
+              });
+            }
+            await db.collection('coffeeInfo').doc('current').set({ migratedToBeans: true }, { merge: true });
+          } catch (e) { /* 移行できなくても致命的ではないので無視 */ }
+        })();
+      }, []);
+
+      useEffect(() => {
+        return db.collection('coffeeBeans').orderBy('createdAt', 'asc').onSnapshot(snap => {
+          setBeans(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        });
+      }, []);
+
+      const addBean = async () => {
+        try {
+          await db.collection('coffeeBeans').add({
+            brand: '', photoURL: null, bitterness: 0, acidity: 0, body: 0, aroma: 0, createdAt: FV.serverTimestamp(),
+          });
+        } catch (e) {
+          onToast('エラー: ' + e.message);
+        }
+      };
+
+      const removeBean = async (bean) => {
+        if (!window.confirm('この豆の情報を削除しますか？')) return;
+        try {
+          await db.collection('coffeeBeans').doc(bean.id).delete();
+        } catch (e) {
+          onToast('エラー: ' + e.message);
+        }
+      };
+
+      if (beans === null) return null;
+
+      return (
+        <div>
+          {beans.length === 0 && <div className="card"><div className="empty">まだ豆が登録されていません。右下の＋から追加してください</div></div>}
+          {beans.map(bean => (
+            <BeanCard key={bean.id} bean={bean} onToast={onToast} onDelete={removeBean} />
+          ))}
+          <button className="fab" onClick={addBean}>＋</button>
         </div>
       );
     }
@@ -546,7 +599,7 @@
     // 未徴収 → 徴収済み → 今月免除 → 未徴収 … の順で切り替える
     const NEXT_DUE_STATUS = { none: 'paid', paid: 'exempt', exempt: 'none' };
 
-    function MonthlyDuesTab({ staff, onToast }) {
+    function MonthlyDuesTab({ staff, staffNames, onToast }) {
       const [monthOffset, setMonthOffset] = useState(0);
       const [statusMap, setStatusMap] = useState(new Map());
       const [newName, setNewName] = useState('');
@@ -617,6 +670,7 @@
       };
 
       return (
+        <React.Fragment>
         <div className="card">
           <div className="month-nav">
             <button onClick={() => setMonthOffset(o => o - 1)}>◀</button>
@@ -656,6 +710,9 @@
             <button className="ghost-btn" disabled={addBusy} onClick={addStaff}>追加</button>
           </div>
         </div>
+
+        <CollectionsSection onToast={onToast} staffNames={staffNames} />
+        </React.Fragment>
       );
     }
 
@@ -786,13 +843,8 @@
               <button className={tab === 'person' ? 'active' : ''} onClick={() => setTab('person')}>個人別集計</button>
             </div>
 
-            {tab === 'info' && (
-              <React.Fragment>
-                <CoffeeInfoCard onToast={showToast} />
-                <CollectionsSection onToast={showToast} staffNames={staffNames} />
-              </React.Fragment>
-            )}
-            {tab === 'monthly' && <MonthlyDuesTab staff={staff} onToast={showToast} />}
+            {tab === 'info' && <BeansTab onToast={showToast} />}
+            {tab === 'monthly' && <MonthlyDuesTab staff={staff} staffNames={staffNames} onToast={showToast} />}
             {tab === 'person' && <PersonSummaryTab staff={staff} onToast={showToast} />}
           </div>
 

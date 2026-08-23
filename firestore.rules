@@ -23,8 +23,13 @@ service cloud.firestore {
     }
 
     // ========== コーヒー豆管理アプリ（幹事のみが使う想定。ログインできる人＝幹事という前提） ==========
-    // 今のコーヒー豆情報（写真・銘柄・星評価）
+    // 旧バージョンの単一コーヒー豆情報（coffeeBeansへの移行済みフラグ保持のためだけに残す）
     match /coffeeInfo/{docId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // 複数登録できるコーヒー豆情報（写真・銘柄・星評価）
+    match /coffeeBeans/{beanId} {
       allow read, write: if request.auth != null;
     }
 
