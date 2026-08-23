@@ -207,6 +207,75 @@
 
     .empty { text-align: center; color: var(--muted); font-size: 13px; padding: 20px 0; }
 
+    .tab-switch {
+      display: flex;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      margin-bottom: 14px;
+      background: var(--card);
+    }
+    .tab-switch button {
+      flex: 1;
+      padding: 10px 4px;
+      border: none;
+      background: var(--card);
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 13px;
+    }
+    .tab-switch button.active { background: var(--accent); color: #fff; }
+
+    .month-nav {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      margin-bottom: 14px;
+    }
+    .month-nav button {
+      border: 1px solid var(--border);
+      background: var(--card);
+      border-radius: 8px;
+      width: 34px;
+      height: 34px;
+      font-size: 16px;
+      color: var(--accent);
+    }
+    .month-label { font-size: 16px; font-weight: 700; min-width: 110px; text-align: center; }
+
+    .list-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      gap: 10px;
+    }
+    .list-item:last-child { border-bottom: none; }
+    .list-item .name { font-size: 14px; font-weight: 600; }
+
+    .due-badge {
+      border: none;
+      border-radius: 20px;
+      padding: 7px 14px;
+      font-size: 12.5px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .due-badge.paid { background: var(--success); color: #fff; }
+    .due-badge.unpaid { background: var(--accent-light); color: var(--accent); }
+
+    .add-staff-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border);
+    }
+    .add-staff-row .login-input { margin-bottom: 0; }
+    .add-staff-row button { white-space: nowrap; width: auto; padding: 0 16px; }
+
     .fab {
       position: fixed;
       right: 20px;
@@ -498,7 +567,7 @@
     }
 
     // ========== 徴収記録の追加フォーム ==========
-    function CollectionForm({ onClose, onToast }) {
+    function CollectionForm({ onClose, onToast, staffNames }) {
       const todayStr = new Date().toISOString().slice(0, 10);
       const [date, setDate] = useState(todayStr);
       const [name, setName] = useState('');
@@ -532,7 +601,10 @@
             <input type="date" className="login-input" value={date} onChange={e => setDate(e.target.value)} />
 
             <div className="field-label">名前</div>
-            <input className="login-input" placeholder="名前" value={name} onChange={e => setName(e.target.value)} />
+            <input list="staff-name-list" className="login-input" placeholder="名前" value={name} onChange={e => setName(e.target.value)} />
+            <datalist id="staff-name-list">
+              {staffNames.map(n => <option key={n} value={n} />)}
+            </datalist>
 
             <div className="field-label">金額</div>
             <div className="amount-input-wrap">
@@ -548,7 +620,7 @@
     }
 
     // ========== 徴収記録の表 ==========
-    function CollectionsSection({ onToast }) {
+    function CollectionsSection({ onToast, staffNames }) {
       const [rows, setRows] = useState([]);
       const [showForm, setShowForm] = useState(false);
 
@@ -601,19 +673,184 @@
           </div>
 
           <button className="fab" onClick={() => setShowForm(true)}>＋</button>
-          {showForm && <CollectionForm onClose={() => setShowForm(false)} onToast={onToast} />}
+          {showForm && <CollectionForm onClose={() => setShowForm(false)} onToast={onToast} staffNames={staffNames} />}
         </React.Fragment>
+      );
+    }
+
+    // ========== 月別徴収タブ ==========
+    const MONTHLY_DUE_AMOUNT = 300;
+
+    function MonthlyDuesTab({ staff, onToast }) {
+      const [monthOffset, setMonthOffset] = useState(0);
+      const [paidStaffIds, setPaidStaffIds] = useState(new Set());
+      const [newName, setNewName] = useState('');
+      const [busyId, setBusyId] = useState(null);
+      const [addBusy, setAddBusy] = useState(false);
+
+      const base = new Date();
+      base.setDate(1);
+      base.setMonth(base.getMonth() + monthOffset);
+      const monthKey = `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}`;
+      const monthLabel = `${base.getFullYear()}年${base.getMonth() + 1}月`;
+
+      useEffect(() => {
+        return db.collection('coffeeCollections').where('month', '==', monthKey).onSnapshot(snap => {
+          setPaidStaffIds(new Set(snap.docs.map(d => d.data().staffId).filter(Boolean)));
+        });
+      }, [monthKey]);
+
+      const toggle = async (member) => {
+        setBusyId(member.id);
+        try {
+          const ref = db.collection('coffeeCollections').doc(`monthly_${monthKey}_${member.id}`);
+          if (paidStaffIds.has(member.id)) {
+            await ref.delete();
+          } else {
+            const todayStr = new Date().toISOString().slice(0, 10);
+            await ref.set({
+              date: todayStr, name: member.name, amount: MONTHLY_DUE_AMOUNT,
+              month: monthKey, staffId: member.id, createdAt: FV.serverTimestamp(),
+            });
+          }
+        } catch (e) {
+          onToast('エラー: ' + e.message);
+        } finally {
+          setBusyId(null);
+        }
+      };
+
+      const addStaff = async () => {
+        const nm = newName.trim();
+        if (!nm) { onToast('名前を入力してください'); return; }
+        setAddBusy(true);
+        try {
+          await db.collection('coffeeStaff').add({ name: nm, createdAt: FV.serverTimestamp() });
+          setNewName('');
+          onToast('スタッフを追加しました');
+        } catch (e) {
+          onToast('エラー: ' + e.message);
+        } finally {
+          setAddBusy(false);
+        }
+      };
+
+      const removeStaff = async (member) => {
+        if (!window.confirm(`${member.name} をスタッフ一覧から削除しますか？（過去の徴収記録は残ります）`)) return;
+        try {
+          await db.collection('coffeeStaff').doc(member.id).delete();
+        } catch (e) {
+          onToast('エラー: ' + e.message);
+        }
+      };
+
+      return (
+        <div className="card">
+          <div className="month-nav">
+            <button onClick={() => setMonthOffset(o => o - 1)}>◀</button>
+            <div className="month-label">{monthLabel}</div>
+            <button onClick={() => setMonthOffset(o => o + 1)}>▶</button>
+          </div>
+
+          {staff.length === 0 && <div className="empty">まだスタッフが登録されていません</div>}
+          {staff.map(member => {
+            const paid = paidStaffIds.has(member.id);
+            return (
+              <div className="list-item" key={member.id}>
+                <div className="name">{member.name}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <button
+                    className={`due-badge ${paid ? 'paid' : 'unpaid'}`}
+                    disabled={busyId === member.id}
+                    onClick={() => toggle(member)}
+                  >
+                    {paid ? `徴収済み（¥${MONTHLY_DUE_AMOUNT}）` : '未徴収'}
+                  </button>
+                  <button className="row-delete" onClick={() => removeStaff(member)}>✕</button>
+                </div>
+              </div>
+            );
+          })}
+
+          <div className="add-staff-row">
+            <input
+              className="login-input"
+              placeholder="スタッフ名を追加"
+              value={newName}
+              onChange={e => setNewName(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') addStaff(); }}
+            />
+            <button className="ghost-btn" disabled={addBusy} onClick={addStaff}>追加</button>
+          </div>
+        </div>
+      );
+    }
+
+    // ========== 個人別集計タブ ==========
+    function PersonSummaryTab({ staff }) {
+      const [rows, setRows] = useState([]);
+
+      useEffect(() => {
+        return db.collection('coffeeCollections').onSnapshot(snap => {
+          const totals = {};
+          snap.docs.forEach(d => {
+            const r = d.data();
+            const key = (r.name || '').trim() || '(名前なし)';
+            if (!totals[key]) totals[key] = { name: key, total: 0, count: 0, last: null };
+            totals[key].total += Number(r.amount || 0);
+            totals[key].count += 1;
+            if (!totals[key].last || (r.date || '') > totals[key].last) totals[key].last = r.date || null;
+          });
+          staff.forEach(m => {
+            if (!totals[m.name]) totals[m.name] = { name: m.name, total: 0, count: 0, last: null };
+          });
+          setRows(Object.values(totals).sort((a, b) => b.total - a.total));
+        });
+      }, [staff]);
+
+      return (
+        <div className="card">
+          <div className="section-title">個人別集計（今までの収支）</div>
+          {rows.length === 0 && <div className="empty">まだ記録がありません</div>}
+          {rows.length > 0 && (
+            <table className="collect-table">
+              <thead>
+                <tr><th>名前</th><th>累計</th><th>回数</th><th>最終</th></tr>
+              </thead>
+              <tbody>
+                {rows.map(r => (
+                  <tr key={r.name}>
+                    <td>{r.name}</td>
+                    <td className="col-amount">{yen(r.total)}</td>
+                    <td className="col-amount">{r.count}</td>
+                    <td>{r.last || '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
       );
     }
 
     // ========== メインアプリ ==========
     function MainApp({ user }) {
+      const [tab, setTab] = useState('info');
+      const [staff, setStaff] = useState([]);
       const [toast, setToast] = useState('');
 
       const showToast = useCallback((msg) => {
         setToast(msg);
         setTimeout(() => setToast(''), 3000);
       }, []);
+
+      useEffect(() => {
+        return db.collection('coffeeStaff').orderBy('createdAt', 'asc').onSnapshot(snap => {
+          setStaff(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        });
+      }, []);
+
+      const staffNames = staff.map(m => m.name);
 
       return (
         <div>
@@ -623,8 +860,20 @@
           </div>
 
           <div className="app-body">
-            <CoffeeInfoCard onToast={showToast} />
-            <CollectionsSection onToast={showToast} />
+            <div className="tab-switch">
+              <button className={tab === 'info' ? 'active' : ''} onClick={() => setTab('info')}>豆情報</button>
+              <button className={tab === 'monthly' ? 'active' : ''} onClick={() => setTab('monthly')}>月別徴収</button>
+              <button className={tab === 'person' ? 'active' : ''} onClick={() => setTab('person')}>個人別集計</button>
+            </div>
+
+            {tab === 'info' && (
+              <React.Fragment>
+                <CoffeeInfoCard onToast={showToast} />
+                <CollectionsSection onToast={showToast} staffNames={staffNames} />
+              </React.Fragment>
+            )}
+            {tab === 'monthly' && <MonthlyDuesTab staff={staff} onToast={showToast} />}
+            {tab === 'person' && <PersonSummaryTab staff={staff} />}
           </div>
 
           {toast && <div className="toast">{toast}</div>}
