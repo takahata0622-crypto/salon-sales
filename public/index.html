@@ -2928,7 +2928,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 4.27</span>
+              <span className="version">Ver 4.28</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -2948,8 +2948,8 @@
             <button className={`tab ${tab === 'today' ? 'active' : ''}`} onClick={() => setTab('today')}>今日</button>
             <button className={`tab ${tab === 'history' ? 'active' : ''}`} onClick={() => setTab('history')}>集計</button>
             <button className={`tab ${tab === 'submit' ? 'active' : ''}`} onClick={() => setTab('submit')}>提出</button>
-            <button className={`tab ${tab === 'confirm' ? 'active' : ''}`} onClick={() => setTab('confirm')}>出勤</button>
             <button className={`tab ${tab === 'karte' ? 'active' : ''}`} onClick={() => setTab('karte')}>記録</button>
+            <button className={`tab ${tab === 'confirm' ? 'active' : ''}`} onClick={() => setTab('confirm')}>出勤</button>
           </div>
         </div>
 
@@ -2957,8 +2957,8 @@
           {tab === 'today' && <TodayTab uid={uid} userName={user.displayName || ''} dept={dept} setDept={handleSetDept} viewDate={viewDate} setViewDate={setViewDate} />}
           {tab === 'history' && <HistoryTab uid={uid} visibleStatIds={visibleStatIds} />}
           {tab === 'submit' && <SubmitTab uid={uid} userName={user.displayName || ''} dept={dept} setDept={handleSetDept} viewDate={viewDate} setViewDate={setViewDate} />}
-          {tab === 'confirm' && <ConfirmTab uid={uid} />}
           {tab === 'karte' && <KarteTab uid={uid} openKanaBulk={openKanaBulk} onKanaBulkHandled={() => setOpenKanaBulk(false)} />}
+          {tab === 'confirm' && <ConfirmTab uid={uid} />}
         </div>
 
         {showMenu && (
