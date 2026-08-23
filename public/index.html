@@ -894,6 +894,19 @@
     .karte-result-no { font-size: 11px; color: var(--muted); font-weight: 700; white-space: nowrap; }
     .karte-result-name { font-weight: 700; font-size: 14px; }
     .karte-result-kana { font-size: 12px; color: var(--muted); }
+    /* 一覧の男女バッジ（名前の右）。色は伝票の入力候補と同じ */
+    .karte-result-gender {
+      padding: 1px 7px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #fff;
+      background: var(--muted);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .karte-result-gender.male { background: var(--accent); }
+    .karte-result-gender.female { background: var(--success); }
     .karte-result-last { margin-left: auto; font-size: 12px; color: var(--muted); white-space: nowrap; }
 
     .karte-sort-row {
@@ -2984,7 +2997,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 4.29</span>
+              <span className="version">Ver 4.30</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -4918,6 +4931,7 @@
             name: c.name || '',
             kana: c.kana || '',
             karteNo: c.karteNo || '',
+            gender: c.gender || '',
             lastDate: c.lastDate || '',
             recordCount: typeof c.recordCount === 'number' ? c.recordCount : 0,
           };
@@ -5091,7 +5105,7 @@
         await karteDb.collection('users').doc(karteUser.uid).collection('customers').doc(selected.customerId)
           .update({ name, kana, gender, strength, feature, memo });
         setHistory(h => ({ ...h, name, kana, gender, strength, feature, memo }));
-        setAllCustomers(prev => (prev || []).map(c => c.customerId === selected.customerId ? { ...c, name, kana } : c));
+        setAllCustomers(prev => (prev || []).map(c => c.customerId === selected.customerId ? { ...c, name, kana, gender } : c));
         setEditingNote(false);
       } catch (err) {
         setErrorMsg('保存に失敗しました：' + (err.message || err.code || err));
@@ -5191,6 +5205,7 @@
                     <div key={c.customerId} className={`karte-result-item${deleting ? ' deleting' : ''}`} onClick={() => { if (!deleting) openHistory(c); }}>
                       <span className="karte-result-no">{c.karteNo || '----'}</span>
                       <span className="karte-result-name">{c.name}</span>
+                      {c.gender && <span className={`karte-result-gender ${c.gender === '男性' ? 'male' : 'female'}`}>{c.gender === '男性' ? '男' : '女'}</span>}
                       {c.kana && <span className="karte-result-kana">{c.kana}</span>}
                       <span className="karte-result-last">最終来店 {c.lastDate || '—'}（{c.recordCount || 0}回）</span>
                       {!deleting && <button className="delete-btn" onClick={ev => { ev.stopPropagation(); deleteCustomer(c); }}>✕</button>}
