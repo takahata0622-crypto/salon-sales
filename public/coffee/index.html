@@ -411,6 +411,26 @@
             onBlur={e => save({ brand: e.target.value.trim() })}
           />
 
+          <div className="field-label">購入日</div>
+          <input
+            type="date"
+            className="login-input"
+            value={bean.purchaseDate || ''}
+            onChange={e => save({ purchaseDate: e.target.value })}
+          />
+
+          <div className="field-label">金額</div>
+          <div className="amount-input-wrap">
+            <span>¥</span>
+            <input
+              type="number"
+              inputMode="numeric"
+              placeholder="0"
+              defaultValue={bean.price || ''}
+              onBlur={e => save({ price: Number(e.target.value) || 0 })}
+            />
+          </div>
+
           <StarRow label="苦味" value={bean.bitterness || 0} onChange={v => save({ bitterness: v })} />
           <StarRow label="酸味" value={bean.acidity || 0} onChange={v => save({ acidity: v })} />
           <StarRow label="コク" value={bean.body || 0} onChange={v => save({ body: v })} />
@@ -452,7 +472,8 @@
       const addBean = async () => {
         try {
           await db.collection('coffeeBeans').add({
-            brand: '', photoURL: null, bitterness: 0, acidity: 0, body: 0, aroma: 0, createdAt: FV.serverTimestamp(),
+            brand: '', photoURL: null, purchaseDate: '', price: 0,
+            bitterness: 0, acidity: 0, body: 0, aroma: 0, createdAt: FV.serverTimestamp(),
           });
         } catch (e) {
           onToast('エラー: ' + e.message);
