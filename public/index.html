@@ -882,26 +882,37 @@
     }
     .karte-result-item {
       display: flex;
-      align-items: baseline;
+      align-items: center;
       gap: 8px;
       padding: 12px 14px;
       border-bottom: 1px solid var(--border);
       cursor: pointer;
     }
+    /* 画面が狭いときは文字を削らず2行に折り返す（「最終来店…」が下の行に回る）。
+       名前・フリガナ自体は途中で切らない */
+    .karte-result-main {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 2px 8px;
+    }
     .karte-result-item:last-child { border-bottom: none; }
     .karte-result-item:active { background: var(--bg); }
     .karte-result-item.deleting { opacity: 0.4; cursor: default; }
     .karte-result-no { font-size: 11px; color: var(--muted); font-weight: 700; white-space: nowrap; flex-shrink: 0; }
-    /* 横1行に収める。幅が足りないときは、まずフリガナ→次に名前の順に「…」で省略する
-       （nowrap を付けないと、狭い画面で1文字ずつ縦積みに折り返されてしまう） */
+    /* nowrap を付けないと狭い画面で1文字ずつ縦積みに折り返されてしまう。
+       縮めずに（flex-shrink: 0）折り返させることで、名前が「池…」のように削られるのを防ぐ。
+       1項目だけで幅を超える極端に長い名前のときだけ「…」で省略する */
     .karte-result-name {
       font-weight: 700;
       font-size: 14px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      flex: 0 1 auto;
-      min-width: 0;
+      max-width: 100%;
+      flex-shrink: 0;
     }
     .karte-result-kana {
       font-size: 12px;
@@ -909,8 +920,8 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      flex: 0 4 auto;
-      min-width: 0;
+      max-width: 100%;
+      flex-shrink: 0;
     }
     /* 一覧の男女バッジ（名前の左）。色は伝票の入力候補と同じ */
     .karte-result-gender {
@@ -3023,7 +3034,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 4.33</span>
+              <span className="version">Ver 4.34</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -5229,13 +5240,15 @@
                     const deleting = deletingIds.has(c.customerId);
                     return (
                     <div key={c.customerId} className={`karte-result-item${deleting ? ' deleting' : ''}`} onClick={() => { if (!deleting) openHistory(c); }}>
-                      <span className="karte-result-no">{c.karteNo || '----'}</span>
-                      <span className={`karte-result-gender ${c.gender === '男性' ? 'male' : c.gender === '女性' ? 'female' : 'unset'}`}>
-                        {c.gender === '男性' ? '男' : c.gender === '女性' ? '女' : '未'}
-                      </span>
-                      <span className="karte-result-name">{c.name}</span>
-                      {c.kana && <span className="karte-result-kana">{c.kana}</span>}
-                      <span className="karte-result-last">最終来店 {c.lastDate || '—'}（{c.recordCount || 0}回）</span>
+                      <div className="karte-result-main">
+                        <span className="karte-result-no">{c.karteNo || '----'}</span>
+                        <span className={`karte-result-gender ${c.gender === '男性' ? 'male' : c.gender === '女性' ? 'female' : 'unset'}`}>
+                          {c.gender === '男性' ? '男' : c.gender === '女性' ? '女' : '未'}
+                        </span>
+                        <span className="karte-result-name">{c.name}</span>
+                        {c.kana && <span className="karte-result-kana">{c.kana}</span>}
+                        <span className="karte-result-last">最終来店 {c.lastDate || '—'}（{c.recordCount || 0}回）</span>
+                      </div>
                       {!deleting && <button className="delete-btn" onClick={ev => { ev.stopPropagation(); deleteCustomer(c); }}>✕</button>}
                     </div>
                   );})}
