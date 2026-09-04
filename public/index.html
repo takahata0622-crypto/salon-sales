@@ -891,9 +891,27 @@
     .karte-result-item:last-child { border-bottom: none; }
     .karte-result-item:active { background: var(--bg); }
     .karte-result-item.deleting { opacity: 0.4; cursor: default; }
-    .karte-result-no { font-size: 11px; color: var(--muted); font-weight: 700; white-space: nowrap; }
-    .karte-result-name { font-weight: 700; font-size: 14px; }
-    .karte-result-kana { font-size: 12px; color: var(--muted); }
+    .karte-result-no { font-size: 11px; color: var(--muted); font-weight: 700; white-space: nowrap; flex-shrink: 0; }
+    /* 横1行に収める。幅が足りないときは、まずフリガナ→次に名前の順に「…」で省略する
+       （nowrap を付けないと、狭い画面で1文字ずつ縦積みに折り返されてしまう） */
+    .karte-result-name {
+      font-weight: 700;
+      font-size: 14px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      flex: 0 1 auto;
+      min-width: 0;
+    }
+    .karte-result-kana {
+      font-size: 12px;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      flex: 0 4 auto;
+      min-width: 0;
+    }
     /* 一覧の男女バッジ（名前の左）。色は伝票の入力候補と同じ */
     .karte-result-gender {
       padding: 1px 7px;
@@ -914,7 +932,8 @@
       border: 1px solid var(--border);
       padding: 0 6px;
     }
-    .karte-result-last { margin-left: auto; font-size: 12px; color: var(--muted); white-space: nowrap; }
+    .karte-result-last { margin-left: auto; font-size: 12px; color: var(--muted); white-space: nowrap; flex-shrink: 0; }
+    .karte-result-item .delete-btn { flex-shrink: 0; }
 
     .karte-sort-row {
       display: flex;
@@ -3004,7 +3023,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 4.32</span>
+              <span className="version">Ver 4.33</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
