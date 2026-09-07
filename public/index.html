@@ -2499,10 +2499,20 @@
       { key: 'tai',     match: ['タイ古式'],    unit: 1500, label: 'タイ延長10分' },
       { key: 'body',    match: [],              unit: 1350, label: 'ボディケア延長10分' }, // 既定
     ],
-    discountRate: { lodging: 0.10, dayuse: 0.20 }, // 宿泊10% / 日帰り20%
+    // 宿泊の割引率は2026年9月から10%→20%に変更（日帰りは従来どおり20%）
+    discountRate: { lodging: 0.20, lodgingBefore: 0.10, dayuse: 0.20 },
     // 指名料 / 男女希望 / 眼精疲労（タイ・バリのみ）/ ポイント20分（無料サービス）
     fees: { shimei: 500, seibetsu: 300, ganseihirou: 2500, point20: 0 },
   };
+
+  // 宿泊割引が10%→20%に変わった日。これより前の伝票は従来の10%で計算する。
+  // （率を一律で変えてしまうと、過去の月の集計・提出表の金額が後から書き変わってしまうため）
+  const LODGING_RATE_FROM = '2026-09-01';
+  const lodgingRateFor = (dateStr) => (dateStr && dateStr < LODGING_RATE_FROM)
+    ? PRICING.discountRate.lodgingBefore
+    : PRICING.discountRate.lodging;
+  // 割引率を「20%OFF」のような表示用ラベルにする
+  const tierLabelOf = (rate) => `${Math.round(rate * 100)}%OFF`;
 
   // 内訳の各項目に付ける伝票ラベルの番号部分（①、②…）。①〜⑳は丸数字、それ以降は数字表記
   const slipNumberLabel = (idx) => idx < 20 ? String.fromCharCode(0x2460 + idx) : String(idx + 1);
@@ -2579,11 +2589,12 @@
   };
 
   // 1件の金額内訳を計算（今日タブ・集計タブ共通）
-  const calcEntry = (e) => {
+  // dateStr（YYYY-MM-DD）はその伝票の日付。宿泊割引の率が日付で変わるので必ず渡すこと。
+  const calcEntry = (e, dateStr) => {
     const extMins = extMinsByKey(e);
     const ext = Object.keys(extMins).reduce((s, k) => s + (extMins[k] / 10) * unitByExtKey(k), 0);
     const gross = e.price + ext;
-    const rate = e.discount ? (e.lodging ? PRICING.discountRate.lodging : PRICING.discountRate.dayuse) : 0;
+    const rate = e.discount ? (e.lodging ? lodgingRateFor(dateStr) : PRICING.discountRate.dayuse) : 0;
     const discount = Math.round(gross * rate);
     const extra = (e.shimei ? PRICING.fees.shimei : 0) + (e.seibetsu ? PRICING.fees.seibetsu : 0)
       + (e.ganseihirou ? PRICING.fees.ganseihirou : 0) + (e.point20 ? PRICING.fees.point20 : 0);
@@ -3034,7 +3045,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 4.34</span>
+              <span className="version">Ver 4.35</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -4014,13 +4025,13 @@
       }
     };
 
-    const extAmount = (e) => calcEntry(e).ext;
-    const entryRate = (e) => calcEntry(e).rate;
-    const entryNet = (e) => calcEntry(e).net;
+    const extAmount = (e) => calcEntry(e, viewDate).ext;
+    const entryRate = (e) => calcEntry(e, viewDate).rate;
+    const entryNet = (e) => calcEntry(e, viewDate).net;
     // 内訳の計算式の各項目を組み立てる（例: コース4,500＋延長1,215＋男女希望300）
     // discounted=true の項目（コース・延長）は割引後の金額で、金額のみ赤文字で表示する
     const entryBreakdown = (e) => {
-      const c = calcEntry(e);
+      const c = calcEntry(e, viewDate);
       // 延長は単体で割引を適用、コースは合計から逆算して端数のズレを残額に寄せる
       const extNet = c.rate > 0 ? c.ext - Math.round(c.ext * c.rate) : c.ext;
       const courseNet = (c.gross - c.discount) - extNet;
@@ -4032,9 +4043,9 @@
       return parts;
     };
 
-    const subtotal = entries.reduce((s, e) => s + calcEntry(e).gross, 0);
-    const discountAmount = entries.reduce((s, e) => s + calcEntry(e).discount, 0);
-    const extraTotal = entries.reduce((s, e) => s + calcEntry(e).extra, 0);
+    const subtotal = entries.reduce((s, e) => s + calcEntry(e, viewDate).gross, 0);
+    const discountAmount = entries.reduce((s, e) => s + calcEntry(e, viewDate).discount, 0);
+    const extraTotal = entries.reduce((s, e) => s + calcEntry(e, viewDate).extra, 0);
     const total = subtotal - discountAmount + extraTotal;
     const totalNoDisc = subtotal + extraTotal;
 
@@ -4293,9 +4304,9 @@
           const result = [];
           perDay.forEach(({ date, entries }) => {
             if (entries.length === 0) return;
-            const subtotal = entries.reduce((s, e) => s + calcEntry(e).gross, 0);
-            const discountAmount = entries.reduce((s, e) => s + calcEntry(e).discount, 0);
-            const extraTotal = entries.reduce((s, e) => s + calcEntry(e).extra, 0);
+            const subtotal = entries.reduce((s, e) => s + calcEntry(e, date).gross, 0);
+            const discountAmount = entries.reduce((s, e) => s + calcEntry(e, date).discount, 0);
+            const extraTotal = entries.reduce((s, e) => s + calcEntry(e, date).extra, 0);
             const total = subtotal - discountAmount + extraTotal;
             result.push({ date, entries, subtotal, discountAmount, extraTotal, total });
           });
@@ -5377,13 +5388,17 @@
   }
 
   // ========== 提出タブ ==========
-  // 提出用シートの並び：コース × 区分（日帰り定価／日帰り20%OFF／宿泊定価／宿泊10%OFF）
-  const SUBMIT_TIERS = [
-    { type: '日帰り', tier: '定価',    lodging: false, discount: false, rate: 0   },
-    { type: '日帰り', tier: '20%OFF', lodging: false, discount: true,  rate: PRICING.discountRate.dayuse },
-    { type: '宿泊',   tier: '定価',    lodging: true,  discount: false, rate: 0   },
-    { type: '宿泊',   tier: '10%OFF', lodging: true,  discount: true,  rate: PRICING.discountRate.lodging },
-  ];
+  // 提出用シートの並び：コース × 区分（日帰り定価／日帰り20%OFF／宿泊定価／宿泊◯%OFF）
+  // 宿泊の割引率は2026年9月から10%→20%に変わるため、表示中の月に合わせて組み立てる
+  const submitTiersFor = (dateStr) => {
+    const lodgingRate = lodgingRateFor(dateStr);
+    return [
+      { type: '日帰り', tier: '定価', lodging: false, discount: false, rate: 0 },
+      { type: '日帰り', tier: tierLabelOf(PRICING.discountRate.dayuse), lodging: false, discount: true, rate: PRICING.discountRate.dayuse },
+      { type: '宿泊',   tier: '定価', lodging: true,  discount: false, rate: 0 },
+      { type: '宿泊',   tier: tierLabelOf(lodgingRate), lodging: true, discount: true, rate: lodgingRate },
+    ];
+  };
   // 提出表示順（ボディケア=既定 → ストレッチ → タイ・バリ）を維持して PRICING から導出
   const EXT_UNITS = [
     ...PRICING.extUnits.filter(u => u.match.length === 0),
@@ -5540,12 +5555,21 @@
     const WD = ['日','月','火','水','木','金','土'];
     const selWd = WD[new Date(year, month - 1, selectedDay).getDay()];
 
+    // 宿泊の割引率は2026年9月から10%→20%。月の途中では変わらないので、
+    // 表示中の月の1日で判定して、その月の区分（ティア）を決める
+    const monthFirstDay = `${year}-${String(month).padStart(2, '0')}-01`;
+    const SUBMIT_TIERS = submitTiersFor(monthFirstDay);
+    const lodgingTier = tierLabelOf(lodgingRateFor(monthFirstDay));
+    const tierKeyOf = (e) => e.lodging
+      ? (e.discount ? `宿泊|${lodgingTier}` : '宿泊|定価')
+      : (e.discount ? `日帰り|${tierLabelOf(PRICING.discountRate.dayuse)}` : '日帰り|定価');
+    // その伝票の日付（YYYY-MM-DD）。宿泊割引の率の判定に使う
+    const entryDate = (e) => `${year}-${String(month).padStart(2, '0')}-${String(e._day).padStart(2, '0')}`;
+
     // メニュー名×区分×日 ごとの件数を集計
     const agg = {};
     entries.forEach(e => {
-      const tierKey = e.lodging
-        ? (e.discount ? '宿泊|10%OFF' : '宿泊|定価')
-        : (e.discount ? '日帰り|20%OFF' : '日帰り|定価');
+      const tierKey = tierKeyOf(e);
       const al = aliasOf(e.name);
       const k = `${al.name}||${tierKey}`;
       if (!agg[k]) agg[k] = {};
@@ -5562,12 +5586,9 @@
     // 日×メニュー×区分 ごとの金額集計
     const amountAgg = {};
     entries.forEach(e => {
-      const tierKey = e.lodging
-        ? (e.discount ? '宿泊|10%OFF' : '宿泊|定価')
-        : (e.discount ? '日帰り|20%OFF' : '日帰り|定価');
-      const k = `${aliasOf(e.name).name}||${tierKey}`;
+      const k = `${aliasOf(e.name).name}||${tierKeyOf(e)}`;
       if (!amountAgg[k]) amountAgg[k] = {};
-      amountAgg[k][e._day] = (amountAgg[k][e._day] || 0) + calcEntry(e).net;
+      amountAgg[k][e._day] = (amountAgg[k][e._day] || 0) + calcEntry(e, entryDate(e)).net;
     });
     const dayAmounts = {};
     const dayAmountsNoDisc = {};
@@ -5580,12 +5601,10 @@
     const grossAgg = {};
     entries.forEach(e => {
       if (!deptMenuNames.has(e.name)) return;
-      const tierKey = e.lodging
-        ? (e.discount ? '宿泊|10%OFF' : '宿泊|定価')
-        : (e.discount ? '日帰り|20%OFF' : '日帰り|定価');
-      const k = `${aliasOf(e.name).name}||${tierKey}`;
+      const k = `${aliasOf(e.name).name}||${tierKeyOf(e)}`;
       if (!grossAgg[k]) grossAgg[k] = {};
-      grossAgg[k][e._day] = (grossAgg[k][e._day] || 0) + calcEntry(e).gross + calcEntry(e).extra;
+      const c = calcEntry(e, entryDate(e));
+      grossAgg[k][e._day] = (grossAgg[k][e._day] || 0) + c.gross + c.extra;
     });
     deptItems.forEach(p => {
       SUBMIT_TIERS.forEach(t => {
@@ -5636,7 +5655,7 @@
     const renderMenuRows = (p) => SUBMIT_TIERS.map((t, i) => {
       const row = rowOf(p.name, t);
       const cnt = row[selectedDay] || 0;
-      const tierPrice = t.tier === '20%OFF' ? Math.round(p.price * 0.8) : t.tier === '10%OFF' ? Math.round(p.price * 0.9) : p.price;
+      const tierPrice = t.rate > 0 ? Math.round(p.price * (1 - t.rate)) : p.price;
       const amt = cnt * tierPrice;
       return (
         <tr key={p.id + '-' + i} className={cnt === 0 ? 'zero' : ''}>
@@ -5667,7 +5686,7 @@
               const tierLabel = t.type + (t.tier !== '定価' ? ' ' + t.tier : '');
               const tierKey = `${t.type}|${t.tier}`;
               const cnt = (agg[`${p.name}||${tierKey}`] || {})[selectedDay] || 0;
-              const tierPrice = t.tier === '20%OFF' ? Math.round(p.price * 0.8) : t.tier === '10%OFF' ? Math.round(p.price * 0.9) : p.price;
+              const tierPrice = t.rate > 0 ? Math.round(p.price * (1 - t.rate)) : p.price;
               const amt = cnt * tierPrice;
               return { menu: p.name, tier: tierLabel, count: cnt, amount: amt };
             })
@@ -5794,11 +5813,11 @@
                         if (!deptMenuNames.has(e.name)) return;
                         const m = extMinsByKey(e)[ex.key] || 0;
                         if (m === 0) return;
-                        const tk = e.lodging ? (e.discount ? '宿泊|10%OFF' : '宿泊|定価') : (e.discount ? '日帰り|20%OFF' : '日帰り|定価');
+                        const tk = tierKeyOf(e);
                         if (tk !== tierKey) return;
                         cnt += m / 10;
                       });
-                      const tierPrice = t.tier === '20%OFF' ? Math.round(ex.unit * 0.8) : t.tier === '10%OFF' ? Math.round(ex.unit * 0.9) : ex.unit;
+                      const tierPrice = t.rate > 0 ? Math.round(ex.unit * (1 - t.rate)) : ex.unit;
                       const amt = cnt * tierPrice;
                       return (
                         <tr key={ex.label + '-' + i} className={cnt === 0 ? 'zero' : ''}>
@@ -5846,11 +5865,11 @@
                         if (!deptMenuNames.has(e.name)) return;
                         const m = extMinsByKey(e)[ex.key] || 0;
                         if (m === 0) return;
-                        const tk = e.lodging ? (e.discount ? '宿泊|10%OFF' : '宿泊|定価') : (e.discount ? '日帰り|20%OFF' : '日帰り|定価');
+                        const tk = tierKeyOf(e);
                         if (tk !== tierKey) return;
                         cnt += m / 10;
                       });
-                      const tierPrice = t.tier === '20%OFF' ? Math.round(ex.unit * 0.8) : t.tier === '10%OFF' ? Math.round(ex.unit * 0.9) : ex.unit;
+                      const tierPrice = t.rate > 0 ? Math.round(ex.unit * (1 - t.rate)) : ex.unit;
                       const amt = cnt * tierPrice;
                       return (
                         <tr key={ex.key + '-' + i} className={cnt === 0 ? 'zero' : ''}>
