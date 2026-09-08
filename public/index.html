@@ -3391,7 +3391,9 @@
             onChange={ev => setPrice(ev.target.value)}
           />
           <input
-            type="password"
+            type="text"
+            autoCapitalize="off"
+            autoCorrect="off"
             className="entry-memo diff-checker-input"
             placeholder="合言葉（管理者のみ／わからなければ空欄でOK）"
             value={password}
@@ -3543,7 +3545,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 4.46</span>
+              <span className="version">Ver 4.47</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
