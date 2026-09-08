@@ -2813,6 +2813,23 @@
   // 差額チェッカー用：部門ごとに「コース取り違え」「料金の付け忘れ」「延長の入力漏れ」を
   // 起こりうる原因（1件あたりの金額）として洗い出す。レジ金とアプリ金額の差額を、
   // これらの単体または2件の組み合わせで説明できないか逆引きするために使う。
+  // コース名から施術時間（分）を取り出す。「ボディケア60×2」のような複数本の表記は
+  // 合計時間（60×2＝120分）として扱う。時間が同じコース同士は、名前も紛らわしく
+  // 選び間違えやすいので、差額チェッカーの優先度づけに使う。
+  const courseMinutesOf = (name) => {
+    const multi = name.match(/(\d+)\s*[×xX]\s*(\d+)/);
+    if (multi) return Number(multi[1]) * Number(multi[2]);
+    const single = name.match(/(\d+)\s*分/);
+    return single ? Number(single[1]) : null;
+  };
+
+  // 差額チェッカーの「もっともらしさ」ランク（大きいほど起こりやすい）。
+  // 実際の現場感覚として、
+  //   3 = 割引・指名料などの単純な付け忘れ／時間が同じコースの選び間違え（起こりやすい）
+  //   2 = 延長の入力漏れ
+  //   1 = 時間が違う全くの別コースとの取り違え（起こりにくい）
+  const DIFF_CHECKER_RANK = { HIGH: 3, MID: 2, LOW: 1 };
+
   const buildDiffCheckerAtoms = (dept) => {
     const atoms = [];
     const courses = DEFAULT_PRESETS.filter(p => p.category === dept && p.price > 0);
@@ -2820,14 +2837,21 @@
       for (let j = i + 1; j < courses.length; j++) {
         const amount = Math.abs(courses[i].price - courses[j].price);
         if (amount > 0) {
-          atoms.push({ amount, label: `コース取り違え：${courses[i].name}(¥${courses[i].price.toLocaleString()}) ⇔ ${courses[j].name}(¥${courses[j].price.toLocaleString()})` });
+          const minA = courseMinutesOf(courses[i].name);
+          const minB = courseMinutesOf(courses[j].name);
+          const sameDuration = minA !== null && minA === minB;
+          atoms.push({
+            amount,
+            label: `コース取り違え：${courses[i].name}(¥${courses[i].price.toLocaleString()}) ⇔ ${courses[j].name}(¥${courses[j].price.toLocaleString()})`,
+            rank: sameDuration ? DIFF_CHECKER_RANK.HIGH : DIFF_CHECKER_RANK.LOW,
+          });
         }
       }
     }
-    atoms.push({ amount: PRICING.fees.seibetsu, label: '男女希望の付け忘れ' });
-    atoms.push({ amount: PRICING.fees.shimei, label: '指名料の付け忘れ' });
+    atoms.push({ amount: PRICING.fees.seibetsu, label: '男女希望の付け忘れ', rank: DIFF_CHECKER_RANK.HIGH });
+    atoms.push({ amount: PRICING.fees.shimei, label: '指名料の付け忘れ', rank: DIFF_CHECKER_RANK.HIGH });
     if (dept === 'タイ・バリ') {
-      atoms.push({ amount: PRICING.fees.ganseihirou, label: '眼精疲労の付け忘れ' });
+      atoms.push({ amount: PRICING.fees.ganseihirou, label: '眼精疲労の付け忘れ', rank: DIFF_CHECKER_RANK.HIGH });
     }
     // 割引（日帰り／宿泊とも現在20%）の付け忘れ。本来は割引済みの金額をレジで受け取っているのに
     // アプリには定価のまま入力してしまうと、割引額ぶんだけアプリ側が多く見えるズレになる。
@@ -2835,33 +2859,45 @@
     courses.forEach(c => {
       const discountAmount = Math.round(c.price * discountRate);
       if (discountAmount > 0) {
-        atoms.push({ amount: discountAmount, label: `${c.name}(¥${c.price.toLocaleString()})の割引${Math.round(discountRate * 100)}%付け忘れ` });
+        atoms.push({
+          amount: discountAmount,
+          label: `${c.name}(¥${c.price.toLocaleString()})の割引${Math.round(discountRate * 100)}%付け忘れ`,
+          rank: DIFF_CHECKER_RANK.HIGH,
+        });
       }
     });
     const extKeys = dept === 'タイ・バリ' ? ['tai', 'bari'] : ['body', 'stretch'];
     PRICING.extUnits.filter(u => extKeys.includes(u.key)).forEach(u => {
       const baseLabel = u.label.replace(/10分$/, '');
       for (let n = 1; n <= 3; n++) {
-        atoms.push({ amount: u.unit * n, label: `${baseLabel}${n * 10}分の入力漏れ` });
+        atoms.push({ amount: u.unit * n, label: `${baseLabel}${n * 10}分の入力漏れ`, rank: DIFF_CHECKER_RANK.MID });
       }
     });
     return atoms;
   };
 
   // 差額（円）から考えられる原因を探す。単体で一致するものと、2件の組み合わせ
-  // （例：コース違い＋指名料忘れ）で一致するものの両方を返す。
+  // （例：コース違い＋指名料忘れ）で一致するものの両方を返し、それぞれ
+  // 「もっともらしさ」の高い順（同じ順位なら金額が小さい順）に並べる。
   const findDiffCauses = (amount, atoms) => {
     const target = Math.round(amount);
-    const singles = atoms.filter(a => a.amount === target);
+    const singles = atoms
+      .filter(a => a.amount === target)
+      .slice()
+      .sort((a, b) => b.rank - a.rank || a.amount - b.amount);
     const combos = [];
     for (let i = 0; i < atoms.length; i++) {
       for (let j = i; j < atoms.length; j++) {
         if (atoms[i].amount + atoms[j].amount === target) {
-          combos.push(i === j ? `${atoms[i].label}（2件分）` : `${atoms[i].label} ＋ ${atoms[j].label}`);
+          combos.push({
+            label: i === j ? `${atoms[i].label}（2件分）` : `${atoms[i].label} ＋ ${atoms[j].label}`,
+            rank: atoms[i].rank + atoms[j].rank,
+          });
         }
       }
     }
-    return { singles, combos };
+    combos.sort((a, b) => b.rank - a.rank);
+    return { singles, combos: combos.map(c => c.label) };
   };
 
   // 提出（スプレッドシート転記）時に既存メニューへ本数換算で折り込むメニュー
@@ -3415,7 +3451,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 4.40</span>
+              <span className="version">Ver 4.41</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
