@@ -2844,6 +2844,19 @@
   //   1 = 時間が違う全くの別コースとの取り違え（起こりにくい）
   const DIFF_CHECKER_RANK = { HIGH: 3, MID: 2, LOW: 1 };
 
+  // 時間は違ってもよく起こると分かっている取り違え（現場の実感ベース）。
+  // ここに含まれるコースの組み合わせは、時間が違っていてもLOW（低確率）扱いにしない。
+  const DIFF_CHECKER_FORCE_HIGH_PAIRS = [
+    ['ボディケア40分', 'ボディケア60分'],
+  ];
+  const isForcedHighPair = (nameA, nameB) => DIFF_CHECKER_FORCE_HIGH_PAIRS.some(
+    ([a, b]) => (a === nameA && b === nameB) || (a === nameB && b === nameA)
+  );
+
+  // 差額チェッカーの表示で、メニュー名・オプション名だけ太字にするための印。
+  // **text** の形でラベルに埋め込み、表示側（renderDiffLabel）で <strong> に変換する。
+  const bold = (text) => `**${text}**`;
+
   const buildDiffCheckerAtoms = (dept) => {
     const atoms = [];
     const courses = DEFAULT_PRESETS.filter(p => p.category === dept && p.price > 0);
@@ -2854,18 +2867,19 @@
           const minA = courseMinutesOf(courses[i].name);
           const minB = courseMinutesOf(courses[j].name);
           const sameDuration = minA !== null && minA === minB;
+          const forcedHigh = isForcedHighPair(courses[i].name, courses[j].name);
           atoms.push({
             amount,
-            label: `コース取り違え：${courses[i].name}(¥${courses[i].price.toLocaleString()}) ⇔ ${courses[j].name}(¥${courses[j].price.toLocaleString()})`,
-            rank: sameDuration ? DIFF_CHECKER_RANK.HIGH : DIFF_CHECKER_RANK.LOW,
+            label: `コース取り違え：${bold(courses[i].name)}(¥${courses[i].price.toLocaleString()}) ⇔ ${bold(courses[j].name)}(¥${courses[j].price.toLocaleString()})`,
+            rank: (sameDuration || forcedHigh) ? DIFF_CHECKER_RANK.HIGH : DIFF_CHECKER_RANK.LOW,
           });
         }
       }
     }
-    atoms.push({ amount: PRICING.fees.seibetsu, label: '男女希望の付け忘れ', rank: DIFF_CHECKER_RANK.HIGH });
-    atoms.push({ amount: PRICING.fees.shimei, label: '指名料の付け忘れ', rank: DIFF_CHECKER_RANK.HIGH });
+    atoms.push({ amount: PRICING.fees.seibetsu, label: `${bold('男女希望')}の付け忘れ`, rank: DIFF_CHECKER_RANK.HIGH });
+    atoms.push({ amount: PRICING.fees.shimei, label: `${bold('指名料')}の付け忘れ`, rank: DIFF_CHECKER_RANK.HIGH });
     if (dept === 'タイ・バリ') {
-      atoms.push({ amount: PRICING.fees.ganseihirou, label: '眼精疲労の付け忘れ', rank: DIFF_CHECKER_RANK.HIGH });
+      atoms.push({ amount: PRICING.fees.ganseihirou, label: `${bold('眼精疲労')}の付け忘れ`, rank: DIFF_CHECKER_RANK.HIGH });
     }
     // 割引（日帰り／宿泊とも現在20%）の付け忘れ。本来は割引済みの金額をレジで受け取っているのに
     // アプリには定価のまま入力してしまうと、割引額ぶんだけアプリ側が多く見えるズレになる。
@@ -2875,7 +2889,7 @@
       if (discountAmount > 0) {
         atoms.push({
           amount: discountAmount,
-          label: `${c.name}(¥${c.price.toLocaleString()})の割引${Math.round(discountRate * 100)}%付け忘れ`,
+          label: `${bold(c.name)}(¥${c.price.toLocaleString()})の割引${Math.round(discountRate * 100)}%付け忘れ`,
           rank: DIFF_CHECKER_RANK.HIGH,
         });
       }
@@ -2884,7 +2898,7 @@
     PRICING.extUnits.filter(u => extKeys.includes(u.key)).forEach(u => {
       const baseLabel = u.label.replace(/10分$/, '');
       for (let n = 1; n <= 3; n++) {
-        atoms.push({ amount: u.unit * n, label: `${baseLabel}${n * 10}分の入力漏れ`, rank: DIFF_CHECKER_RANK.MID });
+        atoms.push({ amount: u.unit * n, label: `${bold(baseLabel + (n * 10) + '分')}の入力漏れ`, rank: DIFF_CHECKER_RANK.MID });
       }
     });
     return atoms;
@@ -2923,7 +2937,7 @@
           const bigger = atoms[i].amount > atoms[j].amount ? atoms[i] : atoms[j];
           const smaller = atoms[i].amount > atoms[j].amount ? atoms[j] : atoms[i];
           combos.push({
-            label: `${bigger.label}（多め） と ${smaller.label}（少なめ）が逆方向に重なった場合`,
+            label: `${bigger.label} と ${smaller.label} が逆方向に重なった場合`,
             rank: atoms[i].rank + atoms[j].rank,
             isLow,
           });
@@ -3166,6 +3180,12 @@
     );
   }
 
+  // 差額チェッカーのラベル中の **text**（メニュー名・オプション名）を太字表示に変換する
+  const renderDiffLabel = (label) => label.split(/(\*\*.+?\*\*)/g).map((part, i) => {
+    const m = part.match(/^\*\*(.+)\*\*$/);
+    return m ? <strong key={i}>{m[1]}</strong> : <React.Fragment key={i}>{part}</React.Fragment>;
+  });
+
   // メニューの「差額チェッカー」から開く、レジ金とアプリ金額の差額の原因逆引きモーダル
   function DiffCheckerModal({ dept, onClose }) {
     const [checkDept, setCheckDept] = useState(dept);
@@ -3207,7 +3227,7 @@
               <div className="diff-checker-section-title">単体の原因候補（{result.singles.length}件）</div>
               {result.singles.length === 0
                 ? <div className="confirm-note">該当なし</div>
-                : result.singles.map((s, i) => <div key={i} className="diff-checker-item">{s.label}</div>)}
+                : result.singles.map((s, i) => <div key={i} className="diff-checker-item">{renderDiffLabel(s.label)}</div>)}
               <div className="diff-checker-section-title">
                 2つの組み合わせの原因候補（可能性が高い順に{result.combos.length}件
                 {result.comboTotal > result.combos.length ? `／全${result.comboTotal}件中` : ''}
@@ -3215,7 +3235,7 @@
               </div>
               {result.combos.length === 0
                 ? <div className="confirm-note">該当なし</div>
-                : result.combos.map((c, i) => <div key={i} className="diff-checker-item">{c}</div>)}
+                : result.combos.map((c, i) => <div key={i} className="diff-checker-item">{renderDiffLabel(c)}</div>)}
 
               {(result.singlesLow.length > 0 || result.combosLow.length > 0) && (
                 <details className="diff-checker-low-group">
@@ -3225,7 +3245,7 @@
                   {result.singlesLow.length > 0 && (
                     <>
                       <div className="diff-checker-section-title">単体</div>
-                      {result.singlesLow.map((s, i) => <div key={i} className="diff-checker-item">{s.label}</div>)}
+                      {result.singlesLow.map((s, i) => <div key={i} className="diff-checker-item">{renderDiffLabel(s.label)}</div>)}
                     </>
                   )}
                   {result.combosLow.length > 0 && (
@@ -3235,7 +3255,7 @@
                         {result.comboLowTotal > result.combosLow.length ? `／全${result.comboLowTotal}件中` : ''}
                         ）
                       </div>
-                      {result.combosLow.map((c, i) => <div key={i} className="diff-checker-item">{c}</div>)}
+                      {result.combosLow.map((c, i) => <div key={i} className="diff-checker-item">{renderDiffLabel(c)}</div>)}
                     </>
                   )}
                 </details>
@@ -3523,7 +3543,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 4.45</span>
+              <span className="version">Ver 4.46</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
