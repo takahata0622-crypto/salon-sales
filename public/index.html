@@ -2876,9 +2876,12 @@
     return atoms;
   };
 
-  // 差額（円）から考えられる原因を探す。単体で一致するものと、2件の組み合わせ
-  // （例：コース違い＋指名料忘れ）で一致するものの両方を返し、それぞれ
-  // 「もっともらしさ」の高い順（同じ順位なら金額が小さい順）に並べる。
+  // 差額（円）から考えられる原因を探す。単体で一致するものと、2件の組み合わせで
+  // 一致するものの両方を返し、それぞれ「もっともらしさ」の高い順
+  // （同じ順位なら金額が小さい順）に並べる。
+  // 2件の組み合わせは、同じ方向に重なるケース（例：コース違い＋指名料忘れが両方とも
+  // アプリ側を多く見せる）だけでなく、逆方向に重なって一部が相殺するケース
+  // （例：コース違いでレジは多くもらったが、指名料はもらい忘れて差し引かれた）も含める。
   const findDiffCauses = (amount, atoms) => {
     const target = Math.round(amount);
     const singles = atoms
@@ -2894,10 +2897,23 @@
             rank: atoms[i].rank + atoms[j].rank,
           });
         }
+        if (i !== j && Math.abs(atoms[i].amount - atoms[j].amount) === target) {
+          const bigger = atoms[i].amount > atoms[j].amount ? atoms[i] : atoms[j];
+          const smaller = atoms[i].amount > atoms[j].amount ? atoms[j] : atoms[i];
+          combos.push({
+            label: `${bigger.label}（多め） と ${smaller.label}（少なめ）が逆方向に重なった場合`,
+            rank: atoms[i].rank + atoms[j].rank,
+          });
+        }
       }
     }
     combos.sort((a, b) => b.rank - a.rank);
-    return { singles, combos: combos.map(c => c.label) };
+    const COMBO_DISPLAY_LIMIT = 40;
+    return {
+      singles,
+      combos: combos.slice(0, COMBO_DISPLAY_LIMIT).map(c => c.label),
+      comboTotal: combos.length,
+    };
   };
 
   // 提出（スプレッドシート転記）時に既存メニューへ本数換算で折り込むメニュー
@@ -3138,7 +3154,7 @@
             <button className="add-modal-close" onClick={onClose}>✕</button>
           </div>
           <div className="confirm-note" style={{marginBottom:10}}>
-            レジ金と集計表の差額を入力すると、コースの取り違えや割引・料金の付け忘れなど考えられる原因を表示します。
+            レジ金と集計表の差額を入力すると、コースの取り違えや割引・料金の付け忘れなど考えられる原因を表示します（「コース違いでもらいすぎ」＋「指名料もらい忘れ」のように、逆方向の間違いが重なって相殺したケースも含みます）。
           </div>
           <div className="diff-checker-dept-row">
             {CATEGORIES.map(c => (
@@ -3164,7 +3180,11 @@
               {result.singles.length === 0
                 ? <div className="confirm-note">該当なし</div>
                 : result.singles.map((s, i) => <div key={i} className="diff-checker-item">{s.label}</div>)}
-              <div className="diff-checker-section-title">2つの組み合わせの原因候補（{result.combos.length}件）</div>
+              <div className="diff-checker-section-title">
+                2つの組み合わせの原因候補（可能性が高い順に{result.combos.length}件
+                {result.comboTotal > result.combos.length ? `／全${result.comboTotal}件中` : ''}
+                ）
+              </div>
               {result.combos.length === 0
                 ? <div className="confirm-note">該当なし</div>
                 : result.combos.map((c, i) => <div key={i} className="diff-checker-item">{c}</div>)}
@@ -3451,7 +3471,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 4.42</span>
+              <span className="version">Ver 4.44</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
