@@ -7,6 +7,18 @@ service cloud.firestore {
     // 送信記録（全スタッフが閲覧可能・追加／削除どちらも可・他人の記録の同時改変は不可）
     // names が無いドキュメント（出勤人数だけ先に登録された日など）も考慮し、
     // get('names', []) で「名前未設定 = 空配列」として扱う。
+    // 管理者がハンバーガーメニューの「メニュー追加」から登録した、全員向けの共有メニュー
+    // （合言葉チェック自体はアプリ側で行うため、Firestore 上は他のスタッフ共有コレクションと
+    // 同様にログイン済みスタッフなら読み書き可）
+    match /sharedPresets/{presetId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // 合言葉を知らないスタッフが送る「メニュー追加希望」
+    match /menuRequests/{requestId} {
+      allow read, write: if request.auth != null;
+    }
+
     match /submitLog/{date} {
       allow read:   if request.auth != null;
       allow create: if request.auth != null;

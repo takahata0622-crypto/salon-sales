@@ -216,6 +216,46 @@
       margin-bottom: 6px;
     }
 
+    /* メニュー追加（メニュー） */
+    .menu-add-submit-btn {
+      width: 100%;
+      padding: 12px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 4px;
+    }
+    .menu-add-submit-btn:disabled { opacity: 0.5; cursor: default; }
+    .menu-add-request-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+      margin-bottom: 6px;
+    }
+    .menu-add-request-name { font-size: 13px; color: var(--ink); }
+    .menu-add-request-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .menu-add-request-actions { display: flex; gap: 6px; flex-shrink: 0; }
+    .menu-add-approve-btn, .menu-add-reject-btn {
+      font-size: 12px;
+      font-weight: 700;
+      padding: 6px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      border: 1px solid var(--border);
+    }
+    .menu-add-approve-btn { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .menu-add-reject-btn { background: var(--bg); color: var(--muted); }
+    .menu-add-approve-btn:disabled, .menu-add-reject-btn:disabled { opacity: 0.5; cursor: default; }
+
     /* ログイン画面 */
     .login-wrap {
       min-height: 100vh;
@@ -2735,6 +2775,12 @@
   const ADMIN_NAMES = ['高畠伸明'];
   const isAdminName = (name) => ADMIN_NAMES.includes((name || '').trim());
 
+  // メニュー追加の合言葉。これを知っている人だけが「メニュー追加」からメニューを直接追加できる。
+  // 知らない人はメニュー追加希望（menuRequests）として送信し、管理者の承認を待つ形になる。
+  // ※このファイルはブラウザに配信される公開ソースなので、厳密な秘匿はできない
+  //   （誤操作・イタズラ防止の合言葉という位置づけ）。
+  const MENU_ADD_PASSWORD = '高畠伸明';
+
   const DEFAULT_PRESETS = [
     // ボディケア
     { id: 'p1', name: 'ボディケア40分', price: 5000, category: 'ボディケア', isDefault: true },
@@ -2889,6 +2935,30 @@
     const col = db.collection('users').doc(uid).collection('presets');
     const batch = db.batch();
     targets.forEach(d => batch.delete(col.doc(d.id)));
+    await batch.commit();
+    return true;
+  };
+
+  // ハンバーガーメニューの「メニュー追加」で管理者が登録した、全員向けの共有メニュー一覧。
+  // DEFAULT_PRESETS（コード内の既定メニュー）とは別に、Firestore の sharedPresets に貯まっていく。
+  const fetchSharedPresets = async () => {
+    const snap = await db.collection('sharedPresets').get();
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  };
+
+  // 各ユーザーの presets に、まだ持っていない共有メニュー（sharedPresets）を補完する。
+  // DEFAULT_PRESETS と違って登録順が決まっていないため、末尾に追加する。
+  const syncMissingSharedPresets = async (uid, storedDocs, sharedPresets) => {
+    if (!sharedPresets.length) return false;
+    const byName = new Map(storedDocs.map(d => [d.name, d]));
+    const missing = sharedPresets.filter(sp => !byName.has(sp.name));
+    if (!missing.length) return false;
+    const col = db.collection('users').doc(uid).collection('presets');
+    const base = Date.now();
+    const batch = db.batch();
+    missing.forEach((sp, i) => {
+      batch.set(col.doc(), { name: sp.name, price: sp.price, category: sp.category, createdAt: base + i });
+    });
     await batch.commit();
     return true;
   };
@@ -3060,6 +3130,165 @@
     );
   }
 
+  // メニューの「メニュー追加」から開く、メニュー追加／追加希望モーダル。
+  // 合言葉（MENU_ADD_PASSWORD）が一致すれば sharedPresets に直接追加（全員のメニューに反映）、
+  // 一致しなければ menuRequests に「追加希望」として送信し、管理者の承認を待つ。
+  function MenuAddModal({ uid, userName, dept, onClose }) {
+    const [category, setCategory] = useState(dept);
+    const [name, setName] = useState('');
+    const [price, setPrice] = useState('');
+    const [password, setPassword] = useState('');
+    const [message, setMessage] = useState('');
+    const [busy, setBusy] = useState(false);
+    const [pendingRequests, setPendingRequests] = useState(null);
+    const isAdmin = password.trim() !== '' && password.trim() === MENU_ADD_PASSWORD;
+
+    useEffect(() => {
+      if (!isAdmin) { setPendingRequests(null); return; }
+      let cancelled = false;
+      db.collection('menuRequests').get().then(snap => {
+        if (cancelled) return;
+        const list = snap.docs
+          .map(d => ({ id: d.id, ...d.data() }))
+          .filter(r => (r.status || 'pending') === 'pending')
+          .sort((a, b) => (a.createdAt && a.createdAt.toMillis ? a.createdAt.toMillis() : 0) - (b.createdAt && b.createdAt.toMillis ? b.createdAt.toMillis() : 0));
+        setPendingRequests(list);
+      }).catch(() => { if (!cancelled) setPendingRequests([]); });
+      return () => { cancelled = true; };
+    }, [isAdmin]);
+
+    const handleSubmit = async () => {
+      const trimmedName = name.trim();
+      const priceNum = Number(price);
+      if (!trimmedName || !priceNum || priceNum <= 0) {
+        setMessage('メニュー名と金額を正しく入力してください');
+        return;
+      }
+      setBusy(true);
+      setMessage('');
+      try {
+        if (isAdmin) {
+          await db.collection('sharedPresets').add({
+            name: trimmedName, price: priceNum, category,
+            addedBy: userName || '', createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          });
+          await db.collection('users').doc(uid).collection('presets').add({
+            name: trimmedName, price: priceNum, category, createdAt: Date.now(),
+          });
+          setMessage('✅ メニューを追加しました。全員のメニューにも次回起動時から反映されます。');
+        } else {
+          await db.collection('menuRequests').add({
+            name: trimmedName, price: priceNum, category,
+            requestedBy: userName || '', status: 'pending', createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          });
+          setMessage('📩 メニュー追加希望を送信しました。管理者の確認をお待ちください。');
+        }
+        setName('');
+        setPrice('');
+      } catch (err) {
+        setMessage('送信に失敗しました。通信状況を確認してもう一度お試しください。');
+      } finally {
+        setBusy(false);
+      }
+    };
+
+    const approveRequest = async (req) => {
+      setBusy(true);
+      try {
+        await db.collection('sharedPresets').add({
+          name: req.name, price: req.price, category: req.category,
+          addedBy: `申請承認：${req.requestedBy || '不明'}`, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        });
+        await db.collection('users').doc(uid).collection('presets').add({
+          name: req.name, price: req.price, category: req.category, createdAt: Date.now(),
+        });
+        await db.collection('menuRequests').doc(req.id).update({ status: 'approved' });
+        setPendingRequests(prev => (prev || []).filter(r => r.id !== req.id));
+      } finally {
+        setBusy(false);
+      }
+    };
+
+    const rejectRequest = async (req) => {
+      setBusy(true);
+      try {
+        await db.collection('menuRequests').doc(req.id).update({ status: 'rejected' });
+        setPendingRequests(prev => (prev || []).filter(r => r.id !== req.id));
+      } finally {
+        setBusy(false);
+      }
+    };
+
+    return (
+      <div className="add-modal-overlay center-modal" onClick={onClose}>
+        <div className="add-modal center-modal" onClick={ev => ev.stopPropagation()}>
+          <div className="add-modal-header">
+            <h2>メニュー追加</h2>
+            <button className="add-modal-close" onClick={onClose}>✕</button>
+          </div>
+          <div className="confirm-note" style={{marginBottom:10}}>
+            合言葉を知っている方は入力すると、そのままメニューに追加されます。知らない方は空欄のまま送信すると「追加希望」として管理者に送られます。
+          </div>
+          <div className="diff-checker-dept-row">
+            {CATEGORIES.map(c => (
+              <button
+                key={c}
+                type="button"
+                className={`diff-checker-dept-btn ${category === c ? 'active' : ''}`}
+                onClick={() => setCategory(c)}
+              >{c}</button>
+            ))}
+          </div>
+          <input
+            className="entry-memo diff-checker-input"
+            placeholder="メニュー名（例：ボディケア50分）"
+            value={name}
+            onChange={ev => setName(ev.target.value)}
+          />
+          <input
+            type="number"
+            inputMode="numeric"
+            className="entry-memo diff-checker-input"
+            placeholder="金額（円）"
+            value={price}
+            onChange={ev => setPrice(ev.target.value)}
+          />
+          <input
+            type="password"
+            className="entry-memo diff-checker-input"
+            placeholder="合言葉（管理者のみ／わからなければ空欄でOK）"
+            value={password}
+            onChange={ev => setPassword(ev.target.value)}
+          />
+          <button className="menu-add-submit-btn" disabled={busy} onClick={handleSubmit}>
+            {isAdmin ? 'メニューを追加する' : '追加希望を送る'}
+          </button>
+          {message && <div className="confirm-note" style={{marginTop:10}}>{message}</div>}
+
+          {isAdmin && (
+            <div style={{marginTop:20}}>
+              <div className="diff-checker-section-title">メニュー追加希望（{pendingRequests ? pendingRequests.length : 0}件）</div>
+              {pendingRequests === null && <div className="confirm-note">読み込み中...</div>}
+              {pendingRequests && pendingRequests.length === 0 && <div className="confirm-note">申請はありません</div>}
+              {pendingRequests && pendingRequests.map(r => (
+                <div key={r.id} className="menu-add-request-item">
+                  <div>
+                    <div className="menu-add-request-name">{r.category} / {r.name} / ¥{Number(r.price).toLocaleString()}</div>
+                    <div className="menu-add-request-meta">申請者：{r.requestedBy || '不明'}</div>
+                  </div>
+                  <div className="menu-add-request-actions">
+                    <button className="menu-add-approve-btn" disabled={busy} onClick={() => approveRequest(r)}>承認</button>
+                    <button className="menu-add-reject-btn" disabled={busy} onClick={() => rejectRequest(r)}>却下</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   function App() {
     const [tab, setTab] = useState('today');
     const [user, setUser] = useState(null);
@@ -3080,6 +3309,7 @@
     const [showStatPicker, setShowStatPicker] = useState(false); // 集計タブの表示項目設定ポップアップ（メニューから開く）
     const [openKanaBulk, setOpenKanaBulk] = useState(false); // 記録タブのフリガナ一括入力を開くトリガー（メニューから開く）
     const [showDiffChecker, setShowDiffChecker] = useState(false); // 差額チェッカー（メニューから開く）
+    const [showMenuAdd, setShowMenuAdd] = useState(false); // メニュー追加（メニューから開く）
     const toggleStatId = (id) => {
       setVisibleStatIds(prev => {
         const has = prev.includes(id);
@@ -3176,7 +3406,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 4.38</span>
+              <span className="version">Ver 4.39</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -3225,6 +3455,9 @@
                 </button>
                 <button className="menu-item" onClick={() => { setShowMenu(false); setShowDiffChecker(true); }}>
                   差額チェッカー
+                </button>
+                <button className="menu-item" onClick={() => { setShowMenu(false); setShowMenuAdd(true); }}>
+                  メニュー追加
                 </button>
                 <button className="menu-item" onClick={() => { setShowMenu(false); auth.signOut(); }}>B-oneログアウト</button>
                 {karteUser
@@ -3307,6 +3540,10 @@
 
         {showDiffChecker && (
           <DiffCheckerModal dept={dept} onClose={() => setShowDiffChecker(false)} />
+        )}
+
+        {showMenuAdd && (
+          <MenuAddModal uid={uid} userName={user.displayName || ''} dept={dept} onClose={() => setShowMenuAdd(false)} />
         )}
       </>
     );
@@ -3705,15 +3942,17 @@
     useEffect(() => {
       const ref = db.collection('users').doc(uid).collection('presets');
       ref.orderBy('createdAt').get().then(async snap => {
+        const sharedPresets = await fetchSharedPresets().catch(() => []);
         if (snap.empty) {
-          setPresets(DEFAULT_PRESETS);
+          setPresets(sharedPresets.length ? [...DEFAULT_PRESETS, ...sharedPresets] : DEFAULT_PRESETS);
           return;
         }
         const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         const removed = await removeObsoletePresets(uid, docs);
         const cleaned = docs.filter(d => !OBSOLETE_PRESET_NAMES.includes(d.name));
-        const added = await syncMissingDefaultPresets(uid, cleaned);
-        if (added || removed) {
+        const addedDefault = await syncMissingDefaultPresets(uid, cleaned);
+        const addedShared = await syncMissingSharedPresets(uid, cleaned, sharedPresets);
+        if (addedDefault || addedShared || removed) {
           const snap2 = await ref.orderBy('createdAt').get();
           setPresets(snap2.docs.map(d => ({ id: d.id, ...d.data() })));
         } else {
@@ -5616,15 +5855,17 @@
     useEffect(() => {
       const ref = db.collection('users').doc(uid).collection('presets');
       ref.orderBy('createdAt').get().then(async snap => {
+        const sharedPresets = await fetchSharedPresets().catch(() => []);
         if (snap.empty) {
-          setPresets(DEFAULT_PRESETS);
+          setPresets(sharedPresets.length ? [...DEFAULT_PRESETS, ...sharedPresets] : DEFAULT_PRESETS);
           return;
         }
         const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         const removed = await removeObsoletePresets(uid, docs);
         const cleaned = docs.filter(d => !OBSOLETE_PRESET_NAMES.includes(d.name));
-        const added = await syncMissingDefaultPresets(uid, cleaned);
-        if (added || removed) {
+        const addedDefault = await syncMissingDefaultPresets(uid, cleaned);
+        const addedShared = await syncMissingSharedPresets(uid, cleaned, sharedPresets);
+        if (addedDefault || addedShared || removed) {
           const snap2 = await ref.orderBy('createdAt').get();
           setPresets(snap2.docs.map(d => ({ id: d.id, ...d.data() })));
         } else {
