@@ -3049,6 +3049,37 @@
     return true;
   };
 
+  // メニュー名の改名＋一覧の先頭への繰り上げ（アプリ上で追加された独自メニュー用の移行）
+  // 「ライトプラン」→「ボディケア20分」に改名し、提出タブの表で一番上に来るよう createdAt を繰り上げる
+  const RENAMED_TOP_PRESETS = [{ from: 'ライトプラン', to: 'ボディケア20分', category: 'ボディケア' }];
+  const renamePresetsAndBringToTop = async (uid, storedDocs) => {
+    const target = storedDocs.filter(d => RENAMED_TOP_PRESETS.some(r => r.from === d.name));
+    if (!target.length) return false;
+    const col = db.collection('users').doc(uid).collection('presets');
+    const minCreatedAt = storedDocs.reduce(
+      (min, d) => (typeof d.createdAt === 'number' && d.createdAt < min ? d.createdAt : min),
+      Date.now()
+    );
+    const batch = db.batch();
+    target.forEach((d, i) => {
+      const rule = RENAMED_TOP_PRESETS.find(r => r.from === d.name);
+      batch.update(col.doc(d.id), { name: rule.to, category: rule.category, createdAt: minCreatedAt - target.length + i });
+    });
+    await batch.commit();
+    return true;
+  };
+  // 共有メニュー（sharedPresets）側の名前も更新しておく（新規メンバーが今後補完される際に古い名前のままにならないように）
+  const renameSharedPresets = async (sharedPresets) => {
+    const targets = sharedPresets.filter(sp => RENAMED_TOP_PRESETS.some(r => r.from === sp.name));
+    if (!targets.length) return;
+    const batch = db.batch();
+    targets.forEach(sp => {
+      const rule = RENAMED_TOP_PRESETS.find(r => r.from === sp.name);
+      batch.update(db.collection('sharedPresets').doc(sp.id), { name: rule.to, category: rule.category });
+    });
+    await batch.commit().catch(() => {});
+  };
+
   // ハンバーガーメニューの「メニュー追加」で管理者が登録した、全員向けの共有メニュー一覧。
   // DEFAULT_PRESETS（コード内の既定メニュー）とは別に、Firestore の sharedPresets に貯まっていく。
   const fetchSharedPresets = async () => {
@@ -3552,7 +3583,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 4.48</span>
+              <span className="version">Ver 4.49</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -4095,10 +4126,12 @@
         }
         const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         const removed = await removeObsoletePresets(uid, docs);
+        const renamed = await renamePresetsAndBringToTop(uid, docs);
+        renameSharedPresets(sharedPresets);
         const cleaned = docs.filter(d => !OBSOLETE_PRESET_NAMES.includes(d.name));
         const addedDefault = await syncMissingDefaultPresets(uid, cleaned);
         const addedShared = await syncMissingSharedPresets(uid, cleaned, sharedPresets);
-        if (addedDefault || addedShared || removed) {
+        if (addedDefault || addedShared || removed || renamed) {
           const snap2 = await ref.orderBy('createdAt').get();
           setPresets(snap2.docs.map(d => ({ id: d.id, ...d.data() })));
         } else {
@@ -6008,10 +6041,12 @@
         }
         const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         const removed = await removeObsoletePresets(uid, docs);
+        const renamed = await renamePresetsAndBringToTop(uid, docs);
+        renameSharedPresets(sharedPresets);
         const cleaned = docs.filter(d => !OBSOLETE_PRESET_NAMES.includes(d.name));
         const addedDefault = await syncMissingDefaultPresets(uid, cleaned);
         const addedShared = await syncMissingSharedPresets(uid, cleaned, sharedPresets);
-        if (addedDefault || addedShared || removed) {
+        if (addedDefault || addedShared || removed || renamed) {
           const snap2 = await ref.orderBy('createdAt').get();
           setPresets(snap2.docs.map(d => ({ id: d.id, ...d.data() })));
         } else {
