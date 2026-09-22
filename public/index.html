@@ -3353,44 +3353,7 @@
     const [password, setPassword] = useState('');
     const [message, setMessage] = useState('');
     const [busy, setBusy] = useState(false);
-    const [pendingRequests, setPendingRequests] = useState(null);
-    const [sharedPresetList, setSharedPresetList] = useState(null);
-    const [deleteBusy, setDeleteBusy] = useState(null); // 削除処理中のプリセットID
     const isAdmin = isAdminPassword(password);
-
-    useEffect(() => {
-      if (!isAdmin) { setSharedPresetList(null); return; }
-      let cancelled = false;
-      fetchSharedPresets().then(list => { if (!cancelled) setSharedPresetList(list); });
-      return () => { cancelled = true; };
-    }, [isAdmin]);
-
-    const handleDeletePreset = async (preset) => {
-      if (!window.confirm(`「${preset.name}」を削除します。よろしいですか？\n（過去の伝票データは残ります。今後、追加・選択はできなくなります）`)) return;
-      setDeleteBusy(preset.id);
-      try {
-        await retireSharedPreset(preset);
-        setSharedPresetList(prev => (prev || []).filter(p => p.id !== preset.id));
-      } catch (err) {
-        setMessage('削除に失敗しました。通信状況を確認してもう一度お試しください。');
-      } finally {
-        setDeleteBusy(null);
-      }
-    };
-
-    useEffect(() => {
-      if (!isAdmin) { setPendingRequests(null); return; }
-      let cancelled = false;
-      db.collection('menuRequests').get().then(snap => {
-        if (cancelled) return;
-        const list = snap.docs
-          .map(d => ({ id: d.id, ...d.data() }))
-          .filter(r => (r.status || 'pending') === 'pending')
-          .sort((a, b) => (a.createdAt && a.createdAt.toMillis ? a.createdAt.toMillis() : 0) - (b.createdAt && b.createdAt.toMillis ? b.createdAt.toMillis() : 0));
-        setPendingRequests(list);
-      }).catch(() => { if (!cancelled) setPendingRequests([]); });
-      return () => { cancelled = true; };
-    }, [isAdmin]);
 
     const handleSubmit = async () => {
       const trimmedName = name.trim();
@@ -3422,33 +3385,6 @@
         setPrice('');
       } catch (err) {
         setMessage('送信に失敗しました。通信状況を確認してもう一度お試しください。');
-      } finally {
-        setBusy(false);
-      }
-    };
-
-    const approveRequest = async (req) => {
-      setBusy(true);
-      try {
-        await db.collection('sharedPresets').add({
-          name: req.name, price: req.price, category: req.category,
-          addedBy: `申請承認：${req.requestedBy || '不明'}`, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-        });
-        await db.collection('users').doc(uid).collection('presets').add({
-          name: req.name, price: req.price, category: req.category, createdAt: Date.now(),
-        });
-        await db.collection('menuRequests').doc(req.id).update({ status: 'approved' });
-        setPendingRequests(prev => (prev || []).filter(r => r.id !== req.id));
-      } finally {
-        setBusy(false);
-      }
-    };
-
-    const rejectRequest = async (req) => {
-      setBusy(true);
-      try {
-        await db.collection('menuRequests').doc(req.id).update({ status: 'rejected' });
-        setPendingRequests(prev => (prev || []).filter(r => r.id !== req.id));
       } finally {
         setBusy(false);
       }
@@ -3501,69 +3437,106 @@
             {isAdmin ? 'メニューを追加する' : '追加希望を送る'}
           </button>
           {message && <div className="confirm-note" style={{marginTop:10}}>{message}</div>}
-
-          {isAdmin && (
-            <div style={{marginTop:20}}>
-              <div className="diff-checker-section-title">メニュー追加希望（{pendingRequests ? pendingRequests.length : 0}件）</div>
-              {pendingRequests === null && <div className="confirm-note">読み込み中...</div>}
-              {pendingRequests && pendingRequests.length === 0 && <div className="confirm-note">申請はありません</div>}
-              {pendingRequests && pendingRequests.map(r => (
-                <div key={r.id} className="menu-add-request-item">
-                  <div>
-                    <div className="menu-add-request-name">{r.category} / {r.name} / ¥{Number(r.price).toLocaleString()}</div>
-                    <div className="menu-add-request-meta">申請者：{r.requestedBy || '不明'}</div>
-                  </div>
-                  <div className="menu-add-request-actions">
-                    <button className="menu-add-approve-btn" disabled={busy} onClick={() => approveRequest(r)}>承認</button>
-                    <button className="menu-add-reject-btn" disabled={busy} onClick={() => rejectRequest(r)}>却下</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {isAdmin && (
-            <div style={{marginTop:20}}>
-              <div className="diff-checker-section-title">登録済みメニューの削除（{sharedPresetList ? sharedPresetList.length : 0}件）</div>
-              <div className="confirm-note" style={{marginBottom:10}}>
-                アプリ上で追加したメニューのみ削除できます（最初から入っているメニューは対象外）。削除しても過去の伝票データは残ります。
-              </div>
-              {sharedPresetList === null && <div className="confirm-note">読み込み中...</div>}
-              {sharedPresetList && sharedPresetList.length === 0 && <div className="confirm-note">削除できるメニューはありません</div>}
-              {sharedPresetList && sharedPresetList.length > 0 && (
-                <div className="stat-picker-list">
-                  {sharedPresetList.map(p => (
-                    <div key={p.id} className="stat-picker-item">
-                      <span className="stat-picker-label">{p.category} / {p.name} / ¥{Number(p.price).toLocaleString()}</span>
-                      <button className="delete-btn" disabled={deleteBusy === p.id} onClick={() => handleDeletePreset(p)}>✕</button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
         </div>
       </div>
     );
   }
 
-  // 提出タブ（および伝票追加のメニュー選択）の並び順を変更する、管理者専用モーダル。
-  // カテゴリーごとに▲▼で入れ替え、保存すると全員に反映される（sharedMeta/menuOrder に保存）。
-  function MenuOrderModal({ presets, onClose }) {
+  // ハンバーガーメニューの「管理者用」から開く、管理権限が必要な機能をまとめたモーダル。
+  // 合言葉（MENU_ADD_PASSWORD）が一致するまでは何も操作できない。
+  // ・メニュー追加希望の承認／却下
+  // ・アプリ上で追加した独自メニューの削除
+  // ・提出タブ（および伝票追加のメニュー選択）の並び替え
+  function AdminModal({ uid, userName, onClose }) {
     const [password, setPassword] = useState('');
     const isAdmin = isAdminPassword(password);
-    const [catOrders, setCatOrders] = useState(() => {
-      const groups = groupByCategory(presets.filter(p => !isRetiredMenu(p.name)));
-      const o = {};
-      groups.forEach(g => { o[g.category] = g.items.map(p => p.name); });
-      return o;
-    });
-    const [saving, setSaving] = useState(false);
+    const [busy, setBusy] = useState(false);
     const [message, setMessage] = useState('');
 
-    const move = (category, name, dir) => {
+    const [pendingRequests, setPendingRequests] = useState(null);
+    useEffect(() => {
+      if (!isAdmin) { setPendingRequests(null); return; }
+      let cancelled = false;
+      db.collection('menuRequests').get().then(snap => {
+        if (cancelled) return;
+        const list = snap.docs
+          .map(d => ({ id: d.id, ...d.data() }))
+          .filter(r => (r.status || 'pending') === 'pending')
+          .sort((a, b) => (a.createdAt && a.createdAt.toMillis ? a.createdAt.toMillis() : 0) - (b.createdAt && b.createdAt.toMillis ? b.createdAt.toMillis() : 0));
+        setPendingRequests(list);
+      }).catch(() => { if (!cancelled) setPendingRequests([]); });
+      return () => { cancelled = true; };
+    }, [isAdmin]);
+
+    const approveRequest = async (req) => {
+      setBusy(true);
+      try {
+        await db.collection('sharedPresets').add({
+          name: req.name, price: req.price, category: req.category,
+          addedBy: `申請承認：${req.requestedBy || '不明'}`, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        });
+        await db.collection('users').doc(uid).collection('presets').add({
+          name: req.name, price: req.price, category: req.category, createdAt: Date.now(),
+        });
+        await db.collection('menuRequests').doc(req.id).update({ status: 'approved' });
+        setPendingRequests(prev => (prev || []).filter(r => r.id !== req.id));
+      } finally {
+        setBusy(false);
+      }
+    };
+
+    const rejectRequest = async (req) => {
+      setBusy(true);
+      try {
+        await db.collection('menuRequests').doc(req.id).update({ status: 'rejected' });
+        setPendingRequests(prev => (prev || []).filter(r => r.id !== req.id));
+      } finally {
+        setBusy(false);
+      }
+    };
+
+    const [sharedPresetList, setSharedPresetList] = useState(null);
+    const [deleteBusy, setDeleteBusy] = useState(null); // 削除処理中のプリセットID
+    useEffect(() => {
+      if (!isAdmin) { setSharedPresetList(null); return; }
+      let cancelled = false;
+      fetchSharedPresets().then(list => { if (!cancelled) setSharedPresetList(list); });
+      return () => { cancelled = true; };
+    }, [isAdmin]);
+
+    const handleDeletePreset = async (preset) => {
+      if (!window.confirm(`「${preset.name}」を削除します。よろしいですか？\n（過去の伝票データは残ります。今後、追加・選択はできなくなります）`)) return;
+      setDeleteBusy(preset.id);
+      try {
+        await retireSharedPreset(preset);
+        setSharedPresetList(prev => (prev || []).filter(p => p.id !== preset.id));
+      } catch (err) {
+        setMessage('削除に失敗しました。通信状況を確認してもう一度お試しください。');
+      } finally {
+        setDeleteBusy(null);
+      }
+    };
+
+    const [catOrders, setCatOrders] = useState(null);
+    useEffect(() => {
+      if (!isAdmin) { setCatOrders(null); return; }
+      let cancelled = false;
+      fetchSharedPresets().then(sharedPresets => {
+        if (cancelled) return;
+        const all = [...DEFAULT_PRESETS, ...sharedPresets];
+        const groups = groupByCategory(all.filter(p => !isRetiredMenu(p.name)));
+        const o = {};
+        groups.forEach(g => { o[g.category] = g.items.map(p => p.name); });
+        setCatOrders(o);
+      });
+      return () => { cancelled = true; };
+    }, [isAdmin]);
+    const [orderSaving, setOrderSaving] = useState(false);
+    const [orderMessage, setOrderMessage] = useState('');
+
+    const moveOrder = (category, name, dir) => {
       setCatOrders(prev => {
-        const list = prev[category] || [];
+        const list = (prev && prev[category]) || [];
         const i = list.indexOf(name);
         const j = i + dir;
         if (i < 0 || j < 0 || j >= list.length) return prev;
@@ -3573,17 +3546,17 @@
       });
     };
 
-    const handleSave = async () => {
-      setSaving(true);
-      setMessage('');
+    const handleSaveOrder = async () => {
+      setOrderSaving(true);
+      setOrderMessage('');
       try {
-        const flat = [...CATEGORIES, UNCATEGORIZED].flatMap(c => catOrders[c] || []);
+        const flat = [...CATEGORIES, UNCATEGORIZED].flatMap(c => (catOrders && catOrders[c]) || []);
         await saveMenuOrder(flat);
-        setMessage('✅ 並び順を保存しました。次回の読み込みから全員に反映されます。');
+        setOrderMessage('✅ 並び順を保存しました。次回の読み込みから全員に反映されます。');
       } catch (err) {
-        setMessage('保存に失敗しました。通信状況を確認してもう一度お試しください。');
+        setOrderMessage('保存に失敗しました。通信状況を確認してもう一度お試しください。');
       } finally {
-        setSaving(false);
+        setOrderSaving(false);
       }
     };
 
@@ -3591,7 +3564,7 @@
       <div className="add-modal-overlay center-modal" onClick={onClose}>
         <div className="add-modal center-modal" onClick={ev => ev.stopPropagation()}>
           <div className="add-modal-header">
-            <h2>提出タブの並び替え</h2>
+            <h2>管理者用</h2>
             <button className="add-modal-close" onClick={onClose}>✕</button>
           </div>
           {!isAdmin && (
@@ -3608,31 +3581,74 @@
               />
             </>
           )}
+
           {isAdmin && (
             <>
-              <div className="confirm-note" style={{marginBottom:10}}>
-                ▲▼で並び順を変更し、保存を押してください（保存すると全員の提出タブ・メニュー選択に反映されます）。
+              <div>
+                <div className="diff-checker-section-title">メニュー追加希望（{pendingRequests ? pendingRequests.length : 0}件）</div>
+                {pendingRequests === null && <div className="confirm-note">読み込み中...</div>}
+                {pendingRequests && pendingRequests.length === 0 && <div className="confirm-note">申請はありません</div>}
+                {pendingRequests && pendingRequests.map(r => (
+                  <div key={r.id} className="menu-add-request-item">
+                    <div>
+                      <div className="menu-add-request-name">{r.category} / {r.name} / ¥{Number(r.price).toLocaleString()}</div>
+                      <div className="menu-add-request-meta">申請者：{r.requestedBy || '不明'}</div>
+                    </div>
+                    <div className="menu-add-request-actions">
+                      <button className="menu-add-approve-btn" disabled={busy} onClick={() => approveRequest(r)}>承認</button>
+                      <button className="menu-add-reject-btn" disabled={busy} onClick={() => rejectRequest(r)}>却下</button>
+                    </div>
+                  </div>
+                ))}
               </div>
-              {Object.keys(catOrders).map(cat => (
-                <div key={cat} style={{marginBottom:16}}>
-                  <div className="diff-checker-section-title">{cat}</div>
+
+              <div style={{marginTop:20}}>
+                <div className="diff-checker-section-title">登録済みメニューの削除（{sharedPresetList ? sharedPresetList.length : 0}件）</div>
+                <div className="confirm-note" style={{marginBottom:10}}>
+                  アプリ上で追加したメニューのみ削除できます（最初から入っているメニューは対象外）。削除しても過去の伝票データは残ります。
+                </div>
+                {sharedPresetList === null && <div className="confirm-note">読み込み中...</div>}
+                {sharedPresetList && sharedPresetList.length === 0 && <div className="confirm-note">削除できるメニューはありません</div>}
+                {sharedPresetList && sharedPresetList.length > 0 && (
                   <div className="stat-picker-list">
-                    {catOrders[cat].map((name, pos) => (
-                      <div key={name} className="stat-picker-item">
-                        <span className="stat-picker-label">{name}</span>
-                        <div className="reorder-btns">
-                          <button className="reorder-btn" disabled={pos === 0} onClick={() => move(cat, name, -1)}>▲</button>
-                          <button className="reorder-btn" disabled={pos === catOrders[cat].length - 1} onClick={() => move(cat, name, 1)}>▼</button>
-                        </div>
+                    {sharedPresetList.map(p => (
+                      <div key={p.id} className="stat-picker-item">
+                        <span className="stat-picker-label">{p.category} / {p.name} / ¥{Number(p.price).toLocaleString()}</span>
+                        <button className="delete-btn" disabled={deleteBusy === p.id} onClick={() => handleDeletePreset(p)}>✕</button>
                       </div>
                     ))}
                   </div>
+                )}
+                {message && <div className="confirm-note" style={{marginTop:10}}>{message}</div>}
+              </div>
+
+              <div style={{marginTop:20}}>
+                <div className="diff-checker-section-title">提出タブの並び替え</div>
+                <div className="confirm-note" style={{marginBottom:10}}>
+                  ▲▼で並び順を変更し、保存を押してください（保存すると全員の提出タブ・メニュー選択に反映されます）。
                 </div>
-              ))}
-              {message && <div className="confirm-note" style={{marginBottom:10}}>{message}</div>}
-              <button className="menu-add-submit-btn" disabled={saving} onClick={handleSave}>
-                {saving ? '保存中...' : '保存する'}
-              </button>
+                {catOrders === null && <div className="confirm-note">読み込み中...</div>}
+                {catOrders && Object.keys(catOrders).map(cat => (
+                  <div key={cat} style={{marginBottom:16}}>
+                    <div className="diff-checker-section-title">{cat}</div>
+                    <div className="stat-picker-list">
+                      {catOrders[cat].map((name, pos) => (
+                        <div key={name} className="stat-picker-item">
+                          <span className="stat-picker-label">{name}</span>
+                          <div className="reorder-btns">
+                            <button className="reorder-btn" disabled={pos === 0} onClick={() => moveOrder(cat, name, -1)}>▲</button>
+                            <button className="reorder-btn" disabled={pos === catOrders[cat].length - 1} onClick={() => moveOrder(cat, name, 1)}>▼</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                {orderMessage && <div className="confirm-note" style={{marginBottom:10}}>{orderMessage}</div>}
+                <button className="menu-add-submit-btn" disabled={orderSaving || !catOrders} onClick={handleSaveOrder}>
+                  {orderSaving ? '保存中...' : '並び順を保存する'}
+                </button>
+              </div>
             </>
           )}
         </div>
@@ -3661,6 +3677,7 @@
     const [openKanaBulk, setOpenKanaBulk] = useState(false); // 記録タブのフリガナ一括入力を開くトリガー（メニューから開く）
     const [showDiffChecker, setShowDiffChecker] = useState(false); // 差額チェッカー（メニューから開く）
     const [showMenuAdd, setShowMenuAdd] = useState(false); // メニュー追加（メニューから開く）
+    const [showAdminPanel, setShowAdminPanel] = useState(false); // 管理者用（メニューから開く）
     const toggleStatId = (id) => {
       setVisibleStatIds(prev => {
         const has = prev.includes(id);
@@ -3757,7 +3774,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 4.50</span>
+              <span className="version">Ver 4.51</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -3809,6 +3826,9 @@
                 </button>
                 <button className="menu-item" onClick={() => { setShowMenu(false); setShowMenuAdd(true); }}>
                   メニュー追加
+                </button>
+                <button className="menu-item" onClick={() => { setShowMenu(false); setShowAdminPanel(true); }}>
+                  管理者用
                 </button>
                 <button className="menu-item" onClick={() => { setShowMenu(false); auth.signOut(); }}>B-oneログアウト</button>
                 {karteUser
@@ -3895,6 +3915,10 @@
 
         {showMenuAdd && (
           <MenuAddModal uid={uid} userName={user.displayName || ''} dept={dept} onClose={() => setShowMenuAdd(false)} />
+        )}
+
+        {showAdminPanel && (
+          <AdminModal uid={uid} userName={user.displayName || ''} onClose={() => setShowAdminPanel(false)} />
         )}
       </>
     );
@@ -6179,7 +6203,6 @@
     const [sendResult, setSendResult] = useState(null);
     const [sendErrMsg, setSendErrMsg] = useState('');
     const [sentDates, setSentDates] = useState(new Set());
-    const [showOrderModal, setShowOrderModal] = useState(false); // 並び替え（管理者専用）モーダル
 
     // 表の上に出す合計（J・P）の実高さを測定してスクロール領域の高さ計算に反映
     // （Android で表の下が隠れる対策）
@@ -6540,14 +6563,6 @@
         </div>
 
         <div className="submit-mistake-note">ミス防止の為、伝票の金額とPMの金額を必ず確認してください。</div>
-
-        <div style={{textAlign:'right', marginBottom:8}}>
-          <button className="today-back-btn" onClick={() => setShowOrderModal(true)}>並び替え（管理者用）</button>
-        </div>
-
-        {showOrderModal && (
-          <MenuOrderModal presets={presets} onClose={() => setShowOrderModal(false)} />
-        )}
 
         {loading
           ? <div className="loading">読み込み中...</div>
