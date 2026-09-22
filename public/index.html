@@ -2761,6 +2761,9 @@
     { id: 'slate',   name: 'スレート',   color: '#5A7184' },
   ];
   const SUB_COLOR_STORAGE_KEY = 'boneSubColor';
+  // メニューの枠の左端に付ける色分け用パレット（サブカラーと同じ色見本を流用）。
+  // 'none' は無色（枠に色を付けない）。
+  const MENU_COLORS = [{ id: 'none', name: 'なし', color: null }, ...SUB_THEMES];
   // ダークモード用の基本配色（ライト時のデフォルトは:root側のCSSで定義済み）
   const DARK_COLORS = { bg: '#221C18', card: '#2D2621', ink: '#EDE7E0', muted: '#B7A99A', border: '#463A30' };
   const LIGHT_COLORS = { bg: '#F7F3EE', card: '#FFFFFF', ink: '#1A1714', muted: '#8A7F76', border: '#E5DDD5' };
@@ -3128,6 +3131,21 @@
       const bi = idx.has(b.name) ? idx.get(b.name) : Infinity;
       return ai - bi;
     });
+  };
+
+  // 管理者が付けた、メニューの枠の左端の色（名前 → MENU_COLORS の id）。
+  // 全員で共有する1件のドキュメントに { 名前: colorId } の形で持つ。
+  // DEFAULT_PRESETS（既定メニュー）・sharedPresets（独自メニュー）どちらの名前にも使える。
+  const MENU_COLORS_DOC = () => db.collection('sharedMeta').doc('menuColors');
+  const fetchMenuColors = async () => {
+    const snap = await MENU_COLORS_DOC().get();
+    return (snap.exists && snap.data().colors && typeof snap.data().colors === 'object') ? snap.data().colors : {};
+  };
+  const setMenuColor = (name, colorId) => MENU_COLORS_DOC().set({ colors: { [name]: colorId } }, { merge: true });
+  const colorHexOf = (menuColors, name) => {
+    const id = (menuColors && menuColors[name]) || 'none';
+    const found = MENU_COLORS.find(c => c.id === id);
+    return found ? found.color : null;
   };
 
   // ハンバーガーメニューの「メニュー追加」で管理者が登録した、全員向けの共有メニュー一覧。
@@ -3668,6 +3686,28 @@
       }
     };
 
+    // メニューの色分け（枠の左端の色）。並び替えと同じ名前リストを流用する。
+    const [menuColors, setMenuColors] = useState({});
+    useEffect(() => {
+      if (!isAdmin) { setMenuColors({}); return; }
+      let cancelled = false;
+      fetchMenuColors().then(colors => { if (!cancelled) setMenuColors(colors); });
+      return () => { cancelled = true; };
+    }, [isAdmin]);
+    const menuColorNames = catOrders ? [...CATEGORIES, UNCATEGORIZED].flatMap(c => catOrders[c] || []) : null;
+
+    const cycleMenuColor = async (name) => {
+      const ids = MENU_COLORS.map(c => c.id);
+      const current = menuColors[name] || 'none';
+      const next = ids[(ids.indexOf(current) + 1) % ids.length];
+      setMenuColors(prev => ({ ...prev, [name]: next }));
+      try {
+        await setMenuColor(name, next);
+      } catch (err) {
+        setMessage('色の保存に失敗しました。通信状況を確認してもう一度お試しください。');
+      }
+    };
+
     return (
       <div className="add-modal-overlay center-modal" onClick={onClose}>
         <div className="add-modal center-modal" onClick={ev => ev.stopPropagation()}>
@@ -3784,15 +3824,18 @@
                   <div key={cat} style={{marginBottom:16}}>
                     <div className="diff-checker-section-title">{cat}</div>
                     <div className="stat-picker-list">
-                      {catOrders[cat].map((name, pos) => (
-                        <div key={name} className="stat-picker-item">
-                          <span className="stat-picker-label">{name}</span>
-                          <div className="reorder-btns">
-                            <button className="reorder-btn" disabled={pos === 0} onClick={() => moveOrder(cat, name, -1)}>▲</button>
-                            <button className="reorder-btn" disabled={pos === catOrders[cat].length - 1} onClick={() => moveOrder(cat, name, 1)}>▼</button>
+                      {catOrders[cat].map((name, pos) => {
+                        const colorHex = colorHexOf(menuColors, name);
+                        return (
+                          <div key={name} className="stat-picker-item" style={colorHex ? { borderLeft: `4px solid ${colorHex}` } : undefined}>
+                            <span className="stat-picker-label">{name}</span>
+                            <div className="reorder-btns">
+                              <button className="reorder-btn" disabled={pos === 0} onClick={() => moveOrder(cat, name, -1)}>▲</button>
+                              <button className="reorder-btn" disabled={pos === catOrders[cat].length - 1} onClick={() => moveOrder(cat, name, 1)}>▼</button>
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 ))}
@@ -3800,6 +3843,31 @@
                 <button className="menu-add-submit-btn" disabled={orderSaving || !catOrders} onClick={handleSaveOrder}>
                   {orderSaving ? '保存中...' : '並び順を保存する'}
                 </button>
+              </div>
+
+              <div style={{marginTop:20}}>
+                <div className="diff-checker-section-title">メニューの色分け</div>
+                <div className="confirm-note" style={{marginBottom:10}}>
+                  左端の色部分をタップすると色が変わります（メニューを見分けやすくするための印で、金額などには影響しません）。
+                </div>
+                {menuColorNames === null && <div className="confirm-note">読み込み中...</div>}
+                {menuColorNames && (
+                  <div className="stat-picker-list">
+                    {menuColorNames.map(name => {
+                      const colorHex = colorHexOf(menuColors, name);
+                      return (
+                        <div key={name} className="stat-picker-item" style={{padding:0, overflow:'hidden'}}>
+                          <button
+                            aria-label="色を変更"
+                            onClick={() => cycleMenuColor(name)}
+                            style={{width:28, alignSelf:'stretch', border:'none', cursor:'pointer', background: colorHex || 'var(--border)', flexShrink:0}}
+                          />
+                          <span className="stat-picker-label" style={{padding:'10px 12px'}}>{name}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -3926,7 +3994,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 4.53</span>
+              <span className="version">Ver 4.54</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -4420,6 +4488,7 @@
     const [entries, setEntries] = useState([]);
     const [presets, setPresets] = useState([]);
     const [dynamicRetiredNames, setDynamicRetiredNames] = useState(new Set()); // 管理者が削除した独自メニュー名
+    const [menuColors, setMenuColors] = useState({}); // 管理者が付けたメニューの色分け（名前→colorId）
     const [submittedDates, setSubmittedDates] = useState(new Set());
     const [editConfirmed, setEditConfirmed] = useState(new Set());
     const [writeError, setWriteError] = useState(''); // 伝票の保存に失敗したときの警告
@@ -4471,11 +4540,13 @@
       const ref = db.collection('users').doc(uid).collection('presets');
       ref.orderBy('createdAt').get().then(async snap => {
         const sharedPresets = await fetchSharedPresets().catch(() => []);
-        const [menuOrder, retiredNames] = await Promise.all([
+        const [menuOrder, retiredNames, colors] = await Promise.all([
           fetchMenuOrder().catch(() => []),
           fetchDynamicRetiredNames().catch(() => []),
+          fetchMenuColors().catch(() => ({})),
         ]);
         setDynamicRetiredNames(new Set(retiredNames));
+        setMenuColors(colors);
         if (snap.empty) {
           const base = sharedPresets.length ? [...DEFAULT_PRESETS, ...sharedPresets] : DEFAULT_PRESETS;
           setPresets(applyMenuOrder(base, menuOrder));
@@ -5017,12 +5088,20 @@
                 <button className="add-modal-close" onClick={closeAddModal}>✕</button>
               </div>
               <div className="preset-grid">
-                {deptItems.map(p => (
-                  <button key={p.id} className="preset-btn" onClick={() => { changeEntryId ? changeEntryCourse(changeEntryId, p.name, p.price, p.ticketValue) : addEntry(p.name, p.price, p.ticketValue); closeAddModal(); }}>
-                    <span className="course-name">{p.name}</span>
-                    <span className="course-price">{formatPrice(p.price)}</span>
-                  </button>
-                ))}
+                {deptItems.map(p => {
+                  const colorHex = colorHexOf(menuColors, p.name);
+                  return (
+                    <button
+                      key={p.id}
+                      className="preset-btn"
+                      style={colorHex ? { borderLeft: `4px solid ${colorHex}` } : undefined}
+                      onClick={() => { changeEntryId ? changeEntryCourse(changeEntryId, p.name, p.price, p.ticketValue) : addEntry(p.name, p.price, p.ticketValue); closeAddModal(); }}
+                    >
+                      <span className="course-name">{p.name}</span>
+                      <span className="course-price">{formatPrice(p.price)}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>
