@@ -3107,6 +3107,18 @@
     return (snap.exists && Array.isArray(snap.data().names)) ? snap.data().names : [];
   };
   const saveMenuOrder = (names) => MENU_ORDER_DOC().set({ names }, { merge: true });
+  // メニューを改名したとき、保存済みの並び順リストの中の古い名前も新しい名前に差し替える
+  const renameInMenuOrder = async (oldName, newName) => {
+    if (oldName === newName) return;
+    const snap = await MENU_ORDER_DOC().get();
+    if (!snap.exists) return;
+    const names = Array.isArray(snap.data().names) ? snap.data().names : [];
+    const idx = names.indexOf(oldName);
+    if (idx === -1) return;
+    const next = [...names];
+    next[idx] = newName;
+    await MENU_ORDER_DOC().set({ names: next }, { merge: true });
+  };
   // orderNames に載っている項目はその順に、載っていない項目は元の順のまま末尾に並べる
   const applyMenuOrder = (list, orderNames) => {
     if (!orderNames || !orderNames.length) return list;
@@ -3127,17 +3139,49 @@
 
   // 各ユーザーの presets に、まだ持っていない共有メニュー（sharedPresets）を補完する。
   // DEFAULT_PRESETS と違って登録順が決まっていないため、末尾に追加する。
+  // sourceId があればそれで対応済みかどうかを判定する（改名直後で名前がまだ古いままでも
+  // 二重追加してしまわないように。sourceId が無い古いデータは名前で判定する）。
   const syncMissingSharedPresets = async (uid, storedDocs, sharedPresets) => {
     if (!sharedPresets.length) return false;
     const byName = new Map(storedDocs.map(d => [d.name, d]));
-    const missing = sharedPresets.filter(sp => !byName.has(sp.name));
+    const bySourceId = new Map(storedDocs.filter(d => d.sourceId).map(d => [d.sourceId, d]));
+    const missing = sharedPresets.filter(sp => !bySourceId.has(sp.id) && !byName.has(sp.name));
     if (!missing.length) return false;
     const col = db.collection('users').doc(uid).collection('presets');
     const base = Date.now();
     const batch = db.batch();
     missing.forEach((sp, i) => {
-      batch.set(col.doc(), { name: sp.name, price: sp.price, category: sp.category, ticket: !!sp.ticket, ticketValue: sp.ticketValue || 0, createdAt: base + i });
+      batch.set(col.doc(), { name: sp.name, price: sp.price, category: sp.category, ticket: !!sp.ticket, ticketValue: sp.ticketValue || 0, sourceId: sp.id, createdAt: base + i });
     });
+    await batch.commit();
+    return true;
+  };
+
+  // 管理者が「メニュー追加」から登録済みメニューを編集したとき（名前・カテゴリー・金額・
+  // チケット設定の変更）、各ユーザー自身の presets を sharedPresets の最新内容に合わせて
+  // 更新する。sourceId で対応付け、無ければ名前で対応付けつつ sourceId を補完する
+  // （並び順に使う createdAt は触らない＝編集しても表の位置は変わらない）。
+  const syncEditedSharedPresets = async (uid, storedDocs, sharedPresets) => {
+    const byId = new Map(sharedPresets.map(sp => [sp.id, sp]));
+    const byName = new Map(sharedPresets.map(sp => [sp.name, sp]));
+    const col = db.collection('users').doc(uid).collection('presets');
+    const batch = db.batch();
+    let changed = false;
+    storedDocs.forEach(d => {
+      const sp = (d.sourceId && byId.get(d.sourceId)) || byName.get(d.name);
+      if (!sp) return;
+      const patch = {};
+      if (d.name !== sp.name) patch.name = sp.name;
+      if (d.category !== sp.category) patch.category = sp.category;
+      if (d.price !== sp.price) patch.price = sp.price;
+      if (!!d.ticket !== !!sp.ticket) patch.ticket = !!sp.ticket;
+      if ((d.ticketValue || 0) !== (sp.ticketValue || 0)) patch.ticketValue = sp.ticketValue || 0;
+      if (d.sourceId !== sp.id) patch.sourceId = sp.id;
+      if (!Object.keys(patch).length) return;
+      changed = true;
+      batch.update(col.doc(d.id), patch);
+    });
+    if (!changed) return false;
     await batch.commit();
     return true;
   };
@@ -3371,12 +3415,12 @@
       const ticketValue = isTicket ? priceNum : 0;
       try {
         if (isAdmin) {
-          await db.collection('sharedPresets').add({
+          const sharedRef = await db.collection('sharedPresets').add({
             name: trimmedName, price: finalPrice, category, ticket: isTicket, ticketValue,
             addedBy: userName || '', createdAt: firebase.firestore.FieldValue.serverTimestamp(),
           });
           await db.collection('users').doc(uid).collection('presets').add({
-            name: trimmedName, price: finalPrice, category, ticket: isTicket, ticketValue, createdAt: Date.now(),
+            name: trimmedName, price: finalPrice, category, ticket: isTicket, ticketValue, sourceId: sharedRef.id, createdAt: Date.now(),
           });
           setMessage('✅ メニューを追加しました。全員のメニューにも次回起動時から反映されます。');
         } else {
@@ -3481,12 +3525,12 @@
     const approveRequest = async (req) => {
       setBusy(true);
       try {
-        await db.collection('sharedPresets').add({
+        const sharedRef = await db.collection('sharedPresets').add({
           name: req.name, price: req.price, category: req.category, ticket: !!req.ticket, ticketValue: req.ticketValue || 0,
           addedBy: `申請承認：${req.requestedBy || '不明'}`, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         });
         await db.collection('users').doc(uid).collection('presets').add({
-          name: req.name, price: req.price, category: req.category, ticket: !!req.ticket, ticketValue: req.ticketValue || 0, createdAt: Date.now(),
+          name: req.name, price: req.price, category: req.category, ticket: !!req.ticket, ticketValue: req.ticketValue || 0, sourceId: sharedRef.id, createdAt: Date.now(),
         });
         await db.collection('menuRequests').doc(req.id).update({ status: 'approved' });
         setPendingRequests(prev => (prev || []).filter(r => r.id !== req.id));
@@ -3527,13 +3571,67 @@
       }
     };
 
+    // 登録済みメニューの編集（名前・カテゴリー・金額・チケット設定）
+    const [editTarget, setEditTarget] = useState(null);
+    const [editName, setEditName] = useState('');
+    const [editCategory, setEditCategory] = useState(CATEGORIES[0]);
+    const [editPrice, setEditPrice] = useState('');
+    const [editIsTicket, setEditIsTicket] = useState(false);
+    const [editSaving, setEditSaving] = useState(false);
+
+    const startEdit = (p) => {
+      setEditTarget(p);
+      setEditName(p.name);
+      setEditCategory(p.category);
+      setEditPrice(String(p.ticket ? (p.ticketValue || 0) : p.price));
+      setEditIsTicket(!!p.ticket);
+      setMessage('');
+    };
+
+    const handleSaveEdit = async () => {
+      const trimmedName = editName.trim();
+      const priceNum = Number(editPrice);
+      if (!trimmedName || !priceNum || priceNum <= 0) {
+        setMessage('メニュー名と金額を正しく入力してください');
+        return;
+      }
+      setEditSaving(true);
+      setMessage('');
+      const finalPrice = editIsTicket ? 0 : priceNum;
+      const ticketValue = editIsTicket ? priceNum : 0;
+      try {
+        await db.collection('sharedPresets').doc(editTarget.id).update({
+          name: trimmedName, category: editCategory, price: finalPrice, ticket: editIsTicket, ticketValue,
+        });
+        if (trimmedName !== editTarget.name) {
+          await renameInMenuOrder(editTarget.name, trimmedName);
+          setCatOrders(prev => {
+            if (!prev) return prev;
+            const next = {};
+            Object.keys(prev).forEach(cat => {
+              next[cat] = prev[cat].map(n => n === editTarget.name ? trimmedName : n);
+            });
+            return next;
+          });
+        }
+        setSharedPresetList(prev => (prev || []).map(p => p.id === editTarget.id
+          ? { ...p, name: trimmedName, category: editCategory, price: finalPrice, ticket: editIsTicket, ticketValue }
+          : p));
+        setEditTarget(null);
+      } catch (err) {
+        setMessage('保存に失敗しました。通信状況を確認してもう一度お試しください。');
+      } finally {
+        setEditSaving(false);
+      }
+    };
+
     const [catOrders, setCatOrders] = useState(null);
     useEffect(() => {
       if (!isAdmin) { setCatOrders(null); return; }
       let cancelled = false;
-      fetchSharedPresets().then(sharedPresets => {
+      Promise.all([fetchSharedPresets(), fetchMenuOrder()]).then(([sharedPresets, menuOrder]) => {
         if (cancelled) return;
-        const all = [...DEFAULT_PRESETS, ...sharedPresets];
+        const all = applyMenuOrder([...DEFAULT_PRESETS, ...sharedPresets], menuOrder);
         const groups = groupByCategory(all.filter(p => !isRetiredMenu(p.name)));
         const o = {};
         groups.forEach(g => { o[g.category] = g.items.map(p => p.name); });
@@ -3615,21 +3713,61 @@
               </div>
 
               <div style={{marginTop:20}}>
-                <div className="diff-checker-section-title">登録済みメニューの削除（{sharedPresetList ? sharedPresetList.length : 0}件）</div>
+                <div className="diff-checker-section-title">登録済みメニューの編集・削除（{sharedPresetList ? sharedPresetList.length : 0}件）</div>
                 <div className="confirm-note" style={{marginBottom:10}}>
-                  アプリ上で追加したメニューのみ削除できます（最初から入っているメニューは対象外）。削除しても過去の伝票データは残ります。
+                  アプリ上で追加したメニューのみ編集・削除できます（最初から入っているメニューは対象外）。削除しても過去の伝票データは残ります。
                 </div>
                 {sharedPresetList === null && <div className="confirm-note">読み込み中...</div>}
-                {sharedPresetList && sharedPresetList.length === 0 && <div className="confirm-note">削除できるメニューはありません</div>}
+                {sharedPresetList && sharedPresetList.length === 0 && <div className="confirm-note">編集・削除できるメニューはありません</div>}
                 {sharedPresetList && sharedPresetList.length > 0 && (
                   <div className="stat-picker-list">
                     {sharedPresetList.map(p => (
-                      <div key={p.id} className="stat-picker-item">
-                        <span className="stat-picker-label">
-                          {p.category} / {p.name} / {p.ticket ? `チケット・集計¥${Number(p.ticketValue || 0).toLocaleString()}` : `¥${Number(p.price).toLocaleString()}`}
-                        </span>
-                        <button className="delete-btn" disabled={deleteBusy === p.id} onClick={() => handleDeletePreset(p)}>✕</button>
-                      </div>
+                      editTarget && editTarget.id === p.id ? (
+                        <div key={p.id} className="stat-picker-item" style={{flexDirection:'column', alignItems:'stretch', gap:8}}>
+                          <div className="diff-checker-dept-row">
+                            {CATEGORIES.map(c => (
+                              <button
+                                key={c}
+                                type="button"
+                                className={`diff-checker-dept-btn ${editCategory === c ? 'active' : ''}`}
+                                onClick={() => setEditCategory(c)}
+                              >{c}</button>
+                            ))}
+                          </div>
+                          <input
+                            className="entry-memo diff-checker-input"
+                            placeholder="メニュー名"
+                            value={editName}
+                            onChange={ev => setEditName(ev.target.value)}
+                          />
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            className="entry-memo diff-checker-input"
+                            placeholder={editIsTicket ? '集計に反映する金額（円）' : '金額（円）'}
+                            value={editPrice}
+                            onChange={ev => setEditPrice(ev.target.value)}
+                          />
+                          <label style={{display:'flex', alignItems:'flex-start', gap:8, fontSize:13, color:'var(--muted)', cursor:'pointer'}}>
+                            <input type="checkbox" checked={editIsTicket} onChange={ev => setEditIsTicket(ev.target.checked)} style={{marginTop:2}} />
+                            <span>チケットにする（伝票・日の売上は0円。入力した金額は集計にのみ反映）</span>
+                          </label>
+                          <div style={{display:'flex', gap:8}}>
+                            <button className="menu-add-submit-btn" disabled={editSaving} onClick={handleSaveEdit}>
+                              {editSaving ? '保存中...' : '保存する'}
+                            </button>
+                            <button className="menu-add-reject-btn" disabled={editSaving} onClick={() => setEditTarget(null)}>キャンセル</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div key={p.id} className="stat-picker-item">
+                          <span className="stat-picker-label">
+                            {p.category} / {p.name} / {p.ticket ? `チケット・集計¥${Number(p.ticketValue || 0).toLocaleString()}` : `¥${Number(p.price).toLocaleString()}`}
+                          </span>
+                          <button className="menu-add-reject-btn" disabled={deleteBusy === p.id} onClick={() => startEdit(p)}>編集</button>
+                          <button className="delete-btn" disabled={deleteBusy === p.id} onClick={() => handleDeletePreset(p)}>✕</button>
+                        </div>
+                      )
                     ))}
                   </div>
                 )}
@@ -3788,7 +3926,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 4.52</span>
+              <span className="version">Ver 4.53</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -4346,11 +4484,12 @@
         const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         const removed = await removeObsoletePresets(uid, docs);
         const renamed = await renamePresetsAndBringToTop(uid, docs);
+        const edited = await syncEditedSharedPresets(uid, docs, sharedPresets);
         renameSharedPresets(sharedPresets);
         const cleaned = docs.filter(d => !OBSOLETE_PRESET_NAMES.includes(d.name));
         const addedDefault = await syncMissingDefaultPresets(uid, cleaned);
         const addedShared = await syncMissingSharedPresets(uid, cleaned, sharedPresets);
-        if (addedDefault || addedShared || removed || renamed) {
+        if (addedDefault || addedShared || removed || renamed || edited) {
           const snap2 = await ref.orderBy('createdAt').get();
           setPresets(applyMenuOrder(snap2.docs.map(d => ({ id: d.id, ...d.data() })), menuOrder));
         } else {
@@ -6272,11 +6411,12 @@
         const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         const removed = await removeObsoletePresets(uid, docs);
         const renamed = await renamePresetsAndBringToTop(uid, docs);
+        const edited = await syncEditedSharedPresets(uid, docs, sharedPresets);
         renameSharedPresets(sharedPresets);
         const cleaned = docs.filter(d => !OBSOLETE_PRESET_NAMES.includes(d.name));
         const addedDefault = await syncMissingDefaultPresets(uid, cleaned);
         const addedShared = await syncMissingSharedPresets(uid, cleaned, sharedPresets);
-        if (addedDefault || addedShared || removed || renamed) {
+        if (addedDefault || addedShared || removed || renamed || edited) {
           const snap2 = await ref.orderBy('createdAt').get();
           setPresets(applyMenuOrder(snap2.docs.map(d => ({ id: d.id, ...d.data() })), menuOrder));
         } else {
