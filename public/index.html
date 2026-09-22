@@ -2801,6 +2801,8 @@
   // ※このファイルはブラウザに配信される公開ソースなので、厳密な秘匿はできない
   //   （誤操作・イタズラ防止の合言葉という位置づけ）。
   const MENU_ADD_PASSWORD = '高畠伸明';
+  // メニュー削除・並び替えなど、管理者専用機能でも同じ合言葉を使う
+  const isAdminPassword = (pw) => (pw || '').trim() !== '' && (pw || '').trim() === MENU_ADD_PASSWORD;
 
   const DEFAULT_PRESETS = [
     // ボディケア
@@ -3080,6 +3082,42 @@
     await batch.commit().catch(() => {});
   };
 
+  // 管理者が「メニュー追加」から削除した、アプリ上で追加された独自メニューの名前一覧。
+  // DEFAULT_PRESETS（コード内の既定メニュー）と同じく、過去の伝票が参照しているので
+  // 各ユーザーの presets からは消さず、選択肢から外す（提出タブではその月に使われていれば表示は残す）。
+  const RETIRED_NAMES_DOC = () => db.collection('sharedMeta').doc('retiredPresetNames');
+  const fetchDynamicRetiredNames = async () => {
+    const snap = await RETIRED_NAMES_DOC().get();
+    return (snap.exists && Array.isArray(snap.data().names)) ? snap.data().names : [];
+  };
+  // sharedPresets からは完全に削除する（以後、新しく入るスタッフにも配布されないように）
+  const retireSharedPreset = async (preset) => {
+    await RETIRED_NAMES_DOC().set(
+      { names: firebase.firestore.FieldValue.arrayUnion(preset.name) },
+      { merge: true }
+    );
+    await db.collection('sharedPresets').doc(preset.id).delete();
+  };
+
+  // 管理者が並び替えた、提出タブ（および伝票追加のメニュー選択）のメニュー表示順。
+  // 全員で共有する1件のドキュメントに、表示させたい順の名前リストを保存する。
+  const MENU_ORDER_DOC = () => db.collection('sharedMeta').doc('menuOrder');
+  const fetchMenuOrder = async () => {
+    const snap = await MENU_ORDER_DOC().get();
+    return (snap.exists && Array.isArray(snap.data().names)) ? snap.data().names : [];
+  };
+  const saveMenuOrder = (names) => MENU_ORDER_DOC().set({ names }, { merge: true });
+  // orderNames に載っている項目はその順に、載っていない項目は元の順のまま末尾に並べる
+  const applyMenuOrder = (list, orderNames) => {
+    if (!orderNames || !orderNames.length) return list;
+    const idx = new Map(orderNames.map((n, i) => [n, i]));
+    return [...list].sort((a, b) => {
+      const ai = idx.has(a.name) ? idx.get(a.name) : Infinity;
+      const bi = idx.has(b.name) ? idx.get(b.name) : Infinity;
+      return ai - bi;
+    });
+  };
+
   // ハンバーガーメニューの「メニュー追加」で管理者が登録した、全員向けの共有メニュー一覧。
   // DEFAULT_PRESETS（コード内の既定メニュー）とは別に、Firestore の sharedPresets に貯まっていく。
   const fetchSharedPresets = async () => {
@@ -3316,7 +3354,29 @@
     const [message, setMessage] = useState('');
     const [busy, setBusy] = useState(false);
     const [pendingRequests, setPendingRequests] = useState(null);
-    const isAdmin = password.trim() !== '' && password.trim() === MENU_ADD_PASSWORD;
+    const [sharedPresetList, setSharedPresetList] = useState(null);
+    const [deleteBusy, setDeleteBusy] = useState(null); // 削除処理中のプリセットID
+    const isAdmin = isAdminPassword(password);
+
+    useEffect(() => {
+      if (!isAdmin) { setSharedPresetList(null); return; }
+      let cancelled = false;
+      fetchSharedPresets().then(list => { if (!cancelled) setSharedPresetList(list); });
+      return () => { cancelled = true; };
+    }, [isAdmin]);
+
+    const handleDeletePreset = async (preset) => {
+      if (!window.confirm(`「${preset.name}」を削除します。よろしいですか？\n（過去の伝票データは残ります。今後、追加・選択はできなくなります）`)) return;
+      setDeleteBusy(preset.id);
+      try {
+        await retireSharedPreset(preset);
+        setSharedPresetList(prev => (prev || []).filter(p => p.id !== preset.id));
+      } catch (err) {
+        setMessage('削除に失敗しました。通信状況を確認してもう一度お試しください。');
+      } finally {
+        setDeleteBusy(null);
+      }
+    };
 
     useEffect(() => {
       if (!isAdmin) { setPendingRequests(null); return; }
@@ -3461,6 +3521,120 @@
               ))}
             </div>
           )}
+
+          {isAdmin && (
+            <div style={{marginTop:20}}>
+              <div className="diff-checker-section-title">登録済みメニューの削除（{sharedPresetList ? sharedPresetList.length : 0}件）</div>
+              <div className="confirm-note" style={{marginBottom:10}}>
+                アプリ上で追加したメニューのみ削除できます（最初から入っているメニューは対象外）。削除しても過去の伝票データは残ります。
+              </div>
+              {sharedPresetList === null && <div className="confirm-note">読み込み中...</div>}
+              {sharedPresetList && sharedPresetList.length === 0 && <div className="confirm-note">削除できるメニューはありません</div>}
+              {sharedPresetList && sharedPresetList.length > 0 && (
+                <div className="stat-picker-list">
+                  {sharedPresetList.map(p => (
+                    <div key={p.id} className="stat-picker-item">
+                      <span className="stat-picker-label">{p.category} / {p.name} / ¥{Number(p.price).toLocaleString()}</span>
+                      <button className="delete-btn" disabled={deleteBusy === p.id} onClick={() => handleDeletePreset(p)}>✕</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // 提出タブ（および伝票追加のメニュー選択）の並び順を変更する、管理者専用モーダル。
+  // カテゴリーごとに▲▼で入れ替え、保存すると全員に反映される（sharedMeta/menuOrder に保存）。
+  function MenuOrderModal({ presets, onClose }) {
+    const [password, setPassword] = useState('');
+    const isAdmin = isAdminPassword(password);
+    const [catOrders, setCatOrders] = useState(() => {
+      const groups = groupByCategory(presets.filter(p => !isRetiredMenu(p.name)));
+      const o = {};
+      groups.forEach(g => { o[g.category] = g.items.map(p => p.name); });
+      return o;
+    });
+    const [saving, setSaving] = useState(false);
+    const [message, setMessage] = useState('');
+
+    const move = (category, name, dir) => {
+      setCatOrders(prev => {
+        const list = prev[category] || [];
+        const i = list.indexOf(name);
+        const j = i + dir;
+        if (i < 0 || j < 0 || j >= list.length) return prev;
+        const next = [...list];
+        [next[i], next[j]] = [next[j], next[i]];
+        return { ...prev, [category]: next };
+      });
+    };
+
+    const handleSave = async () => {
+      setSaving(true);
+      setMessage('');
+      try {
+        const flat = [...CATEGORIES, UNCATEGORIZED].flatMap(c => catOrders[c] || []);
+        await saveMenuOrder(flat);
+        setMessage('✅ 並び順を保存しました。次回の読み込みから全員に反映されます。');
+      } catch (err) {
+        setMessage('保存に失敗しました。通信状況を確認してもう一度お試しください。');
+      } finally {
+        setSaving(false);
+      }
+    };
+
+    return (
+      <div className="add-modal-overlay center-modal" onClick={onClose}>
+        <div className="add-modal center-modal" onClick={ev => ev.stopPropagation()}>
+          <div className="add-modal-header">
+            <h2>提出タブの並び替え</h2>
+            <button className="add-modal-close" onClick={onClose}>✕</button>
+          </div>
+          {!isAdmin && (
+            <>
+              <div className="confirm-note" style={{marginBottom:10}}>管理者の合言葉を入力してください。</div>
+              <input
+                type="text"
+                autoCapitalize="off"
+                autoCorrect="off"
+                className="entry-memo diff-checker-input"
+                placeholder="合言葉"
+                value={password}
+                onChange={ev => setPassword(ev.target.value)}
+              />
+            </>
+          )}
+          {isAdmin && (
+            <>
+              <div className="confirm-note" style={{marginBottom:10}}>
+                ▲▼で並び順を変更し、保存を押してください（保存すると全員の提出タブ・メニュー選択に反映されます）。
+              </div>
+              {Object.keys(catOrders).map(cat => (
+                <div key={cat} style={{marginBottom:16}}>
+                  <div className="diff-checker-section-title">{cat}</div>
+                  <div className="stat-picker-list">
+                    {catOrders[cat].map((name, pos) => (
+                      <div key={name} className="stat-picker-item">
+                        <span className="stat-picker-label">{name}</span>
+                        <div className="reorder-btns">
+                          <button className="reorder-btn" disabled={pos === 0} onClick={() => move(cat, name, -1)}>▲</button>
+                          <button className="reorder-btn" disabled={pos === catOrders[cat].length - 1} onClick={() => move(cat, name, 1)}>▼</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              {message && <div className="confirm-note" style={{marginBottom:10}}>{message}</div>}
+              <button className="menu-add-submit-btn" disabled={saving} onClick={handleSave}>
+                {saving ? '保存中...' : '保存する'}
+              </button>
+            </>
+          )}
         </div>
       </div>
     );
@@ -3583,7 +3757,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 4.49</span>
+              <span className="version">Ver 4.50</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -4069,6 +4243,7 @@
     const [openDataPanels, setOpenDataPanels] = useState(new Set()); // データボタンで開いている伝票ID
     const [entries, setEntries] = useState([]);
     const [presets, setPresets] = useState([]);
+    const [dynamicRetiredNames, setDynamicRetiredNames] = useState(new Set()); // 管理者が削除した独自メニュー名
     const [submittedDates, setSubmittedDates] = useState(new Set());
     const [editConfirmed, setEditConfirmed] = useState(new Set());
     const [writeError, setWriteError] = useState(''); // 伝票の保存に失敗したときの警告
@@ -4120,8 +4295,14 @@
       const ref = db.collection('users').doc(uid).collection('presets');
       ref.orderBy('createdAt').get().then(async snap => {
         const sharedPresets = await fetchSharedPresets().catch(() => []);
+        const [menuOrder, retiredNames] = await Promise.all([
+          fetchMenuOrder().catch(() => []),
+          fetchDynamicRetiredNames().catch(() => []),
+        ]);
+        setDynamicRetiredNames(new Set(retiredNames));
         if (snap.empty) {
-          setPresets(sharedPresets.length ? [...DEFAULT_PRESETS, ...sharedPresets] : DEFAULT_PRESETS);
+          const base = sharedPresets.length ? [...DEFAULT_PRESETS, ...sharedPresets] : DEFAULT_PRESETS;
+          setPresets(applyMenuOrder(base, menuOrder));
           return;
         }
         const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -4133,9 +4314,9 @@
         const addedShared = await syncMissingSharedPresets(uid, cleaned, sharedPresets);
         if (addedDefault || addedShared || removed || renamed) {
           const snap2 = await ref.orderBy('createdAt').get();
-          setPresets(snap2.docs.map(d => ({ id: d.id, ...d.data() })));
+          setPresets(applyMenuOrder(snap2.docs.map(d => ({ id: d.id, ...d.data() })), menuOrder));
         } else {
-          setPresets(cleaned);
+          setPresets(applyMenuOrder(cleaned, menuOrder));
         }
       });
     }, [uid]);
@@ -4605,8 +4786,8 @@
     const total = subtotal - discountAmount + extraTotal;
     const totalNoDisc = subtotal + extraTotal;
 
-    // 提供終了メニューは伝票から選べないようにする（過去データはそのまま残る）
-    const groups = groupByCategory(presets.filter(p => !isRetiredMenu(p.name)));
+    // 提供終了メニュー・管理者が削除した独自メニューは伝票から選べないようにする（過去データはそのまま残る）
+    const groups = groupByCategory(presets.filter(p => !isRetiredMenu(p.name) && !dynamicRetiredNames.has(p.name)));
     const deptNames = groups.map(g => g.category);
     const activeDept = deptNames.includes(dept) ? dept : (deptNames[0] || dept);
     const deptItems = (groups.find(g => g.category === activeDept) || { items: [] }).items;
@@ -5989,6 +6170,7 @@
     const [month, setMonth] = useState(now.getUTCMonth() + 1);
     const [entries, setEntries] = useState([]);
     const [presets, setPresets] = useState([]);
+    const [dynamicRetiredNames, setDynamicRetiredNames] = useState(new Set()); // 管理者が削除した独自メニュー名
     const [loading, setLoading] = useState(true);
     const todayDay = (year === now.getUTCFullYear() && month === now.getUTCMonth() + 1)
       ? now.getUTCDate() : -1;
@@ -5997,6 +6179,7 @@
     const [sendResult, setSendResult] = useState(null);
     const [sendErrMsg, setSendErrMsg] = useState('');
     const [sentDates, setSentDates] = useState(new Set());
+    const [showOrderModal, setShowOrderModal] = useState(false); // 並び替え（管理者専用）モーダル
 
     // 表の上に出す合計（J・P）の実高さを測定してスクロール領域の高さ計算に反映
     // （Android で表の下が隠れる対策）
@@ -6035,8 +6218,14 @@
       const ref = db.collection('users').doc(uid).collection('presets');
       ref.orderBy('createdAt').get().then(async snap => {
         const sharedPresets = await fetchSharedPresets().catch(() => []);
+        const [menuOrder, retiredNames] = await Promise.all([
+          fetchMenuOrder().catch(() => []),
+          fetchDynamicRetiredNames().catch(() => []),
+        ]);
+        setDynamicRetiredNames(new Set(retiredNames));
         if (snap.empty) {
-          setPresets(sharedPresets.length ? [...DEFAULT_PRESETS, ...sharedPresets] : DEFAULT_PRESETS);
+          const base = sharedPresets.length ? [...DEFAULT_PRESETS, ...sharedPresets] : DEFAULT_PRESETS;
+          setPresets(applyMenuOrder(base, menuOrder));
           return;
         }
         const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -6048,9 +6237,9 @@
         const addedShared = await syncMissingSharedPresets(uid, cleaned, sharedPresets);
         if (addedDefault || addedShared || removed || renamed) {
           const snap2 = await ref.orderBy('createdAt').get();
-          setPresets(snap2.docs.map(d => ({ id: d.id, ...d.data() })));
+          setPresets(applyMenuOrder(snap2.docs.map(d => ({ id: d.id, ...d.data() })), menuOrder));
         } else {
-          setPresets(cleaned);
+          setPresets(applyMenuOrder(cleaned, menuOrder));
         }
       });
     }, [uid]);
@@ -6138,10 +6327,11 @@
     });
     const rowOf = (name, t) => agg[`${name}||${t.type}|${t.tier}`] || {};
 
-    // 提供終了メニューは、その月に実際に使われている場合だけ表に残す
+    // 提供終了メニュー・管理者が削除した独自メニューは、その月に実際に使われている場合だけ表に残す
     // （過去の月の行と合計が消えないようにするため）
     const usedNames = new Set(entries.map(e => aliasOf(e.name).name));
-    const groups = groupByCategory(presets.filter(p => !isRetiredMenu(p.name) || usedNames.has(p.name)));
+    const isHiddenMenu = (name) => isRetiredMenu(name) || dynamicRetiredNames.has(name);
+    const groups = groupByCategory(presets.filter(p => !isHiddenMenu(p.name) || usedNames.has(p.name)));
     const deptNames = groups.map(g => g.category);
     const activeDept = deptNames.includes(dept) ? dept : (deptNames[0] || dept);
     const deptItems = (groups.find(g => g.category === activeDept) || { items: [] }).items;
@@ -6350,6 +6540,14 @@
         </div>
 
         <div className="submit-mistake-note">ミス防止の為、伝票の金額とPMの金額を必ず確認してください。</div>
+
+        <div style={{textAlign:'right', marginBottom:8}}>
+          <button className="today-back-btn" onClick={() => setShowOrderModal(true)}>並び替え（管理者用）</button>
+        </div>
+
+        {showOrderModal && (
+          <MenuOrderModal presets={presets} onClose={() => setShowOrderModal(false)} />
+        )}
 
         {loading
           ? <div className="loading">読み込み中...</div>

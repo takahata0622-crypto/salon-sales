@@ -19,6 +19,12 @@ service cloud.firestore {
       allow read, write: if request.auth != null;
     }
 
+    // 全員で共有するアプリ設定（メニューの並び順・削除した独自メニュー名など）
+    // sharedPresets と同様、合言葉チェックはアプリ側で行う
+    match /sharedMeta/{docId} {
+      allow read, write: if request.auth != null;
+    }
+
     match /submitLog/{date} {
       allow read:   if request.auth != null;
       allow create: if request.auth != null;
