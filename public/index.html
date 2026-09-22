@@ -3136,7 +3136,7 @@
     const base = Date.now();
     const batch = db.batch();
     missing.forEach((sp, i) => {
-      batch.set(col.doc(), { name: sp.name, price: sp.price, category: sp.category, createdAt: base + i });
+      batch.set(col.doc(), { name: sp.name, price: sp.price, category: sp.category, ticket: !!sp.ticket, ticketValue: sp.ticketValue || 0, createdAt: base + i });
     });
     await batch.commit();
     return true;
@@ -3350,6 +3350,7 @@
     const [category, setCategory] = useState(dept);
     const [name, setName] = useState('');
     const [price, setPrice] = useState('');
+    const [isTicket, setIsTicket] = useState(false); // チケット扱い（伝票は0円・集計にのみ金額を反映）
     const [password, setPassword] = useState('');
     const [message, setMessage] = useState('');
     const [busy, setBusy] = useState(false);
@@ -3359,30 +3360,35 @@
       const trimmedName = name.trim();
       const priceNum = Number(price);
       if (!trimmedName || !priceNum || priceNum <= 0) {
-        setMessage('メニュー名と金額を正しく入力してください');
+        setMessage(isTicket ? 'メニュー名と、集計に反映する金額を正しく入力してください' : 'メニュー名と金額を正しく入力してください');
         return;
       }
       setBusy(true);
       setMessage('');
+      // チケット扱いのときは、伝票・日の売上には0円で記録し、入力した金額は
+      // 集計（支給見込み）にのみ ticketValue として反映する（初売りチケットと同じ考え方）。
+      const finalPrice = isTicket ? 0 : priceNum;
+      const ticketValue = isTicket ? priceNum : 0;
       try {
         if (isAdmin) {
           await db.collection('sharedPresets').add({
-            name: trimmedName, price: priceNum, category,
+            name: trimmedName, price: finalPrice, category, ticket: isTicket, ticketValue,
             addedBy: userName || '', createdAt: firebase.firestore.FieldValue.serverTimestamp(),
           });
           await db.collection('users').doc(uid).collection('presets').add({
-            name: trimmedName, price: priceNum, category, createdAt: Date.now(),
+            name: trimmedName, price: finalPrice, category, ticket: isTicket, ticketValue, createdAt: Date.now(),
           });
           setMessage('✅ メニューを追加しました。全員のメニューにも次回起動時から反映されます。');
         } else {
           await db.collection('menuRequests').add({
-            name: trimmedName, price: priceNum, category,
+            name: trimmedName, price: finalPrice, category, ticket: isTicket, ticketValue,
             requestedBy: userName || '', status: 'pending', createdAt: firebase.firestore.FieldValue.serverTimestamp(),
           });
           setMessage('📩 メニュー追加希望を送信しました。管理者の確認をお待ちください。');
         }
         setName('');
         setPrice('');
+        setIsTicket(false);
       } catch (err) {
         setMessage('送信に失敗しました。通信状況を確認してもう一度お試しください。');
       } finally {
@@ -3420,10 +3426,14 @@
             type="number"
             inputMode="numeric"
             className="entry-memo diff-checker-input"
-            placeholder="金額（円）"
+            placeholder={isTicket ? '集計に反映する金額（円）' : '金額（円）'}
             value={price}
             onChange={ev => setPrice(ev.target.value)}
           />
+          <label style={{display:'flex', alignItems:'flex-start', gap:8, margin:'4px 2px 10px', fontSize:13, color:'var(--muted)', cursor:'pointer'}}>
+            <input type="checkbox" checked={isTicket} onChange={ev => setIsTicket(ev.target.checked)} style={{marginTop:2}} />
+            <span>チケットにする（伝票・日の売上は0円になります。入力した金額は集計（支給見込み）にのみ反映されます）</span>
+          </label>
           <input
             type="text"
             autoCapitalize="off"
@@ -3472,11 +3482,11 @@
       setBusy(true);
       try {
         await db.collection('sharedPresets').add({
-          name: req.name, price: req.price, category: req.category,
+          name: req.name, price: req.price, category: req.category, ticket: !!req.ticket, ticketValue: req.ticketValue || 0,
           addedBy: `申請承認：${req.requestedBy || '不明'}`, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         });
         await db.collection('users').doc(uid).collection('presets').add({
-          name: req.name, price: req.price, category: req.category, createdAt: Date.now(),
+          name: req.name, price: req.price, category: req.category, ticket: !!req.ticket, ticketValue: req.ticketValue || 0, createdAt: Date.now(),
         });
         await db.collection('menuRequests').doc(req.id).update({ status: 'approved' });
         setPendingRequests(prev => (prev || []).filter(r => r.id !== req.id));
@@ -3591,7 +3601,9 @@
                 {pendingRequests && pendingRequests.map(r => (
                   <div key={r.id} className="menu-add-request-item">
                     <div>
-                      <div className="menu-add-request-name">{r.category} / {r.name} / ¥{Number(r.price).toLocaleString()}</div>
+                      <div className="menu-add-request-name">
+                        {r.category} / {r.name} / {r.ticket ? `チケット・集計¥${Number(r.ticketValue || 0).toLocaleString()}` : `¥${Number(r.price).toLocaleString()}`}
+                      </div>
                       <div className="menu-add-request-meta">申請者：{r.requestedBy || '不明'}</div>
                     </div>
                     <div className="menu-add-request-actions">
@@ -3613,7 +3625,9 @@
                   <div className="stat-picker-list">
                     {sharedPresetList.map(p => (
                       <div key={p.id} className="stat-picker-item">
-                        <span className="stat-picker-label">{p.category} / {p.name} / ¥{Number(p.price).toLocaleString()}</span>
+                        <span className="stat-picker-label">
+                          {p.category} / {p.name} / {p.ticket ? `チケット・集計¥${Number(p.ticketValue || 0).toLocaleString()}` : `¥${Number(p.price).toLocaleString()}`}
+                        </span>
                         <button className="delete-btn" disabled={deleteBusy === p.id} onClick={() => handleDeletePreset(p)}>✕</button>
                       </div>
                     ))}
@@ -3774,7 +3788,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 4.51</span>
+              <span className="version">Ver 4.52</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -4428,14 +4442,14 @@
       return ok;
     };
 
-    const addEntry = async (name, price) => {
+    const addEntry = async (name, price, ticketValue) => {
       if (!name || price == null || price === '') return;
       if (!confirmEditIfSubmitted()) return;
       try {
         // 親ドキュメントを作成（集計で日付が拾えるように）
         await dayRef().set({ date: today }, { merge: true });
         const ref = await dayRef().collection('entries')
-          .add({ name, price: Number(price), lodging: false, discount: false, extMin: 0, shimei: false, seibetsu: false, ganseihirou: false, point20: false, customerName: '', customerId: '', customerIsNew: null, gender: '', condition: '', todayCondition: '', createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+          .add({ name, price: Number(price), ticketValue: Number(ticketValue) || 0, lodging: false, discount: false, extMin: 0, shimei: false, seibetsu: false, ganseihirou: false, point20: false, customerName: '', customerId: '', customerIsNew: null, gender: '', condition: '', todayCondition: '', createdAt: firebase.firestore.FieldValue.serverTimestamp() });
         markNew(ref.id);
         showAddedToast(name);
       } catch (err) {
@@ -4444,9 +4458,9 @@
     };
 
     // 伝票のコース（名前・金額）を選び直す
-    const changeEntryCourse = (id, name, price) => {
+    const changeEntryCourse = (id, name, price, ticketValue) => {
       if (!confirmEditIfSubmitted()) return;
-      writeEntry(id, { name, price: Number(price) });
+      writeEntry(id, { name, price: Number(price), ticketValue: Number(ticketValue) || 0 });
       const target = entries.find(x => x.id === id);
       if (target) syncEntryToKarte({ ...target, name });
     };
@@ -4865,7 +4879,7 @@
               </div>
               <div className="preset-grid">
                 {deptItems.map(p => (
-                  <button key={p.id} className="preset-btn" onClick={() => { changeEntryId ? changeEntryCourse(changeEntryId, p.name, p.price) : addEntry(p.name, p.price); closeAddModal(); }}>
+                  <button key={p.id} className="preset-btn" onClick={() => { changeEntryId ? changeEntryCourse(changeEntryId, p.name, p.price, p.ticketValue) : addEntry(p.name, p.price, p.ticketValue); closeAddModal(); }}>
                     <span className="course-name">{p.name}</span>
                     <span className="course-price">{formatPrice(p.price)}</span>
                   </button>
@@ -5099,7 +5113,9 @@
     const ticketCount = days.reduce((s, d) => s + d.entries.filter(e => isBodyTicket(e.name)).length, 0);
     // ポイント20分も同じく売上0だが、1件¥2,700を歩合対象に含める
     const point20Count = days.reduce((s, d) => s + d.entries.filter(e => e.point20).length, 0);
-    const ticketSalaryBase = ticketCount * TICKET_SALARY + point20Count * POINT20_SALARY;
+    // 管理者が「チケット」として追加した独自メニューも、同じく売上0円だが集計（支給見込み）には反映する
+    const customTicketTotal = days.reduce((s, d) => s + d.entries.reduce((t, e) => t + (e.ticketValue || 0), 0), 0);
+    const ticketSalaryBase = ticketCount * TICKET_SALARY + point20Count * POINT20_SALARY + customTicketTotal;
     // 歩合の対象額（指名料・男女希望を除いた売上＋チケット・ポイント給料分）
     const commissionBase = monthTotal - shimeiTotal - seibetsuTotal + ticketSalaryBase;
     const payEstimate = commission > 0 ? Math.round(commissionBase * (commission / 100)) + shimeiTotal : 0;
@@ -5218,9 +5234,11 @@
           days.forEach(d => {
             const dn = parseInt(d.date.slice(8, 10), 10);
             if (dn >= 1 && dn <= dim) {
-              // 歩合対象の加算込み：初売りチケット 1枚=5,000円、ポイント20分 1件=2,700円を当日分に加算
+              // 歩合対象の加算込み：初売りチケット 1枚=5,000円、ポイント20分 1件=2,700円、
+              // 管理者追加の「チケット」メニューは1件ごとの ticketValue を当日分に加算
               const ticketsForDay = (d.entries || []).filter(e => isBodyTicket(e.name)).length * TICKET_SALARY
-                + (d.entries || []).filter(e => e.point20).length * POINT20_SALARY;
+                + (d.entries || []).filter(e => e.point20).length * POINT20_SALARY
+                + (d.entries || []).reduce((t, e) => t + (e.ticketValue || 0), 0);
               daily[dn - 1] = d.subtotal + d.extraTotal + ticketsForDay;
             }
           });
