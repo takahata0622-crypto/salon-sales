@@ -3204,6 +3204,33 @@
     return true;
   };
 
+  // 同じ名前のプリセットが重複してしまった分の後始末（例：「ライトプラン」を
+  // 「ボディケア20分」に改名する処理と、共有メニューの補完処理が同じ読み込みの中で
+  // 両方走ったとき、改名直後の古いデータを見て「まだ持っていない」と誤判定し、
+  // 補完側がもう一つ追加してしまうことがあった）。
+  // 同名のものが複数あれば、一番古い（createdAtが小さい）1件だけ残して残りを削除する。
+  // 伝票（entries）は名前を控えとして保存しているだけでプリセットのIDを参照していないため、
+  // 重複分を削除しても過去の伝票・提出タブの内容には影響しない。
+  const dedupePresetsByName = async (uid, storedDocs) => {
+    const byName = new Map();
+    storedDocs.forEach(d => {
+      const list = byName.get(d.name) || [];
+      list.push(d);
+      byName.set(d.name, list);
+    });
+    const col = db.collection('users').doc(uid).collection('presets');
+    const batch = db.batch();
+    let changed = false;
+    byName.forEach(list => {
+      if (list.length <= 1) return;
+      const sorted = [...list].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+      sorted.slice(1).forEach(d => { batch.delete(col.doc(d.id)); changed = true; });
+    });
+    if (!changed) return false;
+    await batch.commit();
+    return true;
+  };
+
   // ==================== コンポーネント ====================
 
   // 大部門の切り替えタブ
@@ -3994,7 +4021,7 @@
           <header>
             <h1><span className="leaf-icon">🌿</span><span className="title-text">B-one</span></h1>
             <div className="header-right">
-              <span className="version">Ver 4.54</span>
+              <span className="version">Ver 4.55</span>
               <button className="logout-btn menu-btn" onClick={() => setShowMenu(true)} aria-label="メニュー">☰</button>
             </div>
           </header>
@@ -4557,10 +4584,22 @@
         const renamed = await renamePresetsAndBringToTop(uid, docs);
         const edited = await syncEditedSharedPresets(uid, docs, sharedPresets);
         renameSharedPresets(sharedPresets);
-        const cleaned = docs.filter(d => !OBSOLETE_PRESET_NAMES.includes(d.name));
+        // 改名・編集をした直後は docs がまだ古い内容のままなので、そのまま次の「補完」判定に
+        // 使うと「まだ持っていない」と誤判定して重複追加してしまう。変更があれば読み直す。
+        let workingDocs = docs;
+        if (removed || renamed || edited) {
+          const freshSnap = await ref.orderBy('createdAt').get();
+          workingDocs = freshSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        }
+        const deduped = await dedupePresetsByName(uid, workingDocs);
+        if (deduped) {
+          const freshSnap2 = await ref.orderBy('createdAt').get();
+          workingDocs = freshSnap2.docs.map(d => ({ id: d.id, ...d.data() }));
+        }
+        const cleaned = workingDocs.filter(d => !OBSOLETE_PRESET_NAMES.includes(d.name));
         const addedDefault = await syncMissingDefaultPresets(uid, cleaned);
         const addedShared = await syncMissingSharedPresets(uid, cleaned, sharedPresets);
-        if (addedDefault || addedShared || removed || renamed || edited) {
+        if (addedDefault || addedShared || removed || renamed || edited || deduped) {
           const snap2 = await ref.orderBy('createdAt').get();
           setPresets(applyMenuOrder(snap2.docs.map(d => ({ id: d.id, ...d.data() })), menuOrder));
         } else {
@@ -6492,10 +6531,22 @@
         const renamed = await renamePresetsAndBringToTop(uid, docs);
         const edited = await syncEditedSharedPresets(uid, docs, sharedPresets);
         renameSharedPresets(sharedPresets);
-        const cleaned = docs.filter(d => !OBSOLETE_PRESET_NAMES.includes(d.name));
+        // 改名・編集をした直後は docs がまだ古い内容のままなので、そのまま次の「補完」判定に
+        // 使うと「まだ持っていない」と誤判定して重複追加してしまう。変更があれば読み直す。
+        let workingDocs = docs;
+        if (removed || renamed || edited) {
+          const freshSnap = await ref.orderBy('createdAt').get();
+          workingDocs = freshSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        }
+        const deduped = await dedupePresetsByName(uid, workingDocs);
+        if (deduped) {
+          const freshSnap2 = await ref.orderBy('createdAt').get();
+          workingDocs = freshSnap2.docs.map(d => ({ id: d.id, ...d.data() }));
+        }
+        const cleaned = workingDocs.filter(d => !OBSOLETE_PRESET_NAMES.includes(d.name));
         const addedDefault = await syncMissingDefaultPresets(uid, cleaned);
         const addedShared = await syncMissingSharedPresets(uid, cleaned, sharedPresets);
-        if (addedDefault || addedShared || removed || renamed || edited) {
+        if (addedDefault || addedShared || removed || renamed || edited || deduped) {
           const snap2 = await ref.orderBy('createdAt').get();
           setPresets(applyMenuOrder(snap2.docs.map(d => ({ id: d.id, ...d.data() })), menuOrder));
         } else {
