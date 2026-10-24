@@ -9,6 +9,7 @@
 ## ビルド（高速化のための事前変換）
 
 - 編集するのは今まで通り **`public/index.html` の1ファイルだけ**（JSX は `<script type="text/babel">` のまま書いてよい）
+  - 例外：PWA関連（`public/manifest.json`・`public/sw.js`・`public/icons/`）とデプロイ設定（`firebase.json`）は別ファイルとして存在する。これらはアプリの基本設定であり、普段の機能追加・修正では触らない
 - デプロイ時、GitHub Actions が `npm run build`（`build.mjs`）を実行し、配信用の `dist/` を生成する
   - `index.html` 内の JSX を **esbuild で事前に JS へ変換** → `dist/app.js`
   - ブラウザ内 Babel 変換（`babel.min.js` 約2.8MB）を読み込まなくなり、初回表示が速くなる
@@ -31,3 +32,12 @@
   - 例：コマンドの説明（「ビルドして動作確認」「main にコミット＆プッシュ」など）も日本語にする
   - コードの変数名・関数名や、コマンド自体（`git`、`npm run build` など）は動作のため英語のままでよいが、内容は日本語で補足する
 - コミットメッセージは日本語のまま
+
+## アプリ化（PWA）
+
+- スマホのホーム画面に追加すると、ブラウザの枠なしでアプリのように起動できる（Add to Home Screen）
+- `public/manifest.json`：アプリ名・アイコン・テーマカラーなどの設定
+- `public/sw.js`：インストール判定のためだけの最小限の Service Worker。**キャッシュはしない**（金額計算を含むアプリなので、常に最新のコードを使わせるため）
+- `public/icons/`：アイコン画像（🌿のリーフを使った192/512/maskable/Apple用/favicon）
+- ネイティブアプリ化（App Store / Google Play への申請）はしていない
+
